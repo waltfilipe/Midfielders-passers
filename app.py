@@ -213,12 +213,8 @@ PLAYER_ANALYSIS_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str] | None, st
     ("am", "Attacking Midfielders", None, "attacking_midfielders"),
 )
 SCATTER_POSITION_BLOCKS: tuple[tuple[str, str, frozenset[str] | None, str | None], ...] = (
-    ("cb", "Center Backs", frozenset({"CB", "RCB", "LCB"}), "centerbacks"),
-    ("fb", "Fullbacks", frozenset({"RB", "LB", "RWB", "LWB"}), "fullbacks"),
     ("cm", "Central Midfielders", None, "central_midfielders"),
     ("am", "Attacking Midfielders", None, "attacking_midfielders"),
-    ("wg", "Wingers", frozenset({"RW", "LW", "RM", "LM", "RCF", "LCF"}), "wingers"),
-    ("st", "Strikers", frozenset({"ST", "CF", "SS"}), "strikers"),
 )
 PLAYER_POSITION_BLOCK_BY_ID: dict[str, tuple[str, frozenset[str] | None, str | None]] = {
     block_id: (label, codes, rating_group)
@@ -4770,6 +4766,20 @@ def load_player_analysis_bundle(
 
 
 PLAYER_ANALYSIS_BUNDLE_KEY = "player_analysis_bundle"
+EUROPEAN_MIDFIELDER_LOAD_MSG = (
+    "Premier League, Serie A (Italy) and La Liga midfielders. "
+    "Load this pool on demand to keep the app startup light."
+)
+
+
+def _european_midfielder_bundle_or_prompt(*, button_key: str) -> tuple | None:
+    if PLAYER_ANALYSIS_BUNDLE_KEY not in st.session_state:
+        st.info(f"**European midfielders** — {EUROPEAN_MIDFIELDER_LOAD_MSG}")
+        if st.button("Load European midfielders", key=button_key, type="primary"):
+            st.session_state[PLAYER_ANALYSIS_BUNDLE_KEY] = load_player_analysis_bundle()
+            st.rerun()
+        return None
+    return st.session_state[PLAYER_ANALYSIS_BUNDLE_KEY]
 
 
 def _norm(s: str) -> str:
@@ -10018,46 +10028,41 @@ def main() -> None:
             xp_players=xp_players,
         )
     with tab_analysis:
-        if PLAYER_ANALYSIS_BUNDLE_KEY not in st.session_state:
-            st.info(
-                "Player Analysis covers midfielders from **Premier League**, "
-                "**Serie A (Italy)** and **La Liga**. "
-                "Load this pool on demand to keep the app startup light."
+        bundle = _european_midfielder_bundle_or_prompt(button_key="load_pa_bundle")
+        if bundle:
+            (
+                pa_players,
+                pa_passes_by_player,
+                pa_progression_by_id,
+                pa_players_by_id,
+                pa_carries_by_id,
+                pa_progression_pool_by_position,
+                pa_pool_by_position,
+                pa_carries_pool_by_position,
+                pa_xp_by_id,
+            ) = bundle
+            render_player_analysis_section(
+                pa_players,
+                [],
+                pa_passes_by_player,
+                {},
+                pa_progression_by_id,
+                pa_players_by_id,
+                pa_carries_by_id,
+                pa_progression_pool_by_position,
+                pa_pool_by_position,
+                pa_carries_pool_by_position,
+                xp_by_id=pa_xp_by_id,
             )
-            if st.button("Load European midfielders", key="load_pa_bundle", type="primary"):
-                st.session_state[PLAYER_ANALYSIS_BUNDLE_KEY] = load_player_analysis_bundle()
-                st.rerun()
-            return
-        (
-            pa_players,
-            pa_passes_by_player,
-            pa_progression_by_id,
-            pa_players_by_id,
-            pa_carries_by_id,
-            pa_progression_pool_by_position,
-            pa_pool_by_position,
-            pa_carries_pool_by_position,
-            pa_xp_by_id,
-        ) = st.session_state[PLAYER_ANALYSIS_BUNDLE_KEY]
-        render_player_analysis_section(
-            pa_players,
-            [],
-            pa_passes_by_player,
-            {},
-            pa_progression_by_id,
-            pa_players_by_id,
-            pa_carries_by_id,
-            pa_progression_pool_by_position,
-            pa_pool_by_position,
-            pa_carries_pool_by_position,
-            xp_by_id=pa_xp_by_id,
-        )
     with tab_scatter:
-        render_scatter_section(
-            all_players,
-            progression_by_id,
-            xp_by_id=xp_by_id,
-        )
+        bundle = _european_midfielder_bundle_or_prompt(button_key="load_scatter_bundle")
+        if bundle:
+            pa_players, _, pa_progression_by_id, *_rest, pa_xp_by_id = bundle
+            render_scatter_section(
+                pa_players,
+                pa_progression_by_id,
+                xp_by_id=pa_xp_by_id,
+            )
     with tab_maps:
         render_maps_section(
             all_players,
