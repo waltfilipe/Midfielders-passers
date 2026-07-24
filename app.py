@@ -2979,7 +2979,99 @@ st.markdown(
         padding: 0.2rem 0.7rem;
         font-size: 0.8rem;
         font-weight: 700;
-        margin-left: 0.4rem;
+    }
+    /* Selected-player hero card (right of the filter card) */
+    .pa-hero-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        background: linear-gradient(180deg, rgba(30,41,59,0.55) 0%, rgba(15,23,42,0.35) 100%);
+        border: 1px solid rgba(148,163,184,0.18);
+        border-radius: 16px;
+        padding: 1.1rem 1.25rem;
+        box-shadow: 0 6px 22px rgba(2,6,23,0.28);
+        height: 100%;
+        box-sizing: border-box;
+    }
+    .pa-hero-top {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+    }
+    .pa-hero-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 1.05rem;
+        color: #0f172a;
+        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+        flex-shrink: 0;
+    }
+    .pa-hero-id { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+    .pa-hero-name {
+        font-size: 1.28rem;
+        font-weight: 800;
+        color: #f1f5f9;
+        line-height: 1.15;
+    }
+    .pa-hero-sub { font-size: 0.86rem; color: #94a3b8; font-weight: 600; }
+    .pa-hero-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .pa-hero-kpis {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.6rem;
+        margin-top: auto;
+    }
+    @media (max-width: 900px) {
+        .pa-hero-kpis { grid-template-columns: repeat(2, 1fr); }
+    }
+    .pa-hero-kpi {
+        background: rgba(15,23,42,0.45);
+        border: 1px solid rgba(148,163,184,0.14);
+        border-radius: 12px;
+        padding: 0.6rem 0.7rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+    .pa-hero-kpi-label {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #93a4bc;
+        font-weight: 700;
+    }
+    .pa-hero-kpi-value {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #e2e8f0;
+        line-height: 1.1;
+    }
+    .pa-hero-kpi-value.accent { color: #38bdf8; }
+    /* Compact, left-aligned view toggles under the hero */
+    .st-key-pa_view_toggles { margin-top: 0.7rem; }
+    .pa-view-toggles-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #93a4bc;
+        font-weight: 700;
+        margin-bottom: 0.15rem;
+    }
+    .pa-profile-divider {
+        height: 1px;
+        background: linear-gradient(90deg, rgba(148,163,184,0) 0%, rgba(148,163,184,0.28) 50%, rgba(148,163,184,0) 100%);
+        margin: 1.15rem 0 1.1rem 0;
+    }
+    .st-key-pa_view_toggles [data-testid="stHorizontalBlock"] { gap: 0.9rem; }
+    .st-key-pa_view_toggles [data-testid="column"] {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
     }
     .st-key-pa_slicer_panel {
         margin-top: -0.35rem;
@@ -9298,25 +9390,73 @@ def _render_pa_filter_card(
         return id_by_label.get(selected_label), pool
 
 
-def _pa_selected_summary_html(player: dict, xp_profile: dict | None) -> str:
-    name = html.escape(str(player.get("player_name", "—")))
+def _pa_hero_kpi_html(label: str, value: str, *, accent: bool = False) -> str:
+    cls = "pa-hero-kpi-value accent" if accent else "pa-hero-kpi-value"
+    return (
+        '<div class="pa-hero-kpi">'
+        f'<span class="pa-hero-kpi-label">{html.escape(label)}</span>'
+        f'<span class="{cls}">{html.escape(value)}</span>'
+        "</div>"
+    )
+
+
+def _pa_hero_card_html(player: dict, xp_profile: dict | None) -> str:
+    xp = xp_profile or {}
+    name = str(player.get("player_name", "—"))
     team = html.escape(str(player.get("team", "—")))
-    league = html.escape(str(player.get("league") or (xp_profile or {}).get("league") or "—"))
     pos = html.escape(str(player.get("position", "—")))
-    chips = [f'<span class="pa-selected-chip">{team}</span>', f'<span class="pa-selected-chip">{league}</span>']
+    league = html.escape(str(player.get("league") or xp.get("league") or "—"))
+    initials = "".join(word[0] for word in name.split()[:2]).upper() or "?"
+
+    chips = [f'<span class="pa-selected-chip">{league}</span>']
     age = player.get("age")
     if age is not None:
         chips.append(f'<span class="pa-selected-chip">{int(age)} anos</span>')
-    origin_pct = player.get("midfield_offensive_origin_pct") or (xp_profile or {}).get("midfield_offensive_origin_pct")
-    profile = player.get("midfield_origin_profile") or (xp_profile or {}).get("midfield_origin_profile")
+    origin_pct = player.get("midfield_offensive_origin_pct") or xp.get("midfield_offensive_origin_pct")
+    profile = player.get("midfield_origin_profile") or xp.get("midfield_origin_profile")
     if origin_pct is not None:
         field_label = "campo ofensivo" if profile == "campo_ofensivo" else "campo defensivo"
-        chips.append(f'<span class="pa-selected-chip">{float(origin_pct):.0f}% no ataque · {field_label}</span>')
+        chips.append(
+            f'<span class="pa-selected-chip">{float(origin_pct):.0f}% no ataque · {field_label}</span>'
+        )
+
+    def _int_or_dash(value) -> str:
+        try:
+            return str(int(round(float(value))))
+        except (TypeError, ValueError):
+            return "—"
+
+    rating = xp.get("xp_pass_rating")
+    rating_txt = fmt_rating_score(rating) if rating is not None else "—"
+    minutes_txt = _int_or_dash(player.get("minutes"))
+    passes_txt = _int_or_dash(player.get("passes_completed") or xp.get("passes_completed"))
+    threat_p90 = xp.get("xp_m4_threat_passes_p90")
+    if threat_p90 is None:
+        threat_p90 = player.get("impact_passes_p90")
+    try:
+        threat_txt = f"{float(threat_p90):.1f}" if threat_p90 is not None else "—"
+    except (TypeError, ValueError):
+        threat_txt = "—"
+
+    kpis = "".join([
+        _pa_hero_kpi_html("xP Pass", rating_txt, accent=True),
+        _pa_hero_kpi_html("Minutos", minutes_txt),
+        _pa_hero_kpi_html("Passes", passes_txt),
+        _pa_hero_kpi_html(f"{IMPACT_PASS_ABBR}/90", threat_txt),
+    ])
+
     return (
-        '<div class="pa-ondemand-head">'
-        '<span class="pa-ondemand-ic"><i class="fa-solid fa-user"></i></span>'
-        f"{name} · {pos}</div>"
-        f'<div>{"".join(chips)}</div>'
+        '<div class="pa-hero-card">'
+        '<div class="pa-hero-top">'
+        f'<div class="pa-hero-avatar">{html.escape(initials)}</div>'
+        '<div class="pa-hero-id">'
+        f'<span class="pa-hero-name">{html.escape(name)}</span>'
+        f'<span class="pa-hero-sub">{team} · {pos}</span>'
+        "</div>"
+        "</div>"
+        f'<div class="pa-hero-chips">{"".join(chips)}</div>'
+        f'<div class="pa-hero-kpis">{kpis}</div>'
+        "</div>"
     )
 
 
@@ -9488,7 +9628,7 @@ def render_player_analysis_section(
 
     st.markdown('<div class="pa-shell">', unsafe_allow_html=True)
 
-    filter_col, summary_col = st.columns([0.28, 0.72], gap="large")
+    filter_col, hero_col = st.columns([0.3, 0.7], gap="large")
     with filter_col:
         player_id, pool = _render_pa_filter_card(
             all_players,
@@ -9496,39 +9636,47 @@ def render_player_analysis_section(
             xp_by_id=xp_by_id,
         )
 
-    if not player_id:
-        with summary_col:
-            st.info("Selecione um jogador no card à esquerda para ver a análise.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    player = _resolve_progression_analysis_player(
-        player_id,
-        progression_by_id,
-        pass_by_id,
-        carry_by_id,
-        progression_pool_by_position,
-        pass_pool_by_position,
-        carry_pool_by_position,
-    )
-    if player is None:
-        with summary_col:
-            st.warning("Não foi possível montar o perfil deste jogador.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    player = pp.enrich_player_general_profile(player)
-    xp_profile = (xp_by_id or {}).get(str(player_id))
+    player = None
+    xp_profile = None
+    if player_id:
+        player = _resolve_progression_analysis_player(
+            player_id,
+            progression_by_id,
+            pass_by_id,
+            carry_by_id,
+            progression_pool_by_position,
+            pass_pool_by_position,
+            carry_pool_by_position,
+        )
+        if player is not None:
+            player = pp.enrich_player_general_profile(player)
+            xp_profile = (xp_by_id or {}).get(str(player_id))
 
     show_scatter = False
     show_maps = False
-    with summary_col:
-        st.markdown(_pa_selected_summary_html(player, xp_profile), unsafe_allow_html=True)
-        toggle_scatter, toggle_maps = st.columns(2, gap="small")
-        with toggle_scatter:
-            show_scatter = st.toggle("Gráficos (Scatter)", key=PA_SHOW_SCATTER_KEY)
-        with toggle_maps:
-            show_maps = st.toggle("Mapas de passe", key=PA_SHOW_MAPS_KEY)
+    with hero_col:
+        if not player_id:
+            st.info("Selecione um jogador no card à esquerda para ver a análise.")
+        elif player is None:
+            st.warning("Não foi possível montar o perfil deste jogador.")
+        else:
+            st.markdown(_pa_hero_card_html(player, xp_profile), unsafe_allow_html=True)
+            with st.container(key="pa_view_toggles"):
+                st.markdown(
+                    '<div class="pa-view-toggles-label">Visualizações sob demanda</div>',
+                    unsafe_allow_html=True,
+                )
+                toggle_scatter, toggle_maps = st.columns(2, gap="small")
+                with toggle_scatter:
+                    show_scatter = st.toggle("Gráficos (Scatter)", key=PA_SHOW_SCATTER_KEY)
+                with toggle_maps:
+                    show_maps = st.toggle("Mapas de passe", key=PA_SHOW_MAPS_KEY)
+
+    if player is None:
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    st.markdown('<div class="pa-profile-divider"></div>', unsafe_allow_html=True)
 
     origin_heatmap_b64: str | None = None
     passes_df = passes_by_player.get(player_id)
