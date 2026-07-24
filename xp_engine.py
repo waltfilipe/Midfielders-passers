@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 import passes_engine as pe
 import xp_study_engine as xse
 
-XP_DATA_CACHE_VERSION = 47
+XP_DATA_CACHE_VERSION = 48
 XP_POSITION_RANK_METRICS: tuple[str, ...] = (
     "xp_m4_total",
     "xp_m4_per_pass",
@@ -679,7 +679,7 @@ def build_european_league_xp_analytics(
     *,
     min_passes: int = 100,
 ) -> tuple[list[dict], list[dict]]:
-    """xP metrics for midfielders in Premier League, Italian Serie A and La Liga."""
+    """xP metrics for midfielders in Premier League, Italian Serie A, La Liga and Bundesliga."""
     import xp_stats_engine as xstats
 
     _ = cache_version

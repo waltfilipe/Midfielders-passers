@@ -370,6 +370,11 @@ def _load_combined_league_pass_frame() -> pd.DataFrame:
         ll = laliga.copy()
         ll["league_source"] = "laliga"
         frames.append(ll)
+    bundesliga = pe._load_bundesliga_pass_frame()
+    if not bundesliga.empty:
+        bl = bundesliga.copy()
+        bl["league_source"] = "bundesliga"
+        frames.append(bl)
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
@@ -429,12 +434,14 @@ def _league_reference_surfaces(
         num_matches_premier_league = int(matches_by_league.get("premier_league", 0))
         num_matches_italia_seriea = int(matches_by_league.get("italia_seriea", 0))
         num_matches_laliga = int(matches_by_league.get("laliga", 0))
+        num_matches_bundesliga = int(matches_by_league.get("bundesliga", 0))
         num_matches = max(
             num_matches_world_cup
             + num_matches_serie_a
             + num_matches_premier_league
             + num_matches_italia_seriea
-            + num_matches_laliga,
+            + num_matches_laliga
+            + num_matches_bundesliga,
             1,
         )
     else:
@@ -443,6 +450,7 @@ def _league_reference_surfaces(
         num_matches_premier_league = 0
         num_matches_italia_seriea = 0
         num_matches_laliga = 0
+        num_matches_bundesliga = 0
         num_matches = max(num_matches_world_cup, 1)
     dest_per_match = dest_count / num_matches
     od_per_match = od_count / num_matches
@@ -459,6 +467,7 @@ def _league_reference_surfaces(
         "num_matches_premier_league": num_matches_premier_league,
         "num_matches_italia_seriea": num_matches_italia_seriea,
         "num_matches_laliga": num_matches_laliga,
+        "num_matches_bundesliga": num_matches_bundesliga,
         "league_passes": int(len(completed)),
     }
 
@@ -820,6 +829,7 @@ def load_study_match_bundle(
         "league_matches_premier_league": int(league.get("num_matches_premier_league", 0)),
         "league_matches_italia_seriea": int(league.get("num_matches_italia_seriea", 0)),
         "league_matches_laliga": int(league.get("num_matches_laliga", 0)),
+        "league_matches_bundesliga": int(league.get("num_matches_bundesliga", 0)),
         "league_passes": int(league.get("league_passes", 0)),
         "blend_alpha": XP_BLEND_ALPHA,
         "xp_pass_max": XP_PASS_MAX,

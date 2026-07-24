@@ -4767,7 +4767,7 @@ def load_player_analysis_bundle(
 
 PLAYER_ANALYSIS_BUNDLE_KEY = "player_analysis_bundle"
 EUROPEAN_MIDFIELDER_LOAD_MSG = (
-    "Premier League, Serie A (Italy) and La Liga midfielders. "
+    "Premier League, Serie A (Italy), La Liga and Bundesliga midfielders. "
     "Load this pool on demand to keep the app startup light."
 )
 
@@ -8792,7 +8792,8 @@ def render_estudo_section() -> None:
         f"Brazil Serie A ({meta.get('league_matches_serie_a', '—')}) + "
         f"Premier League ({meta.get('league_matches_premier_league', '—')}) + "
         f"Italy Serie A ({meta.get('league_matches_italia_seriea', '—')}) + "
-        f"La Liga ({meta.get('league_matches_laliga', '—')}) = "
+        f"La Liga ({meta.get('league_matches_laliga', '—')}) + "
+        f"Bundesliga ({meta.get('league_matches_bundesliga', '—')}) = "
         f"{meta.get('league_matches', '—')} matches · "
         f"{meta.get('league_passes', 0):,} completed passes."
     )

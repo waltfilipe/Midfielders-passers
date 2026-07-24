@@ -59,8 +59,9 @@ SEASON_ALL_BR_FULL_CSV_PATH = Path(__file__).resolve().parent / "season_all_brfu
 SEASON_ALL_PL_CSV_PATH = Path(__file__).resolve().parent / "season_all_PL.csv"
 SEASON_ALL_ITALIA_SERIEA_CSV_PATH = Path(__file__).resolve().parent / "season_all_italiaseriea.csv"
 SEASON_ALL_LALIGA_CSV_PATH = Path(__file__).resolve().parent / "season_all_laligapasses.csv"
+SEASON_ALL_BUNDESLIGA_CSV_PATH = Path(__file__).resolve().parent / "season_all_bundesliga.csv"
 PLAYER_MATCH_STATS_PATH = Path(__file__).resolve().parent / "player_match_stats.csv"
-DATA_CACHE_VERSION = 65
+DATA_CACHE_VERSION = 66
 
 MIN_MINUTES_PCT = 0.30
 RATING_MIN_MINUTES_PCT = 0.30
@@ -808,20 +809,30 @@ def _load_laliga_pass_frame() -> pd.DataFrame:
     return resolve_positions_in_csv_frame(frame)
 
 
+def _load_bundesliga_pass_frame() -> pd.DataFrame:
+    if not SEASON_ALL_BUNDESLIGA_CSV_PATH.exists():
+        return pd.DataFrame()
+    frame = pd.read_csv(SEASON_ALL_BUNDESLIGA_CSV_PATH, low_memory=False)
+    frame = frame[frame["category"].astype(str).str.lower() == "passes"]
+    return resolve_positions_in_csv_frame(frame)
+
+
 EUROPEAN_LEAGUE_LABELS: dict[str, str] = {
     "premier_league": "Premier League",
     "italia_seriea": "Serie A",
     "laliga": "La Liga",
+    "bundesliga": "Bundesliga",
 }
 
 
 def _load_european_league_pass_frame() -> pd.DataFrame:
-    """Combined passes from Premier League, Italian Serie A and La Liga."""
+    """Combined passes from Premier League, Italian Serie A, La Liga and Bundesliga."""
     frames: list[pd.DataFrame] = []
     for source, loader in (
         ("premier_league", _load_pl_pass_frame),
         ("italia_seriea", _load_italia_seriea_pass_frame),
         ("laliga", _load_laliga_pass_frame),
+        ("bundesliga", _load_bundesliga_pass_frame),
     ):
         frame = loader()
         if frame.empty:
@@ -955,7 +966,7 @@ def build_european_league_midfielders(
     *,
     min_passes: int = 100,
 ) -> list[dict]:
-    """Midfielder metrics from Premier League, Italian Serie A and La Liga."""
+    """Midfielder metrics from Premier League, Italian Serie A, La Liga and Bundesliga."""
     players, _ = _european_league_enriched_bundle(
         cache_version,
         tier_model=tier_model,
