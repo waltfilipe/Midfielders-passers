@@ -453,6 +453,29 @@ def compute_extended_xp_stats(grp: pd.DataFrame) -> dict[str, float | int]:
     return out
 
 
+def attach_regular_pass_stats_from_enriched(
+    metrics: dict[str, float | int],
+    enriched_passes: pd.DataFrame,
+    minutes: float | None,
+) -> None:
+    """Attach regular volume stats when passes are already enriched."""
+    if enriched_passes is None or enriched_passes.empty:
+        attach_regular_pass_stats(metrics, pd.DataFrame(), minutes)
+        return
+
+    pass_metrics = pe.compute_player_metrics(enriched_passes, {"minutes": minutes})
+    mins = float(minutes or 0)
+    factor = 90.0 / mins if mins > 0 else 0.0
+
+    for key in ("passes_total", "long_balls", "passes_to_box", "key_passes"):
+        metrics[key] = round(float(pass_metrics.get(key, 0) or 0) * factor, 3)
+
+    metrics["progressive_passes"] = float(pass_metrics.get("progressive_passes_p90", 0) or 0)
+    metrics["final_third_passes"] = float(pass_metrics.get("final_third_passes_p90", 0) or 0)
+    metrics["pass_completion_pct"] = pass_metrics.get("pass_completion_pct", 0.0)
+    metrics["long_ball_completion_pct"] = pass_metrics.get("long_ball_completion_pct", 0.0)
+
+
 def attach_regular_pass_stats(
     metrics: dict[str, float | int],
     raw_pass_frame: pd.DataFrame,

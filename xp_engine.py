@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 import passes_engine as pe
 import xp_study_engine as xse
 
-XP_DATA_CACHE_VERSION = 45
+XP_DATA_CACHE_VERSION = 47
 XP_POSITION_RANK_METRICS: tuple[str, ...] = (
     "xp_m4_total",
     "xp_m4_per_pass",
@@ -60,7 +60,9 @@ DATA_DIR = ROOT / "data"
 RIDGE_MODEL_PATH = MODELS_DIR / "xp_expected_ridge.joblib"
 THREAT_THRESHOLDS_PATH = MODELS_DIR / "xp_threat_quantile.json"
 XP_PASSES_PARQUET = DATA_DIR / "xp_passes_worldcup.parquet"
+XP_EUROPEAN_PASSES_PARQUET = DATA_DIR / "xp_passes_european.parquet"
 XP_META_PATH = DATA_DIR / "xp_season_meta.json"
+XP_EUROPEAN_META_PATH = DATA_DIR / "xp_european_meta.json"
 
 
 def _n_origin_cells() -> int:
@@ -492,10 +494,42 @@ def _build_season_passes_from_frame(
 
 
 def build_european_league_season_passes(*, force_artifacts: bool = False) -> pd.DataFrame:
-    return _build_season_passes_from_frame(
-        pe._load_european_league_pass_frame(),
-        force_artifacts=force_artifacts,
-    )
+    frame = pe._filter_pass_frame_to_midfielders(pe._load_european_league_pass_frame())
+    season = _build_season_passes_from_frame(frame, force_artifacts=force_artifacts)
+    if season.empty:
+        return season
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    season.to_parquet(XP_EUROPEAN_PASSES_PARQUET, index=False)
+    meta = {
+        "version": XP_MODEL_VERSION,
+        "passes": int(len(season)),
+        "completed": int((season["is_won"] & season["has_end"]).sum()),
+        "threats": int(season[THREAT_COL].sum()),
+        "players": int(season["player_id"].nunique()),
+        "matches": int(season["event_id"].nunique()) if "event_id" in season.columns else 0,
+    }
+    with open(XP_EUROPEAN_META_PATH, "w", encoding="utf-8") as fh:
+        json.dump(meta, fh, indent=2)
+    return season
+
+
+def load_european_season_passes(*, rebuild: bool = False) -> pd.DataFrame:
+    if rebuild or not XP_EUROPEAN_PASSES_PARQUET.exists():
+        return build_european_league_season_passes(force_artifacts=rebuild)
+    df = pd.read_parquet(XP_EUROPEAN_PASSES_PARQUET)
+    if (
+        THREAT_COL not in df.columns
+        or XP_COL not in df.columns
+        or "xp_progress_mult" not in df.columns
+        or XP_ACCESSIBILITY_MULT_COL not in df.columns
+    ):
+        return build_european_league_season_passes(force_artifacts=True)
+    if XP_EUROPEAN_META_PATH.exists():
+        with open(XP_EUROPEAN_META_PATH, encoding="utf-8") as fh:
+            meta = json.load(fh)
+        if str(meta.get("version", "")) != XP_MODEL_VERSION:
+            return build_european_league_season_passes(force_artifacts=True)
+    return df
 
 
 def load_season_passes(*, rebuild: bool = False) -> pd.DataFrame:
@@ -529,7 +563,7 @@ def load_xp_passes_grouped(cache_version: int = XP_DATA_CACHE_VERSION) -> dict[s
 @functools.lru_cache(maxsize=4)
 def load_european_league_season_passes(cache_version: int = XP_DATA_CACHE_VERSION) -> pd.DataFrame:
     _ = cache_version
-    return build_european_league_season_passes()
+    return load_european_season_passes()
 
 
 @functools.lru_cache(maxsize=4)
@@ -646,31 +680,30 @@ def build_european_league_xp_analytics(
     min_passes: int = 100,
 ) -> tuple[list[dict], list[dict]]:
     """xP metrics for midfielders in Premier League, Italian Serie A and La Liga."""
-    from midfield_origin import is_midfield_position_code
-
     import xp_stats_engine as xstats
 
     _ = cache_version
     season = load_european_league_season_passes()
-    frame = pe._load_european_league_pass_frame()
-    if season.empty or frame.empty:
+    if season.empty:
         return [], []
 
-    minutes_info = pe._minutes_from_passes_frame(frame)
-    league_by_player = (
-        frame.groupby("player_id", sort=False)["league_source"]
-        .agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
-        .to_dict()
-    )
-    registry = pe.build_player_registry(frame)
+    minutes_info = pe._minutes_from_passes_frame(season)
+    league_by_player: dict[str, str] = {}
+    if "league_source" in season.columns:
+        league_by_player = (
+            season.groupby("player_id", sort=False)["league_source"]
+            .agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
+            .astype(str)
+            .to_dict()
+        )
+    registry = pe.build_player_registry(season)
     players: list[dict] = []
+    registry_by_id = {str(p["code"]): p for p in registry}
 
-    for player in registry:
-        if not is_midfield_position_code(player.get("position")):
-            continue
-        pid = player["code"]
-        grp = season[season["player_id"].astype(str) == str(pid)]
-        if grp.empty:
+    for pid, grp in season.groupby("player_id", sort=False):
+        pid = str(pid)
+        player = registry_by_id.get(pid)
+        if player is None:
             continue
         completed = int((grp["is_won"] & grp["has_end"]).sum())
         if completed < min_passes:
@@ -680,11 +713,6 @@ def build_european_league_xp_analytics(
         if not metrics:
             continue
         minutes = mins.get("minutes")
-        player_raw = frame[
-            (frame["player_id"].astype(str) == str(pid))
-            & (frame["category"].astype(str).str.lower() == "passes")
-        ]
-        xstats.attach_regular_pass_stats(metrics, player_raw, minutes)
         xstats.apply_per90_metrics(metrics, minutes)
         league_source = str(league_by_player.get(pid, ""))
         players.append({
@@ -692,7 +720,7 @@ def build_european_league_xp_analytics(
             "player_name": player["name"],
             "position": player.get("position", "—"),
             "position_group": pe.rating_position_group(player.get("position")),
-            "team": mins.get("team", str(grp["team"].mode().iloc[0] if not grp["team"].mode().empty else "—")),
+            "team": mins.get("team", str(grp["team"].mode().iloc[0] if "team" in grp.columns and not grp["team"].mode().empty else "—")),
             "minutes": mins.get("minutes"),
             "minutes_pct": mins.get("minutes_pct"),
             "league": pe._european_league_label(league_source),

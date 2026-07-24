@@ -4730,13 +4730,14 @@ def load_player_analysis_players(
     )
 
 
-@st.cache_data(show_spinner=False)
-def load_player_analysis_ratings_bundle(
+@st.cache_data(show_spinner="Loading European midfielders…")
+def load_player_analysis_bundle(
     _pass_cache: int = DATA_CACHE_VERSION,
+    _xp_cache: int = XP_DATA_CACHE_VERSION,
     _carry_cache: int = CARRIES_DATA_CACHE_VERSION,
 ):
-    """Ratings for European-league midfielders (Player Analysis tab)."""
-    analysis_players = load_player_analysis_players(_pass_cache)
+    """Single cached load for Player Analysis (European-league midfielders)."""
+    analysis_players = pe.build_european_league_midfielders(_pass_cache)
     passes_by_player = load_player_analysis_passes(_pass_cache)
     empty_carries: dict[str, pd.DataFrame] = {}
     analysis_players = mo.apply_midfield_position_groups(
@@ -4744,50 +4745,31 @@ def load_player_analysis_ratings_bundle(
         passes_by_player,
         empty_carries,
     )
-    rated, players_by_id, pool_by_position = compute_pass_ratings(analysis_players)
-    carry_rated: list[dict] = []
+    _, players_by_id, pool_by_position = compute_pass_ratings(analysis_players)
     carries_by_id: dict[str, dict] = {}
     carries_pool_by_position: dict[str, list[dict]] = {}
-    progression_rated, progression_by_id, progression_pool_by_position = pg_compute_progression_ratings(
+    _, progression_by_id, progression_pool_by_position = pg_compute_progression_ratings(
         analysis_players,
         [],
         pass_by_id=players_by_id,
         carry_by_id=carries_by_id,
     )
+    _, xp_players = xe.build_european_league_xp_analytics(_xp_cache)
+    xp_by_id = {str(p["player_id"]): p for p in xp_players}
     return (
-        rated,
-        players_by_id,
-        pool_by_position,
-        carry_rated,
-        carries_by_id,
-        carries_pool_by_position,
-        progression_rated,
-        progression_by_id,
-        progression_pool_by_position,
-    )
-
-
-@st.cache_data(show_spinner=False)
-def load_player_analysis_core_data(
-    _pass_cache: int = DATA_CACHE_VERSION,
-):
-    """Event data for European-league midfielders (Player Analysis tab)."""
-    analysis_players = load_player_analysis_players(_pass_cache)
-    passes_by_player = load_player_analysis_passes(_pass_cache)
-    empty_carries: dict[str, pd.DataFrame] = {}
-    analysis_players = mo.apply_midfield_position_groups(
         analysis_players,
         passes_by_player,
-        empty_carries,
+        progression_by_id,
+        players_by_id,
+        carries_by_id,
+        progression_pool_by_position,
+        pool_by_position,
+        carries_pool_by_position,
+        xp_by_id,
     )
-    return analysis_players, [], passes_by_player, empty_carries, {}
 
 
-@st.cache_data(show_spinner=False)
-def load_player_analysis_xp(_cache_version: int = XP_DATA_CACHE_VERSION):
-    _, xp_players = xe.build_european_league_xp_analytics(_cache_version)
-    xp_passes_by_player = xe.load_european_league_xp_passes_grouped(_cache_version)
-    return xp_players, xp_passes_by_player
+PLAYER_ANALYSIS_BUNDLE_KEY = "player_analysis_bundle"
 
 
 def _norm(s: str) -> str:
@@ -10023,29 +10005,6 @@ def main() -> None:
             xp_passes_by_player = load_xp_passes()
         xp_by_id = {str(p["player_id"]): p for p in xp_players}
 
-        with st.spinner("Loading European midfielder pool…"):
-            (
-                pa_players,
-                pa_carries_players,
-                pa_passes_by_player,
-                pa_carries_by_player,
-                _,
-            ) = load_player_analysis_core_data()
-            (
-                _pa_rated,
-                pa_players_by_id,
-                pa_pool_by_position,
-                _pa_carry_rated,
-                pa_carries_by_id,
-                pa_carries_pool_by_position,
-                _pa_progression_rated,
-                pa_progression_by_id,
-                pa_progression_pool_by_position,
-            ) = load_player_analysis_ratings_bundle()
-            with st.spinner("Loading xP metrics for European midfielders…"):
-                pa_xp_players, _pa_xp_passes = load_player_analysis_xp()
-            pa_xp_by_id = {str(p["player_id"]): p for p in pa_xp_players}
-
     tab_pres, tab_analysis, tab_scatter, tab_maps = st.tabs(
         ["Overview", "Player Analysis", "Scatter", "Maps"]
     )
@@ -10059,11 +10018,32 @@ def main() -> None:
             xp_players=xp_players,
         )
     with tab_analysis:
+        if PLAYER_ANALYSIS_BUNDLE_KEY not in st.session_state:
+            st.info(
+                "Player Analysis covers midfielders from **Premier League**, "
+                "**Serie A (Italy)** and **La Liga**. "
+                "Load this pool on demand to keep the app startup light."
+            )
+            if st.button("Load European midfielders", key="load_pa_bundle", type="primary"):
+                st.session_state[PLAYER_ANALYSIS_BUNDLE_KEY] = load_player_analysis_bundle()
+                st.rerun()
+            return
+        (
+            pa_players,
+            pa_passes_by_player,
+            pa_progression_by_id,
+            pa_players_by_id,
+            pa_carries_by_id,
+            pa_progression_pool_by_position,
+            pa_pool_by_position,
+            pa_carries_pool_by_position,
+            pa_xp_by_id,
+        ) = st.session_state[PLAYER_ANALYSIS_BUNDLE_KEY]
         render_player_analysis_section(
             pa_players,
-            pa_carries_players,
+            [],
             pa_passes_by_player,
-            pa_carries_by_player,
+            {},
             pa_progression_by_id,
             pa_players_by_id,
             pa_carries_by_id,
