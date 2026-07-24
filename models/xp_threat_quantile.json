@@ -1,0 +1,34 @@
+{
+  "version": "m4_od_12x8_b4_a2_pr0_global_ita_laliga_dist30_access_ridge_v7",
+  "threat_rule": "residual_top10pct_and_xp_p75_per_band",
+  "threat_quantile": 0.1,
+  "threat_xp_quantile": 0.75,
+  "threat_progress_min": 0.0,
+  "residual_thresholds": {
+    "short": 0.14380543168151788,
+    "long": 0.23050190022347566
+  },
+  "residual_threshold_labels": {
+    "\u226430 m": 0.14380543168151788,
+    ">30 m": 0.23050190022347566
+  },
+  "xp_thresholds": {
+    "short": 0.44542162444740163,
+    "long": 0.8360879969142175
+  },
+  "xp_threshold_labels": {
+    "\u226430 m": 0.44542162444740163,
+    ">30 m": 0.8360879969142175
+  },
+  "progress_floor_mult": 0.3,
+  "progress_logistic_k": 2.2,
+  "blend_alpha": 0.0,
+  "grid": "12x8",
+  "training_pool": "global",
+  "team_surface": "global_reference_only",
+  "ridge_target": "xp_hier_od",
+  "expected_formula": "ridge_spatial * xp_progress_mult * xp_accessibility_mult",
+  "accessibility_model": "locality_pressure_v1",
+  "training_passes": 900279,
+  "training_matches": 1242
+}
