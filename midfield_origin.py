@@ -112,8 +112,21 @@ def apply_midfield_position_groups(
         if not is_midfield_position_code(pos) and current_group not in MIDFIELD_RATING_GROUPS:
             enriched.append(dict(player))
             continue
-        group = resolve_midfield_position_group(player, passes_by_id, carries_by_id)
-        enriched.append({**player, "position_group": group})
+        pct = offensive_origin_pct(str(player["player_id"]), passes_by_id, carries_by_id)
+        if pct is None:
+            group = default_midfield_group(pos)
+        elif pct >= OFFENSIVE_ORIGIN_THRESHOLD:
+            group = ATTACKING_MIDFIELD_GROUP
+        else:
+            group = CENTRAL_MIDFIELD_GROUP
+        enriched.append({
+            **player,
+            "position_group": group,
+            "midfield_offensive_origin_pct": round(pct, 1) if pct is not None else None,
+            "midfield_origin_profile": (
+                "campo_ofensivo" if group == ATTACKING_MIDFIELD_GROUP else "campo_defensivo"
+            ),
+        })
     return enriched
 
 

@@ -208,6 +208,24 @@ def get_player_profile(player_id: str, player_name: str, team: str) -> dict:
     return profile
 
 
+def read_cached_profile(player_id: str) -> dict:
+    """Return the cached profile for a player without any network call."""
+    pid = str(player_id or "").strip()
+    if not pid:
+        return {}
+    cached = _load_cache().get(pid)
+    return dict(cached) if isinstance(cached, dict) else {}
+
+
+def read_cached_age(player_id: str) -> int | None:
+    """Cached age (years) or None. No network."""
+    age = read_cached_profile(player_id).get("age")
+    try:
+        return int(age) if age is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def enrich_player_general_profile(player: dict) -> dict:
     """Attach general profile fields onto a player dict (non-destructive)."""
     out = dict(player)
