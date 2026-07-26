@@ -751,6 +751,17 @@ def attach_xp_metric_ranks(players: list[dict]) -> None:
     )
 
 
+def refresh_xp_midfield_origin_rankings(players: list[dict]) -> None:
+    """Recompute xP ranks after campo ofensivo / campo defensivo groups are assigned."""
+    import xp_stats_engine as xstats
+
+    xstats.attach_distance_indices(players)
+    xstats.attach_composite_indices(players)
+    xstats.attach_xp_pass_ratings(players)
+    xstats.attach_all_stats_ranks(players)
+    attach_xp_metric_ranks(players)
+
+
 def rank_xp_players_by_position(players: list[dict]) -> dict[str, list[dict]]:
     pools: dict[str, list[dict]] = {}
     for p in players:

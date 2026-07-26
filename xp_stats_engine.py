@@ -674,8 +674,13 @@ XP_BADGE_SPECS: tuple[tuple[str, str, tuple[str, ...], str], ...] = (
 )
 
 XP_BADGE_TOOLTIPS: dict[str, str] = {
-    "xp_badge_impact": "Top 25 at the position in xP per game and xP per pass.",
-    "xp_badge_threat": f"Top 25 at the position in {IMPACT_PASS_ABBR} per game and xP per {IMPACT_PASS_ABBR}.",
+    "xp_badge_impact": (
+        "Top 25 in campo ofensivo or campo defensivo in xP per game and xP per pass."
+    ),
+    "xp_badge_threat": (
+        f"Top 25 in campo ofensivo or campo defensivo in {IMPACT_PASS_ABBR} per game "
+        f"and xP per {IMPACT_PASS_ABBR}."
+    ),
 }
 
 # Player Analysis compare panel.

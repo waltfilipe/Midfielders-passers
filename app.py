@@ -4467,16 +4467,23 @@ st.markdown(
     .pa-top-badge i {
         font-size: 0.6rem;
     }
-    .pa-top-badge-5 {
+    .pa-top-badge-gold {
         color: #422006;
         background: linear-gradient(135deg, #fde68a 0%, #f59e0b 100%);
         border: 1px solid rgba(251, 191, 36, 0.65);
         box-shadow: 0 1px 6px rgba(245, 158, 11, 0.35);
     }
-    .pa-top-badge-10 {
-        color: #dbeafe;
-        background: rgba(59, 130, 246, 0.18);
-        border: 1px solid rgba(96, 165, 250, 0.55);
+    .pa-top-badge-silver {
+        color: #1e293b;
+        background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 100%);
+        border: 1px solid rgba(148, 163, 184, 0.65);
+        box-shadow: 0 1px 6px rgba(148, 163, 184, 0.35);
+    }
+    .pa-top-badge-bronze {
+        color: #431407;
+        background: linear-gradient(135deg, #fed7aa 0%, #c2410c 100%);
+        border: 1px solid rgba(234, 88, 12, 0.55);
+        box-shadow: 0 1px 6px rgba(234, 88, 12, 0.28);
     }
     .pa-regular-stat-tip {
         position: relative;
@@ -4873,7 +4880,6 @@ def load_player_analysis_bundle(
         carry_by_id=carries_by_id,
     )
     _, xp_players = xe.build_european_league_xp_analytics(_xp_cache)
-    xp_by_id = {str(p["player_id"]): p for p in xp_players}
 
     origin_by_id = {
         str(p["player_id"]): {
@@ -4888,7 +4894,8 @@ def load_player_analysis_bundle(
     for player in analysis_players:
         pid = str(player["player_id"])
         player["age"] = pp.read_cached_age(pid)
-    for pid, xp_profile in xp_by_id.items():
+    for xp_profile in xp_players:
+        pid = str(xp_profile["player_id"])
         xp_profile["age"] = pp.read_cached_age(pid)
         origin = origin_by_id.get(pid)
         if origin:
@@ -4897,6 +4904,8 @@ def load_player_analysis_bundle(
             xp_profile["position_group"] = origin.get("position_group") or xp_profile.get("position_group")
             xp_profile["midfield_offensive_origin_pct"] = origin.get("midfield_offensive_origin_pct")
             xp_profile["midfield_origin_profile"] = origin.get("midfield_origin_profile")
+    xe.refresh_xp_midfield_origin_rankings(xp_players)
+    xp_by_id = {str(p["player_id"]): p for p in xp_players}
     for prof in progression_by_id.values():
         pid = str(prof.get("player_id"))
         prof["age"] = pp.read_cached_age(pid)
@@ -6661,7 +6670,7 @@ def _xp_gradient_bar_metric_rank_html(xp_profile: dict, key: str) -> str:
     total = xp_profile.get(f"{key}_rank_pool_in_group")
     if not rank or not total:
         return ""
-    group = position_group_label(str(xp_profile.get("position_group") or "—"))
+    group = _pa_field_group_label(xp_profile)
     return (
         '<span class="pa-xp-gradient-bar-tip-rank">'
         f"#{int(rank)} of {int(total)} · {html.escape(group)}"
@@ -7238,6 +7247,20 @@ def _pa_regular_stat_value(source: dict, key: str) -> str:
     return _pa_simple_stat_value(source.get(key), XP_PA_REGULAR_STAT_KIND.get(key, "p90"))
 
 
+PA_MEDAL_GOLD_TOP = 10
+PA_MEDAL_SILVER_TOP = 20
+PA_MEDAL_BRONZE_TOP = 30
+
+
+def _pa_field_group_label(source: dict) -> str:
+    profile = str(source.get("midfield_origin_profile") or "")
+    if profile == "campo_ofensivo":
+        return "Campo ofensivo"
+    if profile == "campo_defensivo":
+        return "Campo defensivo"
+    return position_group_label(str(source.get("position_group") or "—"))
+
+
 def _pa_top_badge_html(rank_info: dict | None) -> str:
     if not rank_info:
         return ""
@@ -7247,15 +7270,20 @@ def _pa_top_badge_html(rank_info: dict | None) -> str:
         return ""
     if rank <= 0:
         return ""
-    if rank <= 5:
+    if rank <= PA_MEDAL_GOLD_TOP:
         return (
-            '<span class="pa-top-badge pa-top-badge-5">'
-            '<i class="fa-solid fa-star" aria-hidden="true"></i>Top 5</span>'
-        )
-    if rank <= 10:
-        return (
-            '<span class="pa-top-badge pa-top-badge-10">'
+            '<span class="pa-top-badge pa-top-badge-gold">'
             '<i class="fa-solid fa-medal" aria-hidden="true"></i>Top 10</span>'
+        )
+    if rank <= PA_MEDAL_SILVER_TOP:
+        return (
+            '<span class="pa-top-badge pa-top-badge-silver">'
+            '<i class="fa-solid fa-medal" aria-hidden="true"></i>Top 20</span>'
+        )
+    if rank <= PA_MEDAL_BRONZE_TOP:
+        return (
+            '<span class="pa-top-badge pa-top-badge-bronze">'
+            '<i class="fa-solid fa-medal" aria-hidden="true"></i>Top 30</span>'
         )
     return ""
 
@@ -7279,12 +7307,12 @@ def _pa_regular_stat_value_tip_html(
     label: str,
     value: str,
     rank_info: tuple[int, int] | None,
-    position_group: str | None,
+    source: dict,
 ) -> str:
     if not rank_info:
         return f'<span class="stat-val">{html.escape(value)}</span>'
     rank, total = rank_info
-    group = position_group_label(str(position_group or "—"))
+    group = _pa_field_group_label(source)
     plain = f"{label}: {value} · #{rank} of {total} · {group}"
     tipbox = (
         f'<span class="pa-regular-stat-tip-title">{html.escape(label)}</span>'
@@ -7311,7 +7339,7 @@ def _pa_regular_stat_line_html(source: dict, metric_ranks: dict, key: str) -> st
         label,
         value,
         rank_info,
-        str(source.get("position_group") or ""),
+        source,
     )
     value_inner = (
         f'<span class="val-wrap">{badge}'
@@ -9331,17 +9359,6 @@ def _render_pa_filter_card(
             ) or []
         show_scatter = PA_VIEW_SCATTER in selected_views
         show_maps = PA_VIEW_MAPS in selected_views
-
-        count_html = (
-            f'<span class="pa-filter-count"><strong>{len(pool)}</strong> '
-            "meio-campistas no filtro atual.</span>"
-            if options
-            else '<span class="pa-filter-count">Nenhum jogador para os filtros escolhidos.</span>'
-        )
-        st.markdown(
-            f'<div class="pa-filter-footer">{count_html}</div>',
-            unsafe_allow_html=True,
-        )
 
     return player_id, show_scatter, show_maps
 
