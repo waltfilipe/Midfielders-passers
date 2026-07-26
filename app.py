@@ -188,8 +188,8 @@ PLAYER_ANALYSIS_COMPARE_KEY = "pa_compare_select"
 PLAYER_ANALYSIS_POSITION_BLOCKS_KEY = "pa_position_blocks"
 STATS_POSITION_BLOCKS_KEY = "stats_position_blocks"
 PA_FILTER_LEAGUE_KEY = "pa_filter_league"
-PA_FILTER_FIELD_KEY = "pa_filter_field_seg"
-PA_FILTER_AGE_KEY = "pa_filter_age_seg"
+PA_FILTER_FIELD_KEY = "pa_filter_field"
+PA_FILTER_AGE_KEY = "pa_filter_age"
 PA_FILTER_PLAYER_KEY = "pa_filter_player"
 PA_VIEW_SELECT_KEY = "pa_view_select"
 PA_VIEW_SCATTER = "scatter"
@@ -206,9 +206,9 @@ PA_LEAGUE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("bundesliga", "Bundesliga"),
 )
 PA_FIELD_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("all", "Todos"),
-    ("offensive", "Ofensivo"),
-    ("defensive", "Defensivo"),
+    ("all", "Todos os campos"),
+    ("offensive", "Campo ofensivo"),
+    ("defensive", "Campo defensivo"),
 )
 PA_AGE_OPTIONS: tuple[tuple[str, int | None], ...] = (
     ("all", None),
@@ -216,7 +216,7 @@ PA_AGE_OPTIONS: tuple[tuple[str, int | None], ...] = (
     ("u21", 21),
 )
 PA_AGE_LABELS: dict[str, str] = {
-    "all": "Todas",
+    "all": "Todas as idades",
     "u23": "Sub-23",
     "u21": "Sub-21",
 }
@@ -2972,7 +2972,6 @@ st.markdown(
         font-weight: 600;
     }
     .pa-filter-count strong { color: #38bdf8; }
-    .pa-filter-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .st-key-pa_filter_card label[data-testid="stWidgetLabel"] p {
         font-size: 0.78rem !important;
         font-weight: 700 !important;
@@ -2990,18 +2989,6 @@ st.markdown(
         color: #e2e8f0;
     }
     .pa-ondemand-head .pa-ondemand-ic { color: #38bdf8; }
-    .pa-selected-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        background: rgba(56,189,248,0.12);
-        border: 1px solid rgba(56,189,248,0.3);
-        color: #bae6fd;
-        border-radius: 999px;
-        padding: 0.2rem 0.7rem;
-        font-size: 0.8rem;
-        font-weight: 700;
-    }
     /* Segmented controls: tighter pills so every control fits the bar */
     .st-key-pa_filter_card [data-baseweb="button-group"] button {
         padding-left: 0.6rem !important;
@@ -9239,33 +9226,6 @@ def _filter_pa_pool(
     return out
 
 
-def _pa_selected_chips_html(player: dict | None) -> str:
-    """Compact chips describing the selected player, shown in the filter-bar footer."""
-    if not player:
-        return ""
-    chips: list[str] = []
-    team = str(player.get("team") or "").strip()
-    if team:
-        chips.append(f'<span class="pa-selected-chip">{html.escape(team)}</span>')
-    league = str(player.get("league") or "").strip()
-    if league:
-        chips.append(f'<span class="pa-selected-chip">{html.escape(league)}</span>')
-    age = player.get("age")
-    if age is not None:
-        chips.append(f'<span class="pa-selected-chip">{int(age)} anos</span>')
-    origin_pct = player.get("midfield_offensive_origin_pct")
-    if origin_pct is not None:
-        field_label = (
-            "campo ofensivo"
-            if player.get("midfield_origin_profile") == "campo_ofensivo"
-            else "campo defensivo"
-        )
-        chips.append(
-            f'<span class="pa-selected-chip">{float(origin_pct):.0f}% no ataque · {field_label}</span>'
-        )
-    return f'<div class="pa-filter-chips">{"".join(chips)}</div>'
-
-
 def _render_pa_filter_card(
     all_players: list[dict],
     progression_by_id: dict[str, dict],
@@ -9273,7 +9233,6 @@ def _render_pa_filter_card(
     xp_by_id: dict[str, dict] | None,
 ) -> tuple[str | None, list[dict], bool, bool]:
     """Full-width horizontal filter bar: league, field, age, player and on-demand views."""
-    raw_by_id = {str(p["player_id"]): p for p in all_players}
     with st.container(key="pa_filter_card"):
         st.markdown(
             '<div class="pa-filter-head">'
@@ -9300,29 +9259,25 @@ def _render_pa_filter_card(
 
         with col_field:
             field_labels = dict(PA_FIELD_OPTIONS)
-            field = st.segmented_control(
+            field = st.selectbox(
                 "Campo de atuação",
                 options=[key for key, _ in PA_FIELD_OPTIONS],
                 format_func=lambda key: field_labels[key],
-                selection_mode="single",
-                default="all",
                 key=PA_FILTER_FIELD_KEY,
                 help=(
                     "Origem das ações: ofensivo = maioria dos passes começa no campo de ataque; "
                     "defensivo = maioria começa no campo de defesa."
                 ),
-            ) or "all"
+            )
 
         with col_age:
-            age_key = st.segmented_control(
+            age_key = st.selectbox(
                 "Faixa etária",
                 options=[key for key, _ in PA_AGE_OPTIONS],
                 format_func=lambda key: PA_AGE_LABELS[key],
-                selection_mode="single",
-                default="all",
                 key=PA_FILTER_AGE_KEY,
                 help="Idade via base pública; jogadores sem idade ficam fora de Sub-23/Sub-21.",
-            ) or "all"
+            )
         age_max = dict(PA_AGE_OPTIONS)[age_key]
 
         pool = _filter_pa_pool(
@@ -9376,8 +9331,7 @@ def _render_pa_filter_card(
             else '<span class="pa-filter-count">Nenhum jogador para os filtros escolhidos.</span>'
         )
         st.markdown(
-            f'<div class="pa-filter-footer">{count_html}'
-            f"{_pa_selected_chips_html(raw_by_id.get(str(player_id)) if player_id else None)}</div>",
+            f'<div class="pa-filter-footer">{count_html}</div>',
             unsafe_allow_html=True,
         )
 
