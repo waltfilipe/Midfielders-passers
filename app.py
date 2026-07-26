@@ -9414,6 +9414,10 @@ def load_midfielder_quadrant_routes(
     return xpe.build_quadrant_route_analysis(pool["passes"])
 
 
+def _fmt_int_ptbr(value: int) -> str:
+    return f"{int(value):,}".replace(",", ".")
+
+
 def _render_interactive_quadrant_map(top_n: int) -> None:
     """Hover-driven quadrant map: reveals the common and rare routes leaving each zone."""
     routes = load_midfielder_quadrant_routes(top_n)
@@ -9461,7 +9465,8 @@ def render_xp_maps_analysis_tab() -> None:
 
     st.caption(
         f"Base: top {player_count} meio-campistas com mais passes completados "
-        f"(mín. {min_cutoff:,} passes) · {total_passes:,} passes agregados · "
+        f"(mín. {_fmt_int_ptbr(min_cutoff)} passes) · "
+        f"{_fmt_int_ptbr(total_passes)} passes agregados · "
         "4 ligas europeias (PL, Serie A, La Liga, Bundesliga)."
     )
 
