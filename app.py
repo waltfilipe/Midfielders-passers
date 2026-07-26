@@ -2918,24 +2918,30 @@ st.markdown(
         margin-top: -0.35rem;
         margin-bottom: 0.9rem;
     }
+    /* Full-width horizontal filter bar */
     .st-key-pa_filter_card {
         background: linear-gradient(180deg, rgba(30,41,59,0.55) 0%, rgba(15,23,42,0.35) 100%);
         border: 1px solid rgba(148,163,184,0.18);
         border-radius: 16px;
-        padding: 1.05rem 1.05rem 0.85rem 1.05rem;
+        padding: 0.95rem 1.2rem 0.8rem 1.2rem;
         box-shadow: 0 6px 22px rgba(2,6,23,0.28);
-        position: sticky;
-        top: 0.5rem;
+    }
+    .pa-filter-head {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 0.3rem 0.7rem;
+        margin: 0 0 0.55rem 0;
     }
     .pa-filter-title {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 0.5rem;
         font-size: 0.95rem;
         font-weight: 800;
         letter-spacing: 0.01em;
         color: #e2e8f0;
-        margin: 0 0 0.15rem 0;
+        margin: 0;
     }
     .pa-filter-title .pa-filter-ic {
         color: #38bdf8;
@@ -2944,18 +2950,29 @@ st.markdown(
     .pa-filter-sub {
         color: #94a3b8;
         font-size: 0.78rem;
-        margin: 0 0 0.85rem 0;
+        margin: 0;
         line-height: 1.35;
     }
+    /* Align every control in the bar on a single baseline */
+    .st-key-pa_filter_card [data-testid="stHorizontalBlock"] { align-items: flex-end; }
+    .st-key-pa_filter_card [data-testid="stVerticalBlock"] { gap: 0.3rem; }
+    .pa-filter-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.5rem 0.9rem;
+        margin-top: 0.6rem;
+        padding-top: 0.6rem;
+        border-top: 1px dashed rgba(148,163,184,0.22);
+    }
     .pa-filter-count {
-        margin-top: 0.35rem;
         color: #cbd5e1;
         font-size: 0.8rem;
         font-weight: 600;
-        border-top: 1px dashed rgba(148,163,184,0.22);
-        padding-top: 0.6rem;
     }
     .pa-filter-count strong { color: #38bdf8; }
+    .pa-filter-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .st-key-pa_filter_card label[data-testid="stWidgetLabel"] p {
         font-size: 0.78rem !important;
         font-weight: 700 !important;
@@ -2985,89 +3002,8 @@ st.markdown(
         font-size: 0.8rem;
         font-weight: 700;
     }
-    /* Selected-player hero card (right of the filter card) */
-    .pa-hero-card {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        background: linear-gradient(180deg, rgba(30,41,59,0.55) 0%, rgba(15,23,42,0.35) 100%);
-        border: 1px solid rgba(148,163,184,0.18);
-        border-radius: 16px;
-        padding: 1rem 1.15rem;
-        box-shadow: 0 6px 22px rgba(2,6,23,0.28);
-        box-sizing: border-box;
-    }
-    .pa-hero-top {
-        display: flex;
-        align-items: center;
-        gap: 0.9rem;
-    }
-    .pa-hero-avatar {
-        width: 48px;
-        height: 48px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 800;
-        font-size: 1.05rem;
-        color: #0f172a;
-        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
-        flex-shrink: 0;
-    }
-    .pa-hero-id { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-    .pa-hero-name {
-        font-size: 1.28rem;
-        font-weight: 800;
-        color: #f1f5f9;
-        line-height: 1.15;
-    }
-    .pa-hero-sub { font-size: 0.86rem; color: #94a3b8; font-weight: 600; }
-    .pa-hero-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-    .pa-hero-kpis {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.5rem;
-        margin-top: auto;
-    }
-    @media (max-width: 900px) {
-        .pa-hero-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    .pa-hero-kpi {
-        background: rgba(15,23,42,0.45);
-        border: 1px solid rgba(148,163,184,0.14);
-        border-radius: 11px;
-        padding: 0.5rem 0.65rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.1rem;
-    }
-    .pa-hero-kpi-label {
-        font-size: 0.68rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #93a4bc;
-        font-weight: 700;
-    }
-    .pa-hero-kpi-value {
-        font-size: 1.15rem;
-        font-weight: 800;
-        color: #e2e8f0;
-        line-height: 1.1;
-    }
-    .pa-hero-kpi-value.accent { color: #38bdf8; }
-    /* Compact, left-aligned on-demand view picker under the hero */
-    .st-key-pa_view_toggles { margin-top: 0.55rem; }
-    .st-key-pa_view_toggles label[data-testid="stWidgetLabel"] p {
-        font-size: 0.72rem !important;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #93a4bc !important;
-        font-weight: 700 !important;
-    }
-    /* Segmented controls: tighter pills so they fit the narrow filter card */
-    .st-key-pa_filter_card [data-baseweb="button-group"] button,
-    .st-key-pa_view_toggles [data-baseweb="button-group"] button {
+    /* Segmented controls: tighter pills so every control fits the bar */
+    .st-key-pa_filter_card [data-baseweb="button-group"] button {
         padding-left: 0.6rem !important;
         padding-right: 0.6rem !important;
         font-size: 0.8rem !important;
@@ -9303,55 +9239,90 @@ def _filter_pa_pool(
     return out
 
 
+def _pa_selected_chips_html(player: dict | None) -> str:
+    """Compact chips describing the selected player, shown in the filter-bar footer."""
+    if not player:
+        return ""
+    chips: list[str] = []
+    team = str(player.get("team") or "").strip()
+    if team:
+        chips.append(f'<span class="pa-selected-chip">{html.escape(team)}</span>')
+    league = str(player.get("league") or "").strip()
+    if league:
+        chips.append(f'<span class="pa-selected-chip">{html.escape(league)}</span>')
+    age = player.get("age")
+    if age is not None:
+        chips.append(f'<span class="pa-selected-chip">{int(age)} anos</span>')
+    origin_pct = player.get("midfield_offensive_origin_pct")
+    if origin_pct is not None:
+        field_label = (
+            "campo ofensivo"
+            if player.get("midfield_origin_profile") == "campo_ofensivo"
+            else "campo defensivo"
+        )
+        chips.append(
+            f'<span class="pa-selected-chip">{float(origin_pct):.0f}% no ataque · {field_label}</span>'
+        )
+    return f'<div class="pa-filter-chips">{"".join(chips)}</div>'
+
+
 def _render_pa_filter_card(
     all_players: list[dict],
     progression_by_id: dict[str, dict],
     *,
     xp_by_id: dict[str, dict] | None,
-) -> tuple[str | None, list[dict]]:
-    """Left control card: league, field orientation, age band and player pickers."""
+) -> tuple[str | None, list[dict], bool, bool]:
+    """Full-width horizontal filter bar: league, field, age, player and on-demand views."""
+    raw_by_id = {str(p["player_id"]): p for p in all_players}
     with st.container(key="pa_filter_card"):
         st.markdown(
-            '<div class="pa-filter-title">'
-            '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</div>',
+            '<div class="pa-filter-head">'
+            '<span class="pa-filter-title">'
+            '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
+            '<span class="pa-filter-sub">Refine o grupo de meio-campistas, selecione o jogador '
+            "e abra gráficos ou mapas sob demanda.</span>"
+            "</div>",
             unsafe_allow_html=True,
         )
-        st.markdown(
-            '<p class="pa-filter-sub">Refine o grupo de meio-campistas e selecione o jogador '
-            "para ver perfil, gráficos e mapas.</p>",
-            unsafe_allow_html=True,
+
+        col_league, col_field, col_age, col_player, col_views = st.columns(
+            [1.0, 1.15, 1.0, 2.1, 1.35], gap="medium"
         )
 
-        league_labels = dict(PA_LEAGUE_OPTIONS)
-        league = st.selectbox(
-            "Liga",
-            options=[key for key, _ in PA_LEAGUE_OPTIONS],
-            format_func=lambda key: league_labels[key],
-            key=PA_FILTER_LEAGUE_KEY,
-        )
+        with col_league:
+            league_labels = dict(PA_LEAGUE_OPTIONS)
+            league = st.selectbox(
+                "Liga",
+                options=[key for key, _ in PA_LEAGUE_OPTIONS],
+                format_func=lambda key: league_labels[key],
+                key=PA_FILTER_LEAGUE_KEY,
+            )
 
-        field_labels = dict(PA_FIELD_OPTIONS)
-        field = st.segmented_control(
-            "Campo de atuação",
-            options=[key for key, _ in PA_FIELD_OPTIONS],
-            format_func=lambda key: field_labels[key],
-            selection_mode="single",
-            default="all",
-            key=PA_FILTER_FIELD_KEY,
-            help=(
-                "Origem das ações: ofensivo = maioria dos passes começa no campo de ataque; "
-                "defensivo = maioria começa no campo de defesa."
-            ),
-        ) or "all"
+        with col_field:
+            field_labels = dict(PA_FIELD_OPTIONS)
+            field = st.segmented_control(
+                "Campo de atuação",
+                options=[key for key, _ in PA_FIELD_OPTIONS],
+                format_func=lambda key: field_labels[key],
+                selection_mode="single",
+                default="all",
+                key=PA_FILTER_FIELD_KEY,
+                help=(
+                    "Origem das ações: ofensivo = maioria dos passes começa no campo de ataque; "
+                    "defensivo = maioria começa no campo de defesa."
+                ),
+            ) or "all"
 
-        age_key = st.segmented_control(
-            "Faixa etária",
-            options=[key for key, _ in PA_AGE_OPTIONS],
-            format_func=lambda key: PA_AGE_LABELS[key],
-            selection_mode="single",
-            default="all",
-            key=PA_FILTER_AGE_KEY,
-        ) or "all"
+        with col_age:
+            age_key = st.segmented_control(
+                "Faixa etária",
+                options=[key for key, _ in PA_AGE_OPTIONS],
+                format_func=lambda key: PA_AGE_LABELS[key],
+                selection_mode="single",
+                default="all",
+                key=PA_FILTER_AGE_KEY,
+                help="Idade via base pública; jogadores sem idade ficam fora de Sub-23/Sub-21.",
+            ) or "all"
         age_max = dict(PA_AGE_OPTIONS)[age_key]
 
         pool = _filter_pa_pool(
@@ -9361,7 +9332,6 @@ def _render_pa_filter_card(
             field=field,
             age_max=age_max,
         )
-
         all_codes, all_groups = _all_position_filters()
         options = _player_analysis_options(
             pool,
@@ -9370,119 +9340,48 @@ def _render_pa_filter_card(
             position_groups=all_groups,
             xp_by_id=xp_by_id,
         )
-        if not options:
-            st.markdown(
-                '<div class="pa-filter-count">Nenhum jogador para os filtros escolhidos.</div>',
-                unsafe_allow_html=True,
-            )
-            if age_max is not None:
-                st.caption(
-                    "A faixa etária depende de dados de idade; alguns jogadores podem não ter idade cadastrada."
+
+        player_id: str | None = None
+        with col_player:
+            if not options:
+                st.selectbox("Jogador", options=["—"], disabled=True, key="pa_player_empty")
+            else:
+                labels = [opt[3] for opt in options]
+                id_by_label = {opt[3]: opt[0] for opt in options}
+                if st.session_state.get(PA_FILTER_PLAYER_KEY) not in labels:
+                    st.session_state[PA_FILTER_PLAYER_KEY] = labels[0]
+                selected_label = st.selectbox(
+                    "Jogador",
+                    options=labels,
+                    key=PA_FILTER_PLAYER_KEY,
                 )
-            return None, pool
+                player_id = id_by_label.get(selected_label)
 
-        labels = [opt[3] for opt in options]
-        id_by_label = {opt[3]: opt[0] for opt in options}
-        current_label = st.session_state.get(PA_FILTER_PLAYER_KEY)
-        if current_label not in labels:
-            st.session_state[PA_FILTER_PLAYER_KEY] = labels[0]
-        selected_label = st.selectbox(
-            "Jogador",
-            options=labels,
-            key=PA_FILTER_PLAYER_KEY,
+        with col_views:
+            selected_views = st.segmented_control(
+                "Visualizações",
+                options=[PA_VIEW_SCATTER, PA_VIEW_MAPS],
+                format_func=lambda key: PA_VIEW_LABELS[key],
+                selection_mode="multi",
+                key=PA_VIEW_SELECT_KEY,
+                help="Abra gráficos e mapas apenas quando precisar — mantém o app leve.",
+            ) or []
+        show_scatter = PA_VIEW_SCATTER in selected_views
+        show_maps = PA_VIEW_MAPS in selected_views
+
+        count_html = (
+            f'<span class="pa-filter-count"><strong>{len(pool)}</strong> '
+            "meio-campistas no filtro atual.</span>"
+            if options
+            else '<span class="pa-filter-count">Nenhum jogador para os filtros escolhidos.</span>'
         )
-
         st.markdown(
-            f'<div class="pa-filter-count"><strong>{len(pool)}</strong> '
-            f"meio-campistas no filtro atual.</div>",
+            f'<div class="pa-filter-footer">{count_html}'
+            f"{_pa_selected_chips_html(raw_by_id.get(str(player_id)) if player_id else None)}</div>",
             unsafe_allow_html=True,
         )
-        if age_max is not None:
-            st.caption(
-                "Idade via base pública; jogadores sem idade cadastrada ficam fora do filtro Sub-21/Sub-23."
-            )
-        return id_by_label.get(selected_label), pool
 
-
-def _pa_hero_kpi_html(label: str, value: str, *, accent: bool = False) -> str:
-    cls = "pa-hero-kpi-value accent" if accent else "pa-hero-kpi-value"
-    return (
-        '<div class="pa-hero-kpi">'
-        f'<span class="pa-hero-kpi-label">{html.escape(label)}</span>'
-        f'<span class="{cls}">{html.escape(value)}</span>'
-        "</div>"
-    )
-
-
-def _pa_hero_card_html(player: dict, xp_profile: dict | None) -> str:
-    xp = xp_profile or {}
-    name = str(player.get("player_name", "—"))
-    team = html.escape(str(player.get("team", "—")))
-    pos = html.escape(str(player.get("position", "—")))
-    league = html.escape(str(player.get("league") or xp.get("league") or "—"))
-    initials = "".join(word[0] for word in name.split()[:2]).upper() or "?"
-
-    chips = [f'<span class="pa-selected-chip">{league}</span>']
-    age = player.get("age")
-    if age is not None:
-        chips.append(f'<span class="pa-selected-chip">{int(age)} anos</span>')
-    origin_pct = player.get("midfield_offensive_origin_pct") or xp.get("midfield_offensive_origin_pct")
-    profile = player.get("midfield_origin_profile") or xp.get("midfield_origin_profile")
-    if origin_pct is not None:
-        field_label = "campo ofensivo" if profile == "campo_ofensivo" else "campo defensivo"
-        chips.append(
-            f'<span class="pa-selected-chip">{float(origin_pct):.0f}% no ataque · {field_label}</span>'
-        )
-
-    def _int_or_dash(value) -> str:
-        try:
-            return str(int(round(float(value))))
-        except (TypeError, ValueError):
-            return "—"
-
-    def _one_decimal(value) -> str:
-        try:
-            return f"{float(value):.1f}"
-        except (TypeError, ValueError):
-            return "—"
-
-    def _pct(value) -> str:
-        try:
-            return f"{float(value):.1f}%"
-        except (TypeError, ValueError):
-            return "—"
-
-    rating = xp.get("xp_pass_rating")
-    rating_txt = fmt_rating_score(rating) if rating is not None else "—"
-    threat_p90 = xp.get("xp_m4_threat_passes_p90")
-    if threat_p90 is None:
-        threat_p90 = player.get("impact_passes_p90")
-
-    kpis = "".join([
-        _pa_hero_kpi_html("xP Pass", rating_txt, accent=True),
-        _pa_hero_kpi_html("Minutos", _int_or_dash(player.get("minutes"))),
-        _pa_hero_kpi_html(
-            "Passes",
-            _int_or_dash(player.get("passes_completed") or xp.get("passes_completed")),
-        ),
-        _pa_hero_kpi_html(f"{IMPACT_PASS_ABBR}/90", _one_decimal(threat_p90)),
-        _pa_hero_kpi_html("% Certos", _pct(player.get("pass_completion_pct"))),
-        _pa_hero_kpi_html("Prog./90", _one_decimal(player.get("progressive_passes_p90"))),
-    ])
-
-    return (
-        '<div class="pa-hero-card">'
-        '<div class="pa-hero-top">'
-        f'<div class="pa-hero-avatar">{html.escape(initials)}</div>'
-        '<div class="pa-hero-id">'
-        f'<span class="pa-hero-name">{html.escape(name)}</span>'
-        f'<span class="pa-hero-sub">{team} · {pos}</span>'
-        "</div>"
-        "</div>"
-        f'<div class="pa-hero-chips">{"".join(chips)}</div>'
-        f'<div class="pa-hero-kpis">{kpis}</div>'
-        "</div>"
-    )
+    return player_id, pool, show_scatter, show_maps
 
 
 @st.cache_data(show_spinner="Carregando mapas de passe…")
@@ -9653,54 +9552,33 @@ def render_player_analysis_section(
 
     st.markdown('<div class="pa-shell">', unsafe_allow_html=True)
 
-    filter_col, hero_col = st.columns([0.3, 0.7], gap="large")
-    with filter_col:
-        player_id, pool = _render_pa_filter_card(
-            all_players,
-            progression_by_id,
-            xp_by_id=xp_by_id,
-        )
+    player_id, pool, show_scatter, show_maps = _render_pa_filter_card(
+        all_players,
+        progression_by_id,
+        xp_by_id=xp_by_id,
+    )
 
-    player = None
-    xp_profile = None
-    if player_id:
-        player = _resolve_progression_analysis_player(
-            player_id,
-            progression_by_id,
-            pass_by_id,
-            carry_by_id,
-            progression_pool_by_position,
-            pass_pool_by_position,
-            carry_pool_by_position,
-        )
-        if player is not None:
-            player = pp.enrich_player_general_profile(player)
-            xp_profile = (xp_by_id or {}).get(str(player_id))
-
-    show_scatter = False
-    show_maps = False
-    with hero_col:
-        if not player_id:
-            st.info("Selecione um jogador no card à esquerda para ver a análise.")
-        elif player is None:
-            st.warning("Não foi possível montar o perfil deste jogador.")
-        else:
-            st.markdown(_pa_hero_card_html(player, xp_profile), unsafe_allow_html=True)
-            with st.container(key="pa_view_toggles"):
-                selected_views = st.segmented_control(
-                    "Visualizações sob demanda",
-                    options=[PA_VIEW_SCATTER, PA_VIEW_MAPS],
-                    format_func=lambda key: PA_VIEW_LABELS[key],
-                    selection_mode="multi",
-                    key=PA_VIEW_SELECT_KEY,
-                    help="Abra os gráficos e mapas apenas quando precisar — mantém o app leve.",
-                ) or []
-                show_scatter = PA_VIEW_SCATTER in selected_views
-                show_maps = PA_VIEW_MAPS in selected_views
-
-    if player is None:
+    if not player_id:
+        st.info("Selecione um jogador na barra de filtros para ver a análise.")
         st.markdown("</div>", unsafe_allow_html=True)
         return
+
+    player = _resolve_progression_analysis_player(
+        player_id,
+        progression_by_id,
+        pass_by_id,
+        carry_by_id,
+        progression_pool_by_position,
+        pass_pool_by_position,
+        carry_pool_by_position,
+    )
+    if player is None:
+        st.warning("Não foi possível montar o perfil deste jogador.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    player = pp.enrich_player_general_profile(player)
+    xp_profile = (xp_by_id or {}).get(str(player_id))
 
     st.markdown('<div class="pa-profile-divider"></div>', unsafe_allow_html=True)
 
