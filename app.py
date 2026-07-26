@@ -165,6 +165,8 @@ draw_passes_destination_heatmap = _xp_study_maps.draw_passes_destination_heatmap
 draw_special_passes_season_map = _xp_study_maps.draw_special_passes_season_map
 draw_top_xp_passes_map = _xp_study_maps.draw_top_xp_passes_map
 draw_xp_destination_surface = _xp_study_maps.draw_xp_destination_surface
+draw_midfielder_common_passes_map = _xp_study_maps.draw_midfielder_common_passes_map
+draw_midfielder_rare_passes_map = _xp_study_maps.draw_midfielder_rare_passes_map
 
 XP_DATA_CACHE_VERSION = xe.XP_DATA_CACHE_VERSION
 
@@ -6834,7 +6836,7 @@ def _xp_profile_dim_html(display_key: str, xp_profile: dict) -> str:
 def _xp_profile_ineligibility_note(xp_profile: dict) -> str:
     min_pct = float(xp_profile.get("xp_profile_min_minutes_pct") or xstats.XP_PROFILE_MIN_MINUTES_PCT)
     reason = str(xp_profile.get("xp_profile_ineligible_reason") or "")
-    if reason == "top100_cutoff":
+    if reason in {"top_pool_cutoff", "top100_cutoff"}:
         pool_size = int(xp_profile.get("xp_profile_top_pool_size") or xstats.XP_PROFILE_TOP_PASS_POOL_SIZE)
         min_passes = xp_profile.get("xp_profile_min_passes")
         passes_txt = f"{float(min_passes):.0f}" if min_passes is not None else "—"
@@ -9343,6 +9345,136 @@ def load_player_analysis_xp_passes(_cache_version: int = XP_DATA_CACHE_VERSION):
     return xe.load_european_league_xp_passes_grouped(_cache_version)
 
 
+@st.cache_data(show_spinner="Agregando passes dos meio-campistas…")
+def load_midfielder_pass_maps_analysis(
+    top_n: int,
+    _xp_cache: int = XP_DATA_CACHE_VERSION,
+) -> dict:
+    """Aggregate destination volume and mean xP for the top-N midfielders by passes."""
+    season = xe.load_european_league_season_passes(_xp_cache)
+    if season is None or season.empty:
+        return {
+            "count_grid": None,
+            "mean_xp_grid": None,
+            "total_passes": 0,
+            "quadrant_stats": [],
+            "player_count": 0,
+            "min_passes_cutoff": 0,
+        }
+
+    completed = season[season["is_won"] & season["has_end"]].copy()
+    if completed.empty:
+        return {
+            "count_grid": None,
+            "mean_xp_grid": None,
+            "total_passes": 0,
+            "quadrant_stats": [],
+            "player_count": 0,
+            "min_passes_cutoff": 0,
+        }
+
+    pass_counts = (
+        completed.groupby("player_id", sort=False)
+        .size()
+        .sort_values(ascending=False)
+    )
+    top_ids = {str(pid) for pid in pass_counts.head(int(top_n)).index}
+    min_cutoff = int(pass_counts.head(int(top_n)).min()) if top_ids else 0
+    pool = completed[completed["player_id"].astype(str).isin(top_ids)]
+    agg = xpe.aggregate_pass_destination_grids(pool)
+    agg["player_count"] = len(top_ids)
+    agg["min_passes_cutoff"] = min_cutoff
+    return agg
+
+
+def render_xp_maps_analysis_tab() -> None:
+    """Visual answer: where midfielder passes are most common vs. most rare (xP)."""
+    st.subheader("xP — Maps Analysis")
+    st.markdown(
+        "<p style='color:#94a3b8;font-size:0.92rem;margin:0 0 0.75rem 0;'>"
+        "O xP mede <strong>raridade</strong>: passes que terminam em zonas pouco frequentes "
+        "valem mais. Aqui você vê, de forma simples, <strong>onde os meio-campistas mais "
+        "passam</strong> (volume) e <strong>onde os passes são mais raros</strong> "
+        "(xP médio por destino), com os quadrantes do campo destacados."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+
+    top_n = int(xstats.XP_PROFILE_TOP_PASS_POOL_SIZE)
+    analysis = load_midfielder_pass_maps_analysis(top_n)
+    count_grid = analysis.get("count_grid")
+    mean_xp_grid = analysis.get("mean_xp_grid")
+    total_passes = int(analysis.get("total_passes") or 0)
+    player_count = int(analysis.get("player_count") or 0)
+    min_cutoff = int(analysis.get("min_passes_cutoff") or 0)
+
+    if count_grid is None or mean_xp_grid is None or total_passes <= 0:
+        st.warning("Não foi possível carregar os passes dos meio-campistas para este mapa.")
+        return
+
+    st.caption(
+        f"Base: top {player_count} meio-campistas com mais passes completados "
+        f"(mín. {min_cutoff:,} passes) · {total_passes:,} passes agregados · "
+        "4 ligas europeias (PL, Serie A, La Liga, Bundesliga)."
+    )
+
+    map_title_common = f"Passes mais comuns · destino ({player_count} MC)"
+    map_title_rare = f"Passes mais raros · xP médio no destino ({player_count} MC)"
+    fig_common = draw_midfielder_common_passes_map(
+        count_grid,
+        title=map_title_common,
+    )
+    fig_rare = draw_midfielder_rare_passes_map(
+        mean_xp_grid,
+        title=map_title_rare,
+    )
+
+    col_common, col_rare = st.columns(2, gap="medium")
+    with col_common:
+        st.pyplot(fig_common, clear_figure=True, use_container_width=True)
+        st.caption(
+            "Verde mais intenso = destino mais frequente. "
+            "Responde: para onde os meio-campistas mais passam?"
+        )
+    with col_rare:
+        st.pyplot(fig_rare, clear_figure=True, use_container_width=True)
+        st.caption(
+            "Vermelho mais intenso = destino com passes mais raros (xP médio maior). "
+            "Responde: quais zonas geram passes menos comuns?"
+        )
+
+    quadrant_stats = analysis.get("quadrant_stats") or []
+    if quadrant_stats:
+        st.markdown("**Volume por quadrante (destino dos passes)**")
+        quad_df = pd.DataFrame(quadrant_stats)[["quadrant", "passes", "share_pct"]].rename(
+            columns={
+                "quadrant": "Quadrante",
+                "passes": "Passes",
+                "share_pct": "% do total",
+            }
+        )
+        st.dataframe(
+            quad_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Passes": st.column_config.NumberColumn(format="%d"),
+                "% do total": st.column_config.NumberColumn(format="%.1f%%"),
+            },
+        )
+
+    with st.expander("Como ler estes mapas"):
+        st.markdown(
+            "- **Mapa da esquerda (volume):** conta quantos passes terminam em cada célula. "
+            "Quanto mais verde, mais <strong>comum</strong> é passar para aquela zona.\n"
+            "- **Mapa da direita (xP):** mostra o xP médio dos passes que terminam em cada célula. "
+            "Quanto mais vermelho, mais <strong>raro</strong> é o destino no modelo global.\n"
+            "- **Quadrantes:** o campo é dividido em defensivo/ofensivo (eixo x) e esquerda/direita (eixo y).\n"
+            f"- **Amostra:** apenas os {top_n} meio-campistas com maior volume de passes — "
+            "o mesmo recorte usado no xP Profile."
+        )
+
+
 def _render_pa_scatter_panel(
     pool: list[dict],
     progression_by_id: dict[str, dict],
@@ -10457,7 +10589,9 @@ def _render_similarity_results_tab(
 
 
 def main() -> None:
-    tab_pres, tab_analysis = st.tabs(["Overview", "Player Analysis"])
+    tab_pres, tab_analysis, tab_xp_maps = st.tabs(
+        ["Overview", "Player Analysis", "xP - Maps Analysis"]
+    )
     with tab_pres:
         render_presentation_tab([], {}, {}, {}, rated=[], xp_players=[])
     with tab_analysis:
@@ -10485,6 +10619,8 @@ def main() -> None:
                 pa_carries_pool_by_position,
                 xp_by_id=pa_xp_by_id,
             )
+    with tab_xp_maps:
+        render_xp_maps_analysis_tab()
 
 
 main()

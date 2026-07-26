@@ -862,3 +862,102 @@ def load_study_match_bundle(
         "meta": meta,
         "grid": grid,
     }
+
+
+QUADRANT_X_SPLIT = FIELD_X / 2.0
+QUADRANT_Y_SPLIT = FIELD_Y / 2.0
+QUADRANT_LABELS: dict[str, str] = {
+    "def_left": "Defensivo · esquerda",
+    "def_right": "Defensivo · direita",
+    "att_left": "Ofensivo · esquerda",
+    "att_right": "Ofensivo · direita",
+}
+
+
+def destination_quadrant_key(x_end: float, y_end: float) -> str:
+    """Split the pitch into four quadrants by destination coordinates."""
+    if float(x_end) < QUADRANT_X_SPLIT:
+        return "def_left" if float(y_end) < QUADRANT_Y_SPLIT else "def_right"
+    return "att_left" if float(y_end) < QUADRANT_Y_SPLIT else "att_right"
+
+
+def summarize_destination_quadrants(passes: pd.DataFrame) -> list[dict]:
+    """Pass-volume share by destination quadrant for completed passes."""
+    if passes is None or passes.empty:
+        return []
+    work = passes[passes["is_won"] & passes["has_end"]].dropna(subset=["x_end", "y_end"])
+    if work.empty:
+        return []
+
+    counts: dict[str, int] = {key: 0 for key in QUADRANT_LABELS}
+    for x_end, y_end in zip(
+        work["x_end"].to_numpy(dtype=float),
+        work["y_end"].to_numpy(dtype=float),
+    ):
+        counts[destination_quadrant_key(x_end, y_end)] += 1
+
+    total = max(sum(counts.values()), 1)
+    rows: list[dict] = []
+    for key, label in QUADRANT_LABELS.items():
+        count = int(counts.get(key, 0))
+        rows.append({
+            "quadrant_key": key,
+            "quadrant": label,
+            "passes": count,
+            "share_pct": round(count / total * 100.0, 1),
+        })
+    return rows
+
+
+def aggregate_pass_destination_grids(
+    passes: pd.DataFrame,
+    *,
+    dest_cols: int = 8,
+    dest_rows: int = 6,
+    xp_col: str = "xp_m4",
+) -> dict[str, np.ndarray | int | list[dict]]:
+    """Destination frequency and mean xP grids for a pool of completed passes."""
+    count_grid = np.zeros((dest_rows, dest_cols), dtype=float)
+    xp_sum_grid = np.zeros((dest_rows, dest_cols), dtype=float)
+
+    if passes is None or passes.empty:
+        return {
+            "count_grid": count_grid,
+            "mean_xp_grid": np.zeros_like(count_grid),
+            "total_passes": 0,
+            "quadrant_stats": [],
+        }
+
+    work = passes[passes["is_won"] & passes["has_end"]].dropna(subset=["x_end", "y_end"]).copy()
+    if work.empty:
+        return {
+            "count_grid": count_grid,
+            "mean_xp_grid": np.zeros_like(count_grid),
+            "total_passes": 0,
+            "quadrant_stats": [],
+        }
+
+    x_idx, y_idx = _cell_indices(
+        work["x_end"].to_numpy(dtype=float),
+        work["y_end"].to_numpy(dtype=float),
+        cols=dest_cols,
+        rows=dest_rows,
+    )
+    has_xp = xp_col in work.columns
+    xp_values = work[xp_col].to_numpy(dtype=float) if has_xp else np.zeros(len(work))
+
+    for ix, iy, xp_value in zip(x_idx, y_idx, xp_values):
+        count_grid[iy, ix] += 1.0
+        if has_xp:
+            xp_sum_grid[iy, ix] += float(xp_value)
+
+    mean_xp_grid = np.zeros_like(count_grid)
+    mask = count_grid > 0
+    mean_xp_grid[mask] = xp_sum_grid[mask] / count_grid[mask]
+
+    return {
+        "count_grid": count_grid,
+        "mean_xp_grid": mean_xp_grid,
+        "total_passes": int(len(work)),
+        "quadrant_stats": summarize_destination_quadrants(work),
+    }

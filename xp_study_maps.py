@@ -13,7 +13,16 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from mplsoccer import Pitch
 
-from xp_study_engine import FIELD_X, FIELD_Y, XP_GRID_COLS, XP_GRID_ROWS, XP_PASS_MAX
+from xp_study_engine import (
+    FIELD_X,
+    FIELD_Y,
+    QUADRANT_LABELS,
+    QUADRANT_X_SPLIT,
+    QUADRANT_Y_SPLIT,
+    XP_GRID_COLS,
+    XP_GRID_ROWS,
+    XP_PASS_MAX,
+)
 
 FIG_W, FIG_H = 8.4, 5.6
 FIG_DPI = 220
@@ -419,6 +428,132 @@ def draw_passes_destination_heatmap(
         color="white", fontsize=10, pad=8,
     )
     return fig
+
+
+CMAP_FREQ_GREEN = LinearSegmentedColormap.from_list(
+    "freq_green", ["#1e293b", "#166534", "#22c55e", "#bbf7d0"]
+)
+
+
+def _draw_pitch_quadrants(ax) -> None:
+    """Light quadrant guides: defensive/attacking halves and left/right lanes."""
+    ax.axvline(x=QUADRANT_X_SPLIT, color="#cbd5e1", lw=1.4, alpha=0.55, zorder=3)
+    ax.axhline(y=QUADRANT_Y_SPLIT, color="#cbd5e1", lw=1.4, alpha=0.55, zorder=3)
+    ax.axvline(x=FIELD_X / 3.0, color="#475569", lw=0.8, alpha=0.28, zorder=3)
+    ax.axvline(x=2.0 * FIELD_X / 3.0, color="#475569", lw=0.8, alpha=0.28, zorder=3)
+
+    label_specs = (
+        (FIELD_X * 0.25, FIELD_Y * 0.25, QUADRANT_LABELS["def_left"]),
+        (FIELD_X * 0.25, FIELD_Y * 0.75, QUADRANT_LABELS["def_right"]),
+        (FIELD_X * 0.75, FIELD_Y * 0.25, QUADRANT_LABELS["att_left"]),
+        (FIELD_X * 0.75, FIELD_Y * 0.75, QUADRANT_LABELS["att_right"]),
+    )
+    for x_pos, y_pos, label in label_specs:
+        ax.text(
+            x_pos,
+            y_pos,
+            label,
+            ha="center",
+            va="center",
+            color="#e2e8f0",
+            fontsize=7.5,
+            fontweight="700",
+            alpha=0.82,
+            zorder=4,
+            bbox=dict(
+                boxstyle="round,pad=0.25",
+                facecolor="#0f172a",
+                edgecolor="#334155",
+                alpha=0.72,
+            ),
+        )
+
+
+def _draw_destination_grid_map(
+    grid: np.ndarray,
+    *,
+    title: str,
+    cbar_label: str,
+    cmap,
+    vmin: float = 0.0,
+    vmax: float | None = None,
+    dest_cols: int = 8,
+    dest_rows: int = 6,
+):
+    fig, ax, _pitch = _base_pitch()
+    rows, cols = grid.shape
+    dest_rows, dest_cols = rows, cols
+    x_bins = np.linspace(0.0, FIELD_X, dest_cols + 1)
+    y_bins = np.linspace(0.0, FIELD_Y, dest_rows + 1)
+    values = grid.astype(float)
+    positive = values[values > 0]
+    if vmax is None:
+        vmax = max(float(positive.max()), 1e-6) if positive.size else 1.0
+    norm = Normalize(vmin=vmin, vmax=vmax)
+
+    for iy in range(dest_rows):
+        for ix in range(dest_cols):
+            value = float(values[iy, ix])
+            if value <= 0:
+                continue
+            ax.add_patch(
+                Rectangle(
+                    (x_bins[ix], y_bins[iy]),
+                    x_bins[ix + 1] - x_bins[ix],
+                    y_bins[iy + 1] - y_bins[iy],
+                    facecolor=cmap(norm(value)),
+                    edgecolor=(1, 1, 1, 0.12),
+                    linewidth=0.35,
+                    alpha=0.92,
+                    zorder=2,
+                )
+            )
+
+    _draw_pitch_quadrants(ax)
+    sm = ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.02)
+    cbar.set_label(cbar_label, color="white", fontsize=8)
+    cbar.ax.yaxis.set_tick_params(color="white", labelcolor="white")
+    ax.set_title(title, color="white", fontsize=10, pad=8)
+    return fig
+
+
+def draw_midfielder_common_passes_map(
+    count_grid: np.ndarray,
+    *,
+    title: str,
+    dest_cols: int = 8,
+    dest_rows: int = 6,
+):
+    """Heatmap of where midfielder passes most often end (volume = common)."""
+    return _draw_destination_grid_map(
+        count_grid,
+        title=title,
+        cbar_label="Passes no destino",
+        cmap=CMAP_FREQ_GREEN,
+        dest_cols=dest_cols,
+        dest_rows=dest_rows,
+    )
+
+
+def draw_midfielder_rare_passes_map(
+    mean_xp_grid: np.ndarray,
+    *,
+    title: str,
+    dest_cols: int = 8,
+    dest_rows: int = 6,
+):
+    """Heatmap of mean xP by destination cell (higher = rarer passes)."""
+    return _draw_destination_grid_map(
+        mean_xp_grid,
+        title=title,
+        cbar_label="xP médio no destino",
+        cmap=CMAP_XP_GRAY_RED,
+        vmax=XP_PASS_MAX,
+        dest_cols=dest_cols,
+        dest_rows=dest_rows,
+    )
 
 
 def draw_xp_threat_passes_season_map(
