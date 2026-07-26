@@ -874,11 +874,26 @@ QUADRANT_LABELS: dict[str, str] = {
 }
 
 
+QUADRANT_ORDER: tuple[str, ...] = ("def_left", "def_right", "att_left", "att_right")
+
+
+def quadrant_key_for_point(x: float, y: float) -> str:
+    """Split the pitch into four quadrants: defensive/attacking half × left/right lane."""
+    if float(x) < QUADRANT_X_SPLIT:
+        return "def_left" if float(y) < QUADRANT_Y_SPLIT else "def_right"
+    return "att_left" if float(y) < QUADRANT_Y_SPLIT else "att_right"
+
+
+def quadrant_bounds(key: str) -> tuple[float, float, float, float]:
+    """Rectangle (x0, y0, x1, y1) covering the quadrant."""
+    x0, x1 = (0.0, QUADRANT_X_SPLIT) if str(key).startswith("def") else (QUADRANT_X_SPLIT, FIELD_X)
+    y0, y1 = (0.0, QUADRANT_Y_SPLIT) if str(key).endswith("left") else (QUADRANT_Y_SPLIT, FIELD_Y)
+    return x0, y0, x1, y1
+
+
 def destination_quadrant_key(x_end: float, y_end: float) -> str:
     """Split the pitch into four quadrants by destination coordinates."""
-    if float(x_end) < QUADRANT_X_SPLIT:
-        return "def_left" if float(y_end) < QUADRANT_Y_SPLIT else "def_right"
-    return "att_left" if float(y_end) < QUADRANT_Y_SPLIT else "att_right"
+    return quadrant_key_for_point(x_end, y_end)
 
 
 def summarize_destination_quadrants(passes: pd.DataFrame) -> list[dict]:
@@ -960,4 +975,158 @@ def aggregate_pass_destination_grids(
         "mean_xp_grid": mean_xp_grid,
         "total_passes": int(len(work)),
         "quadrant_stats": summarize_destination_quadrants(work),
+    }
+
+
+ZONE_X_LABELS: tuple[str, ...] = ("Defesa", "Meio", "Ataque")
+ZONE_Y_LABELS: tuple[str, ...] = ("esquerda", "centro", "direita")
+
+
+def _zone_label(x: float, y: float) -> str:
+    """Human-readable pitch zone such as 'Meio-centro' or 'Ataque-direita'."""
+    x_idx = min(int(float(x) / (FIELD_X / 3.0)), 2)
+    y_idx = min(int(float(y) / (FIELD_Y / 3.0)), 2)
+    return f"{ZONE_X_LABELS[x_idx]}-{ZONE_Y_LABELS[y_idx]}"
+
+
+def build_quadrant_route_analysis(
+    passes: pd.DataFrame,
+    *,
+    grid_cols: int = 8,
+    grid_rows: int = 6,
+    top_routes: int = 8,
+    min_route_passes: int = 25,
+    xp_col: str = "xp_m4",
+) -> dict:
+    """Most common and rarest pass routes grouped by the quadrant they start from.
+
+    Routes aggregate origin cell → destination cell on a coarse grid so the
+    interactive map stays readable. "Common" ranks by volume, "rare" ranks by
+    mean xP (the model's rarity score) among routes with enough sample.
+    """
+    empty: dict = {
+        "quadrants": {},
+        "total_passes": 0,
+        "grid_cols": grid_cols,
+        "grid_rows": grid_rows,
+        "min_route_passes": min_route_passes,
+    }
+    if passes is None or passes.empty:
+        return empty
+
+    work = passes[passes["is_won"] & passes["has_end"]].dropna(
+        subset=["x_start", "y_start", "x_end", "y_end"]
+    )
+    if work.empty:
+        return empty
+
+    ox_idx, oy_idx = _cell_indices(
+        work["x_start"].to_numpy(dtype=float),
+        work["y_start"].to_numpy(dtype=float),
+        cols=grid_cols,
+        rows=grid_rows,
+    )
+    dx_idx, dy_idx = _cell_indices(
+        work["x_end"].to_numpy(dtype=float),
+        work["y_end"].to_numpy(dtype=float),
+        cols=grid_cols,
+        rows=grid_rows,
+    )
+    xp_values = (
+        work[xp_col].to_numpy(dtype=float)
+        if xp_col in work.columns
+        else np.zeros(len(work), dtype=float)
+    )
+
+    routes = (
+        pd.DataFrame({
+            "ox": ox_idx,
+            "oy": oy_idx,
+            "dx": dx_idx,
+            "dy": dy_idx,
+            "xp": xp_values,
+        })
+        .groupby(["ox", "oy", "dx", "dy"], sort=False)
+        .agg(count=("xp", "size"), mean_xp=("xp", "mean"))
+        .reset_index()
+    )
+    if routes.empty:
+        return empty
+
+    cell_w = FIELD_X / grid_cols
+    cell_h = FIELD_Y / grid_rows
+    routes["x0"] = (routes["ox"] + 0.5) * cell_w
+    routes["y0"] = (routes["oy"] + 0.5) * cell_h
+    routes["x1"] = (routes["dx"] + 0.5) * cell_w
+    routes["y1"] = (routes["dy"] + 0.5) * cell_h
+    routes["quadrant"] = [
+        quadrant_key_for_point(x, y)
+        for x, y in zip(routes["x0"].to_numpy(), routes["y0"].to_numpy())
+    ]
+
+    total_passes = int(routes["count"].sum())
+
+    def _route_records(rows: pd.DataFrame, quadrant_total: int) -> list[dict]:
+        records: list[dict] = []
+        for row in rows.itertuples(index=False):
+            distance = float(np.hypot(row.x1 - row.x0, row.y1 - row.y0))
+            records.append({
+                "x0": round(float(row.x0), 2),
+                "y0": round(float(row.y0), 2),
+                "x1": round(float(row.x1), 2),
+                "y1": round(float(row.y1), 2),
+                "count": int(row.count),
+                "mean_xp": round(float(row.mean_xp), 4),
+                "share_pct": round(int(row.count) / max(quadrant_total, 1) * 100.0, 1),
+                "distance_m": round(distance, 1),
+                "is_self": bool(row.x0 == row.x1 and row.y0 == row.y1),
+                "origin_label": _zone_label(row.x0, row.y0),
+                "dest_label": _zone_label(row.x1, row.y1),
+            })
+        return records
+
+    quadrants: dict[str, dict] = {}
+    for key in QUADRANT_ORDER:
+        subset = routes[routes["quadrant"] == key]
+        quadrant_total = int(subset["count"].sum())
+        if quadrant_total <= 0:
+            quadrants[key] = {
+                "key": key,
+                "label": QUADRANT_LABELS[key],
+                "bounds": quadrant_bounds(key),
+                "passes": 0,
+                "share_pct": 0.0,
+                "mean_xp": 0.0,
+                "common": [],
+                "rare": [],
+            }
+            continue
+
+        weighted_xp = float((subset["count"] * subset["mean_xp"]).sum())
+        common = subset.sort_values("count", ascending=False).head(top_routes)
+        sampled = subset[subset["count"] >= min_route_passes]
+        if sampled.empty:
+            sampled = subset
+        rare = sampled.sort_values("mean_xp", ascending=False).head(top_routes)
+
+        quadrants[key] = {
+            "key": key,
+            "label": QUADRANT_LABELS[key],
+            "bounds": quadrant_bounds(key),
+            "passes": quadrant_total,
+            "share_pct": round(quadrant_total / max(total_passes, 1) * 100.0, 1),
+            "mean_xp": round(weighted_xp / quadrant_total, 4),
+            "common": _route_records(common, quadrant_total),
+            "rare": _route_records(rare, quadrant_total),
+        }
+
+    return {
+        "quadrants": quadrants,
+        "total_passes": total_passes,
+        "grid_cols": grid_cols,
+        "grid_rows": grid_rows,
+        "min_route_passes": min_route_passes,
+        "field_x": FIELD_X,
+        "field_y": FIELD_Y,
+        "xp_max": XP_PASS_MAX,
     }

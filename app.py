@@ -121,6 +121,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import passes_engine as pe
+import xp_maps_interactive as xmi
 from heuristic_scoring import GROUP_COLORS, position_group_label, rating_position_group
 sim = _load_similarity_engine()
 from comparison_config import (
@@ -222,6 +223,7 @@ PA_AGE_LABELS: dict[str, str] = {
     "u23": "Sub-23",
     "u21": "Sub-21",
 }
+XP_QUADRANT_MAP_HEIGHT = 575
 PA_URL_PLAYER_KEY = "_pa_url_player_id"
 PA_USER_PLAYER_PICK_KEY = "_pa_user_player_pick"
 PA_USER_POSITION_PICK_KEY = "_pa_user_position_pick"
@@ -9373,18 +9375,63 @@ def load_midfielder_pass_maps_analysis(
             "min_passes_cutoff": 0,
         }
 
+    pool = _top_midfielder_pass_pool(completed, top_n)
+    agg = xpe.aggregate_pass_destination_grids(pool["passes"])
+    agg["player_count"] = pool["player_count"]
+    agg["min_passes_cutoff"] = pool["min_passes_cutoff"]
+    return agg
+
+
+def _top_midfielder_pass_pool(completed: pd.DataFrame, top_n: int) -> dict:
+    """Completed passes restricted to the top-N midfielders by pass volume."""
     pass_counts = (
         completed.groupby("player_id", sort=False)
         .size()
         .sort_values(ascending=False)
     )
-    top_ids = {str(pid) for pid in pass_counts.head(int(top_n)).index}
-    min_cutoff = int(pass_counts.head(int(top_n)).min()) if top_ids else 0
-    pool = completed[completed["player_id"].astype(str).isin(top_ids)]
-    agg = xpe.aggregate_pass_destination_grids(pool)
-    agg["player_count"] = len(top_ids)
-    agg["min_passes_cutoff"] = min_cutoff
-    return agg
+    head = pass_counts.head(int(top_n))
+    top_ids = {str(pid) for pid in head.index}
+    return {
+        "passes": completed[completed["player_id"].astype(str).isin(top_ids)],
+        "player_count": len(top_ids),
+        "min_passes_cutoff": int(head.min()) if len(head) else 0,
+    }
+
+
+@st.cache_data(show_spinner="Agregando rotas por quadrante…")
+def load_midfielder_quadrant_routes(
+    top_n: int,
+    _xp_cache: int = XP_DATA_CACHE_VERSION,
+) -> dict:
+    """Common and rare pass routes grouped by the quadrant they start from."""
+    season = xe.load_european_league_season_passes(_xp_cache)
+    if season is None or season.empty:
+        return {}
+    completed = season[season["is_won"] & season["has_end"]]
+    if completed.empty:
+        return {}
+    pool = _top_midfielder_pass_pool(completed, top_n)
+    return xpe.build_quadrant_route_analysis(pool["passes"])
+
+
+def _render_interactive_quadrant_map(top_n: int) -> None:
+    """Hover-driven quadrant map: reveals the common and rare routes leaving each zone."""
+    routes = load_midfielder_quadrant_routes(top_n)
+    if not routes or not routes.get("quadrants"):
+        st.info("Rotas por quadrante indisponíveis para esta base.")
+        return
+
+    st.markdown(
+        '<div class="pa-ondemand-head">'
+        '<span class="pa-ondemand-ic"><i class="fa-solid fa-hand-pointer"></i></span>'
+        "Mapa interativo — passe o mouse por um quadrante</div>",
+        unsafe_allow_html=True,
+    )
+    components.html(
+        xmi.build_quadrant_map_html(routes),
+        height=XP_QUADRANT_MAP_HEIGHT,
+        scrolling=False,
+    )
 
 
 def render_xp_maps_analysis_tab() -> None:
@@ -9416,6 +9463,15 @@ def render_xp_maps_analysis_tab() -> None:
         f"Base: top {player_count} meio-campistas com mais passes completados "
         f"(mín. {min_cutoff:,} passes) · {total_passes:,} passes agregados · "
         "4 ligas europeias (PL, Serie A, La Liga, Bundesliga)."
+    )
+
+    _render_interactive_quadrant_map(top_n)
+
+    st.markdown(
+        '<div class="pa-ondemand-head">'
+        '<span class="pa-ondemand-ic"><i class="fa-solid fa-layer-group"></i></span>'
+        "Visão agregada — volume e raridade por destino</div>",
+        unsafe_allow_html=True,
     )
 
     map_title_common = f"Passes mais comuns · destino ({player_count} MC)"
@@ -9465,11 +9521,17 @@ def render_xp_maps_analysis_tab() -> None:
 
     with st.expander("Como ler estes mapas"):
         st.markdown(
-            "- **Mapa da esquerda (volume):** conta quantos passes terminam em cada célula. "
-            "Quanto mais verde, mais <strong>comum</strong> é passar para aquela zona.\n"
-            "- **Mapa da direita (xP):** mostra o xP médio dos passes que terminam em cada célula. "
-            "Quanto mais vermelho, mais <strong>raro</strong> é o destino no modelo global.\n"
-            "- **Quadrantes:** o campo é dividido em defensivo/ofensivo (eixo x) e esquerda/direita (eixo y).\n"
+            "- **Mapa interativo:** passe o mouse por um quadrante para ver as rotas que "
+            "**saem** dele. As setas são coloridas pelo xP médio da rota (cinza = comum, "
+            "vermelho = raro) e a espessura acompanha o volume.\n"
+            "- **Círculos abertos:** passes curtos que começam e terminam na mesma célula — "
+            "geralmente as rotas mais comuns de todas.\n"
+            "- **Mapa de volume (verde):** conta quantos passes terminam em cada célula. "
+            "Quanto mais verde, mais **comum** é passar para aquela zona.\n"
+            "- **Mapa de xP (vermelho):** xP médio dos passes que terminam em cada célula. "
+            "Quanto mais vermelho, mais **raro** é o destino no modelo global.\n"
+            "- **Quadrantes:** o campo é dividido em defensivo/ofensivo (eixo x) e "
+            "esquerda/direita (eixo y).\n"
             f"- **Amostra:** apenas os {top_n} meio-campistas com maior volume de passes — "
             "o mesmo recorte usado no xP Profile."
         )
