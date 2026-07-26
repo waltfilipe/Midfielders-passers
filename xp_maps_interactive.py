@@ -1,4 +1,4 @@
-"""Interactive quadrant pass map: hover a quadrant to reveal its common and rare routes."""
+"""Interactive quadrant heatmap: hover a quadrant to compare where its passes go."""
 
 from __future__ import annotations
 
@@ -6,13 +6,20 @@ import json
 
 PLOTLY_CDN = "https://cdn.plot.ly/plotly-2.35.2.min.js"
 
-# Matches CMAP_XP_GRAY_RED from xp_study_maps so both views read the same way.
-XP_COLOR_STOPS: tuple[tuple[float, str], ...] = (
-    (0.00, "#6b7280"),
+# Mirrors CMAP_XP_GRAY_RED / CMAP_FREQ_GREEN from xp_study_maps so the interactive
+# map and the static matplotlib maps in the same tab read identically.
+XP_COLORSCALE: tuple[tuple[float, str], ...] = (
+    (0.00, "#4b5563"),
     (0.25, "#9ca3af"),
     (0.55, "#f87171"),
     (0.80, "#ef4444"),
     (1.00, "#b91c1c"),
+)
+VOLUME_COLORSCALE: tuple[tuple[float, str], ...] = (
+    (0.00, "#132033"),
+    (0.35, "#166534"),
+    (0.70, "#22c55e"),
+    (1.00, "#bbf7d0"),
 )
 
 _TEMPLATE = """<!DOCTYPE html>
@@ -54,7 +61,7 @@ _TEMPLATE = """<!DOCTYPE html>
     border: 1px solid rgba(148,163,184,0.28);
     color: #cbd5e1;
     border-radius: 999px;
-    padding: 0.24rem 0.8rem;
+    padding: 0.24rem 0.85rem;
     font-size: 0.79rem;
     font-weight: 700;
     cursor: pointer;
@@ -68,108 +75,105 @@ _TEMPLATE = """<!DOCTYPE html>
   }
   .qmap-body {
     display: grid;
-    grid-template-columns: minmax(290px, 1.55fr) minmax(215px, 0.95fr);
+    grid-template-columns: minmax(300px, 1.5fr) minmax(255px, 1fr);
     gap: 0.75rem;
     align-items: start;
   }
-  @media (max-width: 620px) {
+  @media (max-width: 640px) {
     .qmap-body { grid-template-columns: 1fr; }
   }
-  #qmap-plot {
-    width: 100%;
-    border-radius: 12px;
-    overflow: hidden;
-  }
+  #qmap-plot { width: 100%; border-radius: 12px; overflow: hidden; }
   .qmap-panel {
     background: rgba(15,23,42,0.55);
     border: 1px solid rgba(148,163,184,0.16);
     border-radius: 12px;
     padding: 0.7rem 0.8rem;
-    min-height: 320px;
   }
-  .qp-title {
+  .qp-title { display: block; font-size: 0.95rem; font-weight: 800; color: #e2e8f0; margin: 0 0 0.15rem 0; }
+  .qp-sub { display: block; color: #94a3b8; font-size: 0.75rem; line-height: 1.4; margin-bottom: 0.55rem; }
+  .qp-section-label {
     display: block;
-    font-size: 0.95rem;
-    font-weight: 800;
-    color: #e2e8f0;
-    margin: 0 0 0.15rem 0;
-  }
-  .qp-sub {
-    display: block;
-    color: #94a3b8;
-    font-size: 0.76rem;
-    line-height: 1.4;
-    margin-bottom: 0.6rem;
-  }
-  .qp-hint {
-    color: #94a3b8;
-    font-size: 0.8rem;
-    line-height: 1.5;
-  }
-  .qp-section { margin-top: 0.65rem; }
-  .qp-section h4 {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin: 0 0 0.35rem 0;
-    font-size: 0.74rem;
+    font-size: 0.68rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     color: #93a4bc;
+    margin: 0 0 0.35rem 0;
   }
-  .qp-list { list-style: none; margin: 0; padding: 0; }
-  .qp-item {
+  .qp-dest {
+    position: relative;
+    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 9px;
+    padding: 0.34rem 0.5rem 0.38rem 0.5rem;
+    margin-bottom: 0.32rem;
+    overflow: hidden;
+    background: rgba(2,6,23,0.35);
+  }
+  .qp-dest.is-same { border-color: rgba(56,189,248,0.35); }
+  .qp-dest-bar {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: rgba(56,189,248,0.10);
+    z-index: 0;
+  }
+  .qp-dest-inner { position: relative; z-index: 1; }
+  .qp-dest-head {
     display: flex;
     align-items: baseline;
-    gap: 0.45rem;
-    padding: 0.22rem 0;
-    border-bottom: 1px dashed rgba(148,163,184,0.14);
-    font-size: 0.78rem;
+    justify-content: space-between;
+    gap: 0.4rem;
   }
-  .qp-item:last-child { border-bottom: none; }
-  .qp-dot {
+  .qp-dest-name { font-size: 0.79rem; font-weight: 700; color: #e2e8f0; }
+  .qp-dest-share { font-size: 0.79rem; font-weight: 800; color: #38bdf8; }
+  .qp-dest-meta { color: #94a3b8; font-size: 0.7rem; margin-bottom: 0.18rem; }
+  .qp-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.71rem;
+    line-height: 1.5;
+  }
+  .qp-cell-tag {
     flex: 0 0 auto;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    border: 1px solid rgba(248,250,252,0.35);
+    width: 42px;
+    color: #94a3b8;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
   }
-  .qp-route {
+  .qp-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(248,250,252,0.3); }
+  .qp-dot.is-rare { border-radius: 2px; transform: rotate(45deg); }
+  .qp-cell-name {
     flex: 1 1 auto;
     min-width: 0;
-    color: #e2e8f0;
-    font-weight: 600;
+    color: #cbd5e1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .qp-meta { flex: 0 0 auto; color: #94a3b8; font-size: 0.72rem; white-space: nowrap; }
+  .qp-cell-val { flex: 0 0 auto; color: #94a3b8; white-space: nowrap; }
+  .qp-cell-val b { color: #e2e8f0; font-weight: 700; }
+  .qp-hint { color: #94a3b8; font-size: 0.78rem; line-height: 1.5; margin: 0.3rem 0 0 0; }
   .qp-legend {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.7rem;
-    padding-top: 0.55rem;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    padding-top: 0.45rem;
     border-top: 1px dashed rgba(148,163,184,0.18);
     color: #94a3b8;
-    font-size: 0.7rem;
+    font-size: 0.66rem;
   }
-  .qp-bar {
-    flex: 1 1 auto;
-    height: 7px;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #6b7280 0%, #9ca3af 25%, #f87171 55%, #ef4444 80%, #b91c1c 100%);
-  }
+  .qp-legend .qp-dot { width: 7px; height: 7px; background: #94a3b8; }
 </style>
 </head>
 <body>
 <div class="qmap-wrap">
   <div class="qmap-toolbar">
-    <span class="qmap-toolbar-label">Rotas</span>
-    <button class="qmap-btn is-active" data-mode="common">Mais comuns</button>
-    <button class="qmap-btn" data-mode="rare">Mais raros</button>
-    <button class="qmap-btn" data-mode="both">Ambos</button>
+    <span class="qmap-toolbar-label">Cor do mapa</span>
+    <button class="qmap-btn is-active" data-metric="xp">xP médio</button>
+    <button class="qmap-btn" data-metric="volume">Volume (%)</button>
     <button class="qmap-btn" id="qmap-reset" style="margin-left:auto">Ver todos</button>
   </div>
   <div class="qmap-body">
@@ -181,198 +185,209 @@ _TEMPLATE = """<!DOCTYPE html>
 <script>
 (function () {
   var DATA = __DATA__;
-  var STOPS = __STOPS__;
-  var FIELD_X = DATA.field_x || 120;
-  var FIELD_Y = DATA.field_y || 80;
-  var XP_MAX = DATA.xp_max || 1.0;
+  var XP_SCALE = __XP_SCALE__;
+  var VOL_SCALE = __VOL_SCALE__;
   var QUAD_ORDER = __QUAD_ORDER__;
   var PLOT_HEIGHT = __PLOT_HEIGHT__;
 
+  var FIELD_X = DATA.field_x;
+  var FIELD_Y = DATA.field_y;
+  var COLS = DATA.dest_cols;
+  var ROWS = DATA.dest_rows;
+  var CELL_W = FIELD_X / COLS;
+  var CELL_H = FIELD_Y / ROWS;
+  var SPLIT_X = FIELD_X / 2;
+  var SPLIT_Y = FIELD_Y / 2;
+
   var plotEl = document.getElementById('qmap-plot');
   var panelEl = document.getElementById('qmap-panel');
-  var mode = 'common';
+  var metric = 'xp';
   var activeQuad = null;
 
   function fmtInt(v) { return Number(v).toLocaleString('pt-BR'); }
   function fmtPct(v) { return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'; }
   function fmtXp(v) { return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
-  function hexToRgb(hex) {
-    var h = hex.replace('#', '');
-    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  function currentState() {
+    return activeQuad ? DATA.origins[activeQuad] : DATA.overall;
   }
 
-  function xpColor(value, alpha) {
-    var t = Math.max(0, Math.min(1, Number(value) / XP_MAX));
-    var lo = STOPS[0], hi = STOPS[STOPS.length - 1];
-    for (var i = 0; i < STOPS.length - 1; i++) {
-      if (t >= STOPS[i][0] && t <= STOPS[i + 1][0]) { lo = STOPS[i]; hi = STOPS[i + 1]; break; }
+  function volumeGrid(state) {
+    var total = Math.max(state.passes, 1);
+    return state.count_grid.map(function (row) {
+      return row.map(function (v) { return v > 0 ? (v / total) * 100 : null; });
+    });
+  }
+
+  // Fixed scales across hover states keep colours comparable between quadrants.
+  function scaleMax(kind) {
+    var states = [DATA.overall].concat(QUAD_ORDER.map(function (k) { return DATA.origins[k]; }));
+    var best = 0;
+    states.forEach(function (s) {
+      if (!s || !s.passes) return;
+      var grid = kind === 'xp' ? s.xp_grid : volumeGrid(s);
+      grid.forEach(function (row) {
+        row.forEach(function (v) { if (v !== null && v > best) best = v; });
+      });
+    });
+    return best || 1;
+  }
+  var XP_MAX = scaleMax('xp');
+  var VOL_MAX = scaleMax('volume');
+
+  function stopsToScale(stops) { return stops.map(function (s) { return [s[0], s[1]]; }); }
+
+  function colorAt(stops, t) {
+    t = Math.max(0, Math.min(1, t));
+    var lo = stops[0], hi = stops[stops.length - 1];
+    for (var i = 0; i < stops.length - 1; i++) {
+      if (t >= stops[i][0] && t <= stops[i + 1][0]) { lo = stops[i]; hi = stops[i + 1]; break; }
     }
     var span = (hi[0] - lo[0]) || 1;
     var k = (t - lo[0]) / span;
-    var c0 = hexToRgb(lo[1]), c1 = hexToRgb(hi[1]);
-    var r = Math.round(c0[0] + (c1[0] - c0[0]) * k);
-    var g = Math.round(c0[1] + (c1[1] - c0[1]) * k);
-    var b = Math.round(c0[2] + (c1[2] - c0[2]) * k);
-    return 'rgba(' + r + ',' + g + ',' + b + ',' + (alpha === undefined ? 1 : alpha) + ')';
+    function rgb(hex) {
+      var h = hex.replace('#', '');
+      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+    }
+    var a = rgb(lo[1]), b = rgb(hi[1]);
+    return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * k) + ','
+      + Math.round(a[1] + (b[1] - a[1]) * k) + ','
+      + Math.round(a[2] + (b[2] - a[2]) * k) + ')';
+  }
+
+  function xpDot(value) { return colorAt(XP_SCALE, value / XP_MAX); }
+
+  function cellCenters(n, size) {
+    var out = [];
+    for (var i = 0; i < n; i++) out.push((i + 0.5) * size);
+    return out;
+  }
+
+  function quadrantAt(x, y) {
+    if (x < SPLIT_X) return y < SPLIT_Y ? 'def_left' : 'def_right';
+    return y < SPLIT_Y ? 'att_left' : 'att_right';
   }
 
   function pitchShapes() {
-    var line = 'rgba(226,232,240,0.55)';
-    var rect = function (x0, y0, x1, y1, extra) {
-      var s = { type: 'rect', x0: x0, y0: y0, x1: x1, y1: y1, line: { color: line, width: 1.2 }, layer: 'above' };
-      return Object.assign(s, extra || {});
+    var line = 'rgba(248,250,252,0.72)';
+    var mk = function (x0, y0, x1, y1) {
+      return { type: 'rect', x0: x0, y0: y0, x1: x1, y1: y1, line: { color: line, width: 1.1 }, layer: 'above' };
     };
     var shapes = [
-      rect(0, 0, FIELD_X, FIELD_Y),
-      rect(0, 18, 18, 62),
-      rect(FIELD_X - 18, 18, FIELD_X, 62),
-      rect(0, 30, 6, 50),
-      rect(FIELD_X - 6, 30, FIELD_X, 50),
-      { type: 'line', x0: FIELD_X / 2, y0: 0, x1: FIELD_X / 2, y1: FIELD_Y, line: { color: line, width: 1.2 }, layer: 'above' },
-      { type: 'circle', x0: FIELD_X / 2 - 10, y0: FIELD_Y / 2 - 10, x1: FIELD_X / 2 + 10, y1: FIELD_Y / 2 + 10, line: { color: line, width: 1.2 }, layer: 'above' }
+      mk(0, 0, FIELD_X, FIELD_Y),
+      mk(0, 18, 18, 62),
+      mk(FIELD_X - 18, 18, FIELD_X, 62),
+      mk(0, 30, 6, 50),
+      mk(FIELD_X - 6, 30, FIELD_X, 50),
+      { type: 'line', x0: SPLIT_X, y0: 0, x1: SPLIT_X, y1: FIELD_Y, line: { color: line, width: 1.1 }, layer: 'above' },
+      { type: 'circle', x0: SPLIT_X - 10, y0: SPLIT_Y - 10, x1: SPLIT_X + 10, y1: SPLIT_Y + 10, line: { color: line, width: 1.1 }, layer: 'above' }
     ];
-    // Quadrant guides.
-    shapes.push({ type: 'line', x0: FIELD_X / 2, y0: 0, x1: FIELD_X / 2, y1: FIELD_Y, line: { color: 'rgba(203,213,225,0.5)', width: 1.6, dash: 'dot' }, layer: 'above' });
-    shapes.push({ type: 'line', x0: 0, y0: FIELD_Y / 2, x1: FIELD_X, y1: FIELD_Y / 2, line: { color: 'rgba(203,213,225,0.5)', width: 1.6, dash: 'dot' }, layer: 'above' });
+
+    // Outline the origin quadrant only: the other quadrants still carry the
+    // destination data we want readable, so they must not be dimmed.
+    if (activeQuad) {
+      var ob = DATA.origins[activeQuad].bounds;
+      shapes.push({
+        type: 'rect', x0: ob[0], y0: ob[1], x1: ob[2], y1: ob[3],
+        line: { color: 'rgba(56,189,248,0.95)', width: 2.4 },
+        fillcolor: 'rgba(0,0,0,0)', layer: 'above'
+      });
+    }
+
+    shapes.push({ type: 'line', x0: SPLIT_X, y0: 0, x1: SPLIT_X, y1: FIELD_Y, line: { color: 'rgba(203,213,225,0.55)', width: 1.5, dash: 'dot' }, layer: 'above' });
+    shapes.push({ type: 'line', x0: 0, y0: SPLIT_Y, x1: FIELD_X, y1: SPLIT_Y, line: { color: 'rgba(203,213,225,0.55)', width: 1.5, dash: 'dot' }, layer: 'above' });
     return shapes;
   }
 
-  function quadrantTraces() {
-    return QUAD_ORDER.map(function (key) {
-      var q = DATA.quadrants[key];
-      var b = q.bounds;
-      var isActive = activeQuad === key;
-      var baseAlpha = activeQuad === null ? 0.30 : (isActive ? 0.34 : 0.07);
-      return {
-        type: 'scatter',
-        mode: 'lines',
-        x: [b[0], b[2], b[2], b[0], b[0]],
-        y: [b[1], b[1], b[3], b[3], b[1]],
-        fill: 'toself',
-        fillcolor: xpColor(q.mean_xp, baseAlpha),
-        line: { color: isActive ? 'rgba(56,189,248,0.9)' : 'rgba(148,163,184,0.25)', width: isActive ? 2.2 : 1 },
-        hoveron: 'fills',
-        hoverinfo: 'text',
-        text: '<b>' + q.label + '</b><br>' + fmtInt(q.passes) + ' passes · ' + fmtPct(q.share_pct)
-              + '<br>xP médio ' + fmtXp(q.mean_xp) + '<br><i>passe o mouse para ver as rotas</i>',
-        showlegend: false,
-        customdata: [key],
-        name: q.label
-      };
+  function heatmapTrace(state) {
+    var isXp = metric === 'xp';
+    var grid = isXp ? state.xp_grid : volumeGrid(state);
+    var counts = state.count_grid;
+    var text = grid.map(function (row, r) {
+      return row.map(function (v, c) {
+        if (v === null) return 'Sem passes registrados';
+        var x = (c + 0.5) * CELL_W, y = (r + 0.5) * CELL_H;
+        return '<b>' + DATA.zone_labels[r][c] + '</b><br>'
+          + fmtInt(counts[r][c]) + ' passes · ' + fmtPct((counts[r][c] / Math.max(state.passes, 1)) * 100) + '<br>'
+          + 'xP médio ' + fmtXp(state.xp_grid[r][c] === null ? 0 : state.xp_grid[r][c]) + '<br>'
+          + '<i>' + DATA.quadrant_labels[quadrantAt(x, y)] + '</i>';
+      });
     });
-  }
-
-  function routesForMode(q) {
-    if (mode === 'common') return q.common.map(function (r) { return Object.assign({ kind: 'common' }, r); });
-    if (mode === 'rare') return q.rare.map(function (r) { return Object.assign({ kind: 'rare' }, r); });
-    return q.common.map(function (r) { return Object.assign({ kind: 'common' }, r); })
-      .concat(q.rare.map(function (r) { return Object.assign({ kind: 'rare' }, r); }));
-  }
-
-  function routeAnnotations(routes) {
-    if (!routes.length) return [];
-    var counts = routes.filter(function (r) { return !r.is_self; }).map(function (r) { return r.count; });
-    var maxC = counts.length ? Math.max.apply(null, counts) : 1;
-    var minC = counts.length ? Math.min.apply(null, counts) : 1;
-    var span = Math.max(maxC - minC, 1);
-    return routes.filter(function (r) { return !r.is_self; }).map(function (r) {
-      var w = 1.6 + 4.4 * ((r.count - minC) / span);
-      return {
-        x: r.x1, y: r.y1, ax: r.x0, ay: r.y0,
-        xref: 'x', yref: 'y', axref: 'x', ayref: 'y',
-        showarrow: true,
-        arrowhead: 3,
-        arrowsize: 0.9,
-        arrowwidth: w,
-        arrowcolor: xpColor(r.mean_xp, r.kind === 'rare' ? 0.98 : 0.85),
-        standoff: 2,
-        text: ''
-      };
-    });
-  }
-
-  function routeMarkerTrace(routes) {
-    var pts = routes.filter(function (r) { return !r.is_self; });
     return {
-      type: 'scatter',
-      mode: 'markers',
-      x: pts.map(function (r) { return r.x1; }),
-      y: pts.map(function (r) { return r.y1; }),
-      marker: {
-        size: 9,
-        color: pts.map(function (r) { return xpColor(r.mean_xp, 0.95); }),
-        line: { color: '#f8fafc', width: 1 },
-        symbol: pts.map(function (r) { return r.kind === 'rare' ? 'diamond' : 'circle'; })
-      },
+      type: 'heatmap',
+      x: cellCenters(COLS, CELL_W),
+      y: cellCenters(ROWS, CELL_H),
+      z: grid,
+      text: text,
       hoverinfo: 'text',
-      text: pts.map(function (r) {
-        return '<b>' + r.origin_label + ' → ' + r.dest_label + '</b><br>'
-          + fmtInt(r.count) + ' passes · ' + fmtPct(r.share_pct) + ' do quadrante<br>'
-          + 'xP médio ' + fmtXp(r.mean_xp) + ' · ' + r.distance_m + ' m<br>'
-          + (r.kind === 'rare' ? '<i>rota rara</i>' : '<i>rota comum</i>');
-      }),
-      showlegend: false,
-      name: 'rotas'
+      colorscale: stopsToScale(isXp ? XP_SCALE : VOL_SCALE),
+      zmin: 0,
+      zmax: isXp ? XP_MAX : VOL_MAX,
+      xgap: 1,
+      ygap: 1,
+      showscale: true,
+      colorbar: {
+        title: { text: isXp ? 'xP médio' : '% dos passes', side: 'right', font: { size: 10, color: '#94a3b8' } },
+        thickness: 10,
+        len: 0.82,
+        outlinewidth: 0,
+        tickfont: { size: 9, color: '#94a3b8' },
+        tickformat: isXp ? '.2f' : '.1f'
+      },
+      hoverongaps: false
     };
   }
 
-  function selfRouteTrace(routes) {
-    var pts = routes.filter(function (r) { return r.is_self; });
+  function extremeMarkersTrace(state) {
+    var xs = [], ys = [], syms = [], cols = [], txt = [];
+    QUAD_ORDER.forEach(function (dk) {
+      var d = state.destinations[dk];
+      if (!d || !d.passes) return;
+      [['common', 'circle', 'mais comum'], ['rare', 'diamond', 'mais raro']].forEach(function (spec) {
+        var cell = d[spec[0]];
+        if (!cell) return;
+        xs.push(cell.x); ys.push(cell.y); syms.push(spec[1]);
+        cols.push(xpDot(cell.mean_xp));
+        txt.push('<b>' + d.label + ' · ' + spec[2] + '</b><br>' + cell.label + '<br>'
+          + fmtInt(cell.count) + ' passes · xP médio ' + fmtXp(cell.mean_xp));
+      });
+    });
     return {
       type: 'scatter',
       mode: 'markers',
-      x: pts.map(function (r) { return r.x0; }),
-      y: pts.map(function (r) { return r.y0; }),
-      marker: {
-        size: 20,
-        color: pts.map(function (r) { return xpColor(r.mean_xp, 0.5); }),
-        line: { color: 'rgba(248,250,252,0.75)', width: 1.4 },
-        symbol: 'circle-open-dot'
-      },
+      x: xs, y: ys,
+      marker: { size: 11, symbol: syms, color: cols, line: { color: '#f8fafc', width: 1.4 } },
       hoverinfo: 'text',
-      text: pts.map(function (r) {
-        return '<b>Passe curto na mesma zona</b><br>' + r.origin_label + '<br>'
-          + fmtInt(r.count) + ' passes · ' + fmtPct(r.share_pct) + ' do quadrante<br>'
-          + 'xP médio ' + fmtXp(r.mean_xp);
-      }),
-      showlegend: false,
-      name: 'curtos'
+      text: txt,
+      showlegend: false
     };
   }
 
-  function layout() {
-    var shapes = pitchShapes();
-    var annotations = [];
-    if (activeQuad) {
-      annotations = routeAnnotations(routesForMode(DATA.quadrants[activeQuad]));
-    }
-    QUAD_ORDER.forEach(function (key) {
-      var q = DATA.quadrants[key];
-      var b = q.bounds;
-      // Keep labels hugging the touchlines so they stay clear of the route arrows.
-      var pad = (b[3] - b[1]) * 0.09;
-      annotations.push({
+  function layout(state) {
+    var annotations = QUAD_ORDER.map(function (key) {
+      var b = DATA.origins[key].bounds;
+      var pad = (b[3] - b[1]) * 0.075;
+      return {
         x: (b[0] + b[2]) / 2,
         y: key.indexOf('left') >= 0 ? b[1] + pad : b[3] - pad,
         xref: 'x', yref: 'y',
-        text: q.label.toUpperCase(),
+        text: DATA.quadrant_labels[key].toUpperCase(),
         showarrow: false,
-        font: { size: 9.5, color: activeQuad === key ? '#bae6fd' : '#94a3b8', family: 'inherit' },
-        bgcolor: 'rgba(15,23,42,0.66)',
+        font: { size: 9, color: activeQuad === key ? '#bae6fd' : '#cbd5e1' },
+        bgcolor: 'rgba(15,23,42,0.72)',
         borderpad: 3,
-        opacity: activeQuad && activeQuad !== key ? 0.45 : 1
-      });
+        opacity: activeQuad && activeQuad !== key ? 0.5 : 1
+      };
     });
     return {
       height: PLOT_HEIGHT,
       margin: { l: 6, r: 6, t: 6, b: 6 },
       paper_bgcolor: '#0f172a',
-      plot_bgcolor: '#111c33',
-      shapes: shapes,
+      plot_bgcolor: '#0d1526',
+      shapes: pitchShapes(),
       annotations: annotations,
       hovermode: 'closest',
-      hoverlabel: { bgcolor: '#111827', bordercolor: '#334155', font: { color: '#f8fafc', size: 12 } },
+      hoverlabel: { bgcolor: '#111827', bordercolor: '#334155', font: { color: '#f8fafc', size: 11 } },
       dragmode: false,
       xaxis: { range: [-2, FIELD_X + 2], visible: false, fixedrange: true, constrain: 'domain' },
       // y reversed so the pitch matches the mplsoccer StatsBomb maps in the same tab.
@@ -380,79 +395,87 @@ _TEMPLATE = """<!DOCTYPE html>
     };
   }
 
-  function traces() {
-    var out = quadrantTraces();
-    if (activeQuad) {
-      var routes = routesForMode(DATA.quadrants[activeQuad]);
-      out.push(selfRouteTrace(routes));
-      out.push(routeMarkerTrace(routes));
-    }
+  function traces(state) {
+    var out = [heatmapTrace(state)];
+    if (activeQuad) out.push(extremeMarkersTrace(state));
     return out;
   }
 
-  function routeListHtml(routes, emptyMsg) {
-    if (!routes.length) return '<p class="qp-hint">' + emptyMsg + '</p>';
-    return '<ul class="qp-list">' + routes.slice(0, 5).map(function (r) {
-      var arrow = r.is_self ? (r.origin_label + ' (curto)') : (r.origin_label + ' → ' + r.dest_label);
-      return '<li class="qp-item">'
-        + '<span class="qp-dot" style="background:' + xpColor(r.mean_xp, 1) + '"></span>'
-        + '<span class="qp-route" title="' + arrow + '">' + arrow + '</span>'
-        + '<span class="qp-meta">' + fmtInt(r.count) + ' · xP ' + fmtXp(r.mean_xp) + '</span>'
-        + '</li>';
-    }).join('') + '</ul>';
+  function cellRow(tag, cell, isRare) {
+    if (!cell) return '';
+    return '<div class="qp-cell">'
+      + '<span class="qp-cell-tag">' + tag + '</span>'
+      + '<span class="qp-dot' + (isRare ? ' is-rare' : '') + '" style="background:' + xpDot(cell.mean_xp) + '"></span>'
+      + '<span class="qp-cell-name" title="' + cell.label + '">' + cell.label + '</span>'
+      + '<span class="qp-cell-val">' + fmtInt(cell.count) + ' · xP <b>' + fmtXp(cell.mean_xp) + '</b></span>'
+      + '</div>';
   }
 
-  function renderPanel() {
-    if (!activeQuad) {
-      var rows = QUAD_ORDER.map(function (key) {
-        var q = DATA.quadrants[key];
-        return '<li class="qp-item">'
-          + '<span class="qp-dot" style="background:' + xpColor(q.mean_xp, 1) + '"></span>'
-          + '<span class="qp-route">' + q.label + '</span>'
-          + '<span class="qp-meta">' + fmtPct(q.share_pct) + ' · xP ' + fmtXp(q.mean_xp) + '</span>'
-          + '</li>';
-      }).join('');
-      panelEl.innerHTML = '<span class="qp-title">Visão geral</span>'
-        + '<span class="qp-sub">' + fmtInt(DATA.total_passes) + ' passes de meio-campistas. '
-        + 'Passe o mouse por um quadrante do campo para ver as rotas mais comuns e as mais raras que saem dele.</span>'
-        + '<ul class="qp-list">' + rows + '</ul>'
-        + '<div class="qp-legend"><span>comum</span><span class="qp-bar"></span><span>raro</span></div>';
-      return;
+  function destBlocks(state) {
+    var items = QUAD_ORDER.map(function (k) { return state.destinations[k]; })
+      .filter(function (d) { return d && d.passes > 0; })
+      .sort(function (a, b) { return b.share_pct - a.share_pct; });
+    if (!items.length) return '<p class="qp-hint">Sem passes registrados.</p>';
+    return items.map(function (d) {
+      return '<div class="qp-dest' + (d.is_same ? ' is-same' : '') + '">'
+        + '<div class="qp-dest-bar" style="width:' + Math.max(d.share_pct, 1.5) + '%"></div>'
+        + '<div class="qp-dest-inner">'
+        + '<div class="qp-dest-head"><span class="qp-dest-name">' + d.label
+        + (d.is_same ? ' · mesmo quadrante' : '') + '</span>'
+        + '<span class="qp-dest-share">' + fmtPct(d.share_pct) + '</span></div>'
+        + '<div class="qp-dest-meta">' + fmtInt(d.passes) + ' passes · xP médio ' + fmtXp(d.mean_xp) + '</div>'
+        + cellRow('comum', d.common, false)
+        + cellRow('raro', d.rare, true)
+        + '</div></div>';
+    }).join('');
+  }
+
+  function renderPanel(state) {
+    var head, sub, label;
+    if (activeQuad) {
+      head = state.label;
+      sub = fmtInt(state.passes) + ' passes saindo daqui · ' + fmtPct(state.share_pct)
+        + ' do total · xP médio ' + fmtXp(state.mean_xp);
+      label = 'Para onde vão esses passes';
+    } else {
+      head = 'Visão geral';
+      sub = fmtInt(state.passes) + ' passes de meio-campistas. Passe o mouse por um quadrante '
+        + 'para comparar para onde saem os passes dele.';
+      label = 'Destino de todos os passes';
     }
-    var q = DATA.quadrants[activeQuad];
-    var commonHtml = (mode === 'rare') ? '' :
-      '<div class="qp-section"><h4>Mais comuns (volume)</h4>' + routeListHtml(q.common, 'Sem rotas.') + '</div>';
-    var rareHtml = (mode === 'common') ? '' :
-      '<div class="qp-section"><h4>Mais raros (xP alto)</h4>' + routeListHtml(q.rare, 'Sem rotas com amostra suficiente.') + '</div>';
-    panelEl.innerHTML = '<span class="qp-title">' + q.label + '</span>'
-      + '<span class="qp-sub">' + fmtInt(q.passes) + ' passes saindo daqui · ' + fmtPct(q.share_pct)
-      + ' do total · xP médio ' + fmtXp(q.mean_xp) + '</span>'
-      + commonHtml + rareHtml
-      + '<div class="qp-legend"><span>comum</span><span class="qp-bar"></span><span>raro</span></div>';
+    panelEl.innerHTML = '<span class="qp-title">' + head + '</span>'
+      + '<span class="qp-sub">' + sub + '</span>'
+      + '<span class="qp-section-label">' + label + '</span>'
+      + destBlocks(state)
+      + '<div class="qp-legend"><span class="qp-dot"></span><span>comum (volume)</span>'
+      + '<span class="qp-dot is-rare"></span><span>raro (xP alto)</span></div>';
   }
 
   function draw() {
-    Plotly.react(plotEl, traces(), layout(), { displayModeBar: false, responsive: true });
-    renderPanel();
+    var state = currentState();
+    Plotly.react(plotEl, traces(state), layout(state), { displayModeBar: false, responsive: true });
+    renderPanel(state);
   }
 
-  Plotly.newPlot(plotEl, traces(), layout(), { displayModeBar: false, responsive: true }).then(function () {
-    renderPanel();
+  Plotly.newPlot(plotEl, traces(currentState()), layout(currentState()),
+    { displayModeBar: false, responsive: true }).then(function () {
+    renderPanel(currentState());
     plotEl.on('plotly_hover', function (ev) {
       var pt = ev.points && ev.points[0];
-      if (!pt || !pt.data || !pt.data.customdata) return;
-      var key = pt.data.customdata[0];
-      if (typeof key !== 'string' || !DATA.quadrants[key] || key === activeQuad) return;
+      if (!pt || typeof pt.x !== 'number' || typeof pt.y !== 'number') return;
+      var key = quadrantAt(pt.x, pt.y);
+      // Geometry never moves, so re-hovering the same quadrant cannot loop.
+      if (key === activeQuad || !DATA.origins[key] || !DATA.origins[key].passes) return;
       activeQuad = key;
       draw();
     });
   });
 
-  document.querySelectorAll('.qmap-btn[data-mode]').forEach(function (btn) {
+  document.querySelectorAll('.qmap-btn[data-metric]').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      document.querySelectorAll('.qmap-btn[data-mode]').forEach(function (b) { b.classList.remove('is-active'); });
+      document.querySelectorAll('.qmap-btn[data-metric]').forEach(function (b) { b.classList.remove('is-active'); });
       btn.classList.add('is-active');
-      mode = btn.getAttribute('data-mode');
+      metric = btn.getAttribute('data-metric');
       draw();
     });
   });
@@ -468,21 +491,33 @@ _TEMPLATE = """<!DOCTYPE html>
 """
 
 
-def build_quadrant_map_html(analysis: dict, *, plot_height: int = 470) -> str:
-    """Self-contained Plotly page: hover a quadrant to reveal its common and rare routes."""
-    quad_order = [key for key in analysis.get("quadrants", {})]
+def build_quadrant_map_html(
+    analysis: dict,
+    *,
+    quadrant_labels: dict[str, str],
+    zone_labels: list[list[str]],
+    plot_height: int = 470,
+) -> str:
+    """Self-contained Plotly page: hover a quadrant to compare where its passes go."""
+    origins = analysis.get("origins") or {}
     payload = {
-        "quadrants": analysis.get("quadrants", {}),
+        "origins": origins,
+        "overall": analysis.get("overall"),
         "total_passes": analysis.get("total_passes", 0),
+        "dest_cols": analysis.get("dest_cols", 12),
+        "dest_rows": analysis.get("dest_rows", 8),
         "field_x": analysis.get("field_x", 120.0),
         "field_y": analysis.get("field_y", 80.0),
         "xp_max": analysis.get("xp_max", 1.0),
+        "quadrant_labels": quadrant_labels,
+        "zone_labels": zone_labels,
     }
     return (
         _TEMPLATE
         .replace("__PLOTLY_CDN__", PLOTLY_CDN)
         .replace("__DATA__", json.dumps(payload))
-        .replace("__STOPS__", json.dumps([[stop, color] for stop, color in XP_COLOR_STOPS]))
-        .replace("__QUAD_ORDER__", json.dumps(quad_order))
+        .replace("__XP_SCALE__", json.dumps([[s, c] for s, c in XP_COLORSCALE]))
+        .replace("__VOL_SCALE__", json.dumps([[s, c] for s, c in VOLUME_COLORSCALE]))
+        .replace("__QUAD_ORDER__", json.dumps(list(origins.keys())))
         .replace("__PLOT_HEIGHT__", str(int(plot_height)))
     )

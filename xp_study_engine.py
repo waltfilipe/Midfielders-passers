@@ -989,27 +989,75 @@ def _zone_label(x: float, y: float) -> str:
     return f"{ZONE_X_LABELS[x_idx]}-{ZONE_Y_LABELS[y_idx]}"
 
 
-def build_quadrant_route_analysis(
+def zone_label_grid(cols: int, rows: int) -> list[list[str]]:
+    """Zone name for every cell centre, indexed as grid[row][col]."""
+    cell_w = FIELD_X / cols
+    cell_h = FIELD_Y / rows
+    return [
+        [_zone_label((c + 0.5) * cell_w, (r + 0.5) * cell_h) for c in range(cols)]
+        for r in range(rows)
+    ]
+
+
+def _quadrant_cell_slices(key: str, cols: int, rows: int) -> tuple[slice, slice]:
+    """Grid rows/cols covered by a quadrant (grid must split evenly at midfield)."""
+    c0, c1 = (0, cols // 2) if str(key).startswith("def") else (cols // 2, cols)
+    r0, r1 = (0, rows // 2) if str(key).endswith("left") else (rows // 2, rows)
+    return slice(r0, r1), slice(c0, c1)
+
+
+def _quadrant_codes(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Vectorized quadrant index aligned with QUADRANT_ORDER."""
+    return (x >= QUADRANT_X_SPLIT).astype(np.int8) * 2 + (y >= QUADRANT_Y_SPLIT).astype(np.int8)
+
+
+def _cell_record(
+    row: int,
+    col: int,
+    count: float,
+    mean_xp: float,
+    *,
+    cell_w: float,
+    cell_h: float,
+) -> dict:
+    x_center = (col + 0.5) * cell_w
+    y_center = (row + 0.5) * cell_h
+    return {
+        "row": int(row),
+        "col": int(col),
+        "x": round(float(x_center), 2),
+        "y": round(float(y_center), 2),
+        "label": _zone_label(x_center, y_center),
+        "count": int(count),
+        "mean_xp": round(float(mean_xp), 4),
+    }
+
+
+def build_quadrant_heatmap_analysis(
     passes: pd.DataFrame,
     *,
-    grid_cols: int = 8,
-    grid_rows: int = 6,
-    top_routes: int = 8,
-    min_route_passes: int = 25,
+    dest_cols: int = XP_GRID_COLS,
+    dest_rows: int = XP_GRID_ROWS,
     xp_col: str = "xp_m4",
+    min_cell_passes: int = 20,
 ) -> dict:
-    """Most common and rarest pass routes grouped by the quadrant they start from.
+    """Destination heatmaps (volume and mean xP) for passes leaving each quadrant.
 
-    Routes aggregate origin cell → destination cell on a coarse grid so the
-    interactive map stays readable. "Common" ranks by volume, "rare" ranks by
-    mean xP (the model's rarity score) among routes with enough sample.
+    For every origin quadrant the result carries a `dest_cols` x `dest_rows`
+    destination grid plus, for each of the four destination quadrants, the most
+    common cell (by volume) and the rarest one (highest mean xP, the model's
+    rarity score) with enough sample to be trustworthy.
     """
     empty: dict = {
-        "quadrants": {},
+        "dest_cols": dest_cols,
+        "dest_rows": dest_rows,
+        "field_x": FIELD_X,
+        "field_y": FIELD_Y,
+        "xp_max": XP_PASS_MAX,
+        "min_cell_passes": min_cell_passes,
         "total_passes": 0,
-        "grid_cols": grid_cols,
-        "grid_rows": grid_rows,
-        "min_route_passes": min_route_passes,
+        "overall": None,
+        "origins": {},
     }
     if passes is None or passes.empty:
         return empty
@@ -1020,113 +1068,149 @@ def build_quadrant_route_analysis(
     if work.empty:
         return empty
 
-    ox_idx, oy_idx = _cell_indices(
-        work["x_start"].to_numpy(dtype=float),
-        work["y_start"].to_numpy(dtype=float),
-        cols=grid_cols,
-        rows=grid_rows,
-    )
-    dx_idx, dy_idx = _cell_indices(
-        work["x_end"].to_numpy(dtype=float),
-        work["y_end"].to_numpy(dtype=float),
-        cols=grid_cols,
-        rows=grid_rows,
-    )
+    x_start = work["x_start"].to_numpy(dtype=float)
+    y_start = work["y_start"].to_numpy(dtype=float)
+    x_end = work["x_end"].to_numpy(dtype=float)
+    y_end = work["y_end"].to_numpy(dtype=float)
     xp_values = (
         work[xp_col].to_numpy(dtype=float)
         if xp_col in work.columns
         else np.zeros(len(work), dtype=float)
     )
 
-    routes = (
-        pd.DataFrame({
-            "ox": ox_idx,
-            "oy": oy_idx,
-            "dx": dx_idx,
-            "dy": dy_idx,
-            "xp": xp_values,
-        })
-        .groupby(["ox", "oy", "dx", "dy"], sort=False)
-        .agg(count=("xp", "size"), mean_xp=("xp", "mean"))
-        .reset_index()
-    )
-    if routes.empty:
-        return empty
+    dx_idx, dy_idx = _cell_indices(x_end, y_end, cols=dest_cols, rows=dest_rows)
+    origin_codes = _quadrant_codes(x_start, y_start)
+    dest_codes = _quadrant_codes(x_end, y_end)
 
-    cell_w = FIELD_X / grid_cols
-    cell_h = FIELD_Y / grid_rows
-    routes["x0"] = (routes["ox"] + 0.5) * cell_w
-    routes["y0"] = (routes["oy"] + 0.5) * cell_h
-    routes["x1"] = (routes["dx"] + 0.5) * cell_w
-    routes["y1"] = (routes["dy"] + 0.5) * cell_h
-    routes["quadrant"] = [
-        quadrant_key_for_point(x, y)
-        for x, y in zip(routes["x0"].to_numpy(), routes["y0"].to_numpy())
-    ]
+    cell_w = FIELD_X / dest_cols
+    cell_h = FIELD_Y / dest_rows
+    total_passes = int(len(work))
 
-    total_passes = int(routes["count"].sum())
+    def _grids(mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        counts = np.zeros((dest_rows, dest_cols), dtype=float)
+        xp_sum = np.zeros((dest_rows, dest_cols), dtype=float)
+        np.add.at(counts, (dy_idx[mask], dx_idx[mask]), 1.0)
+        np.add.at(xp_sum, (dy_idx[mask], dx_idx[mask]), xp_values[mask])
+        means = np.zeros_like(counts)
+        filled = counts > 0
+        means[filled] = xp_sum[filled] / counts[filled]
+        return counts, means
 
-    def _route_records(rows: pd.DataFrame, quadrant_total: int) -> list[dict]:
-        records: list[dict] = []
-        for row in rows.itertuples(index=False):
-            distance = float(np.hypot(row.x1 - row.x0, row.y1 - row.y0))
-            records.append({
-                "x0": round(float(row.x0), 2),
-                "y0": round(float(row.y0), 2),
-                "x1": round(float(row.x1), 2),
-                "y1": round(float(row.y1), 2),
-                "count": int(row.count),
-                "mean_xp": round(float(row.mean_xp), 4),
-                "share_pct": round(int(row.count) / max(quadrant_total, 1) * 100.0, 1),
-                "distance_m": round(distance, 1),
-                "is_self": bool(row.x0 == row.x1 and row.y0 == row.y1),
-                "origin_label": _zone_label(row.x0, row.y0),
-                "dest_label": _zone_label(row.x1, row.y1),
-            })
-        return records
+    def _serialize_grid(grid: np.ndarray, counts: np.ndarray) -> list[list[float | None]]:
+        """Empty cells become null so the heatmap renders them as gaps."""
+        return [
+            [round(float(grid[r, c]), 4) if counts[r, c] > 0 else None for c in range(dest_cols)]
+            for r in range(dest_rows)
+        ]
 
-    quadrants: dict[str, dict] = {}
-    for key in QUADRANT_ORDER:
-        subset = routes[routes["quadrant"] == key]
-        quadrant_total = int(subset["count"].sum())
-        if quadrant_total <= 0:
-            quadrants[key] = {
+    def _extremes(counts: np.ndarray, means: np.ndarray, dest_key: str) -> tuple[dict | None, dict | None]:
+        r_slice, c_slice = _quadrant_cell_slices(dest_key, dest_cols, dest_rows)
+        sub_counts = counts[r_slice, c_slice]
+        sub_means = means[r_slice, c_slice]
+        if sub_counts.sum() <= 0:
+            return None, None
+
+        flat = int(np.argmax(sub_counts))
+        r, c = np.unravel_index(flat, sub_counts.shape)
+        common = _cell_record(
+            r_slice.start + int(r), c_slice.start + int(c),
+            sub_counts[r, c], sub_means[r, c],
+            cell_w=cell_w, cell_h=cell_h,
+        )
+
+        eligible = sub_counts >= min_cell_passes
+        if not eligible.any():
+            eligible = sub_counts > 0
+        masked = np.where(eligible, sub_means, -np.inf)
+        flat_rare = int(np.argmax(masked))
+        rr, rc = np.unravel_index(flat_rare, masked.shape)
+        rare = _cell_record(
+            r_slice.start + int(rr), c_slice.start + int(rc),
+            sub_counts[rr, rc], sub_means[rr, rc],
+            cell_w=cell_w, cell_h=cell_h,
+        )
+        return common, rare
+
+    overall_counts, overall_means = _grids(np.ones(total_passes, dtype=bool))
+    overall = {
+        "key": "all",
+        "label": "Todos os quadrantes",
+        "passes": total_passes,
+        "share_pct": 100.0,
+        "mean_xp": round(float(xp_values.mean()), 4),
+        "count_grid": [[int(v) for v in row] for row in overall_counts],
+        "xp_grid": _serialize_grid(overall_means, overall_counts),
+        "destinations": {},
+    }
+    for code, dest_key in enumerate(QUADRANT_ORDER):
+        dest_mask = dest_codes == code
+        dest_total = int(dest_mask.sum())
+        common, rare = _extremes(overall_counts, overall_means, dest_key)
+        overall["destinations"][dest_key] = {
+            "key": dest_key,
+            "label": QUADRANT_LABELS[dest_key],
+            "passes": dest_total,
+            "share_pct": round(dest_total / max(total_passes, 1) * 100.0, 1),
+            "mean_xp": round(float(xp_values[dest_mask].mean()), 4) if dest_total else 0.0,
+            "common": common,
+            "rare": rare,
+        }
+
+    origins: dict[str, dict] = {}
+    for code, key in enumerate(QUADRANT_ORDER):
+        origin_mask = origin_codes == code
+        origin_total = int(origin_mask.sum())
+        if origin_total <= 0:
+            origins[key] = {
                 "key": key,
                 "label": QUADRANT_LABELS[key],
                 "bounds": quadrant_bounds(key),
                 "passes": 0,
                 "share_pct": 0.0,
                 "mean_xp": 0.0,
-                "common": [],
-                "rare": [],
+                "count_grid": [[0] * dest_cols for _ in range(dest_rows)],
+                "xp_grid": [[None] * dest_cols for _ in range(dest_rows)],
+                "destinations": {},
             }
             continue
 
-        weighted_xp = float((subset["count"] * subset["mean_xp"]).sum())
-        common = subset.sort_values("count", ascending=False).head(top_routes)
-        sampled = subset[subset["count"] >= min_route_passes]
-        if sampled.empty:
-            sampled = subset
-        rare = sampled.sort_values("mean_xp", ascending=False).head(top_routes)
+        counts, means = _grids(origin_mask)
+        destinations: dict[str, dict] = {}
+        for dest_code, dest_key in enumerate(QUADRANT_ORDER):
+            leg_mask = origin_mask & (dest_codes == dest_code)
+            leg_total = int(leg_mask.sum())
+            common, rare = _extremes(counts, means, dest_key)
+            destinations[dest_key] = {
+                "key": dest_key,
+                "label": QUADRANT_LABELS[dest_key],
+                "passes": leg_total,
+                "share_pct": round(leg_total / max(origin_total, 1) * 100.0, 1),
+                "mean_xp": round(float(xp_values[leg_mask].mean()), 4) if leg_total else 0.0,
+                "is_same": dest_key == key,
+                "common": common,
+                "rare": rare,
+            }
 
-        quadrants[key] = {
+        origins[key] = {
             "key": key,
             "label": QUADRANT_LABELS[key],
             "bounds": quadrant_bounds(key),
-            "passes": quadrant_total,
-            "share_pct": round(quadrant_total / max(total_passes, 1) * 100.0, 1),
-            "mean_xp": round(weighted_xp / quadrant_total, 4),
-            "common": _route_records(common, quadrant_total),
-            "rare": _route_records(rare, quadrant_total),
+            "passes": origin_total,
+            "share_pct": round(origin_total / max(total_passes, 1) * 100.0, 1),
+            "mean_xp": round(float(xp_values[origin_mask].mean()), 4),
+            "count_grid": [[int(v) for v in row] for row in counts],
+            "xp_grid": _serialize_grid(means, counts),
+            "destinations": destinations,
         }
 
     return {
-        "quadrants": quadrants,
-        "total_passes": total_passes,
-        "grid_cols": grid_cols,
-        "grid_rows": grid_rows,
-        "min_route_passes": min_route_passes,
+        "dest_cols": dest_cols,
+        "dest_rows": dest_rows,
         "field_x": FIELD_X,
         "field_y": FIELD_Y,
         "xp_max": XP_PASS_MAX,
+        "min_cell_passes": min_cell_passes,
+        "total_passes": total_passes,
+        "overall": overall,
+        "origins": origins,
     }

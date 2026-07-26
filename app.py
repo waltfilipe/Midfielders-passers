@@ -9235,8 +9235,12 @@ def _render_pa_filter_card(
     progression_by_id: dict[str, dict],
     *,
     xp_by_id: dict[str, dict] | None,
-) -> tuple[str | None, list[dict], bool, bool]:
-    """Full-width horizontal filter bar: league, field, age, player and on-demand views."""
+) -> tuple[str | None, bool, bool]:
+    """Full-width horizontal filter bar: league, field, age, player and on-demand views.
+
+    The filtered pool only narrows the player picker; it never leaves this card,
+    so downstream comparisons keep using the full midfielder set.
+    """
     with st.container(key="pa_filter_card"):
         st.markdown(
             '<div class="pa-filter-head">'
@@ -9339,7 +9343,7 @@ def _render_pa_filter_card(
             unsafe_allow_html=True,
         )
 
-    return player_id, pool, show_scatter, show_maps
+    return player_id, show_scatter, show_maps
 
 
 @st.cache_data(show_spinner="Carregando mapas de passe…")
@@ -9399,11 +9403,11 @@ def _top_midfielder_pass_pool(completed: pd.DataFrame, top_n: int) -> dict:
 
 
 @st.cache_data(show_spinner="Agregando rotas por quadrante…")
-def load_midfielder_quadrant_routes(
+def load_midfielder_quadrant_heatmaps(
     top_n: int,
     _xp_cache: int = XP_DATA_CACHE_VERSION,
 ) -> dict:
-    """Common and rare pass routes grouped by the quadrant they start from."""
+    """Destination heatmaps (volume and mean xP) for passes leaving each quadrant."""
     season = xe.load_european_league_season_passes(_xp_cache)
     if season is None or season.empty:
         return {}
@@ -9411,7 +9415,7 @@ def load_midfielder_quadrant_routes(
     if completed.empty:
         return {}
     pool = _top_midfielder_pass_pool(completed, top_n)
-    return xpe.build_quadrant_route_analysis(pool["passes"])
+    return xpe.build_quadrant_heatmap_analysis(pool["passes"])
 
 
 def _fmt_int_ptbr(value: int) -> str:
@@ -9419,9 +9423,9 @@ def _fmt_int_ptbr(value: int) -> str:
 
 
 def _render_interactive_quadrant_map(top_n: int) -> None:
-    """Hover-driven quadrant map: reveals the common and rare routes leaving each zone."""
-    routes = load_midfielder_quadrant_routes(top_n)
-    if not routes or not routes.get("quadrants"):
+    """Hover-driven heatmap: compares where the passes of each quadrant end up."""
+    analysis = load_midfielder_quadrant_heatmaps(top_n)
+    if not analysis or not analysis.get("origins"):
         st.info("Rotas por quadrante indisponíveis para esta base.")
         return
 
@@ -9432,7 +9436,14 @@ def _render_interactive_quadrant_map(top_n: int) -> None:
         unsafe_allow_html=True,
     )
     components.html(
-        xmi.build_quadrant_map_html(routes),
+        xmi.build_quadrant_map_html(
+            analysis,
+            quadrant_labels=xpe.QUADRANT_LABELS,
+            zone_labels=xpe.zone_label_grid(
+                int(analysis["dest_cols"]),
+                int(analysis["dest_rows"]),
+            ),
+        ),
         height=XP_QUADRANT_MAP_HEIGHT,
         scrolling=False,
     )
@@ -9526,11 +9537,13 @@ def render_xp_maps_analysis_tab() -> None:
 
     with st.expander("Como ler estes mapas"):
         st.markdown(
-            "- **Mapa interativo:** passe o mouse por um quadrante para ver as rotas que "
-            "**saem** dele. As setas são coloridas pelo xP médio da rota (cinza = comum, "
-            "vermelho = raro) e a espessura acompanha o volume.\n"
-            "- **Círculos abertos:** passes curtos que começam e terminam na mesma célula — "
-            "geralmente as rotas mais comuns de todas.\n"
+            "- **Mapa interativo:** passe o mouse por um quadrante e o heatmap 12×8 passa a "
+            "mostrar apenas o destino dos passes que **saem** dele. Alterne a cor entre "
+            "**xP médio** e **volume (%)**.\n"
+            "- **Marcadores:** o círculo aponta a célula mais comum e o losango a mais rara "
+            "de cada quadrante de destino.\n"
+            "- **Painel lateral:** compara, para cada um dos quatro quadrantes de destino, "
+            "quanto do volume vai para lá e com qual xP médio.\n"
             "- **Mapa de volume (verde):** conta quantos passes terminam em cada célula. "
             "Quanto mais verde, mais **comum** é passar para aquela zona.\n"
             "- **Mapa de xP (vermelho):** xP médio dos passes que terminam em cada célula. "
@@ -9543,13 +9556,14 @@ def render_xp_maps_analysis_tab() -> None:
 
 
 def _render_pa_scatter_panel(
-    pool: list[dict],
+    all_players: list[dict],
     progression_by_id: dict[str, dict],
     *,
     xp_by_id: dict[str, dict] | None,
     highlight_player_id: str | None,
 ) -> None:
-    pool_ids = {str(p["player_id"]) for p in pool}
+    """Scatter over every midfielder — deliberately ignores the filter-bar selection."""
+    pool_ids = {str(p["player_id"]) for p in all_players}
     pool_xp = {pid: prof for pid, prof in (xp_by_id or {}).items() if pid in pool_ids}
 
     type_keys = [key for key, _label in xstats.scatter_stat_type_options()]
@@ -9587,8 +9601,8 @@ def _render_pa_scatter_panel(
         )
 
     all_codes, all_groups = _all_position_filters()
-    scatter_pool, thresholds = _scatter_pool_players(
-        pool,
+    scatter_pool, _thresholds = _scatter_pool_players(
+        all_players,
         progression_by_id,
         xp_by_id=pool_xp,
         position_codes=all_codes,
@@ -9615,7 +9629,8 @@ def _render_pa_scatter_panel(
         config={"displayModeBar": False, "responsive": True},
     )
     st.caption(
-        f"{len(scatter_pool)} jogadores elegíveis · destaque = jogador selecionado no filtro."
+        f"{len(scatter_pool)} meio-campistas elegíveis (todas as ligas, sem os filtros acima) · "
+        "destaque = jogador selecionado."
     )
 
 
@@ -9705,7 +9720,7 @@ def render_player_analysis_section(
 
     st.markdown('<div class="pa-shell">', unsafe_allow_html=True)
 
-    player_id, pool, show_scatter, show_maps = _render_pa_filter_card(
+    player_id, show_scatter, show_maps = _render_pa_filter_card(
         all_players,
         progression_by_id,
         xp_by_id=xp_by_id,
@@ -9790,11 +9805,13 @@ def render_player_analysis_section(
         st.markdown(
             '<div class="pa-ondemand-head">'
             '<span class="pa-ondemand-ic"><i class="fa-solid fa-braille"></i></span>'
-            "Scatter — comparação no grupo filtrado</div>",
+            "Scatter — comparação com todos os meio-campistas</div>",
             unsafe_allow_html=True,
         )
+        # Scatter always compares the full pool: the filter bar only drives the
+        # player pick and the profile above, never the comparison universe.
         _render_pa_scatter_panel(
-            pool,
+            all_players,
             progression_by_id,
             xp_by_id=xp_by_id,
             highlight_player_id=player_id,
