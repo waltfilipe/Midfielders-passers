@@ -188,11 +188,16 @@ PLAYER_ANALYSIS_COMPARE_KEY = "pa_compare_select"
 PLAYER_ANALYSIS_POSITION_BLOCKS_KEY = "pa_position_blocks"
 STATS_POSITION_BLOCKS_KEY = "stats_position_blocks"
 PA_FILTER_LEAGUE_KEY = "pa_filter_league"
-PA_FILTER_FIELD_KEY = "pa_filter_field"
-PA_FILTER_AGE_KEY = "pa_filter_age"
+PA_FILTER_FIELD_KEY = "pa_filter_field_seg"
+PA_FILTER_AGE_KEY = "pa_filter_age_seg"
 PA_FILTER_PLAYER_KEY = "pa_filter_player"
-PA_SHOW_SCATTER_KEY = "pa_show_scatter"
-PA_SHOW_MAPS_KEY = "pa_show_maps_panel"
+PA_VIEW_SELECT_KEY = "pa_view_select"
+PA_VIEW_SCATTER = "scatter"
+PA_VIEW_MAPS = "maps"
+PA_VIEW_LABELS: dict[str, str] = {
+    PA_VIEW_SCATTER: "Scatter",
+    PA_VIEW_MAPS: "Mapas de passe",
+}
 PA_LEAGUE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("all", "Todas as ligas"),
     ("premier_league", "Premier League"),
@@ -201,9 +206,9 @@ PA_LEAGUE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("bundesliga", "Bundesliga"),
 )
 PA_FIELD_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("all", "Todos os perfis"),
-    ("offensive", "Mais no campo ofensivo"),
-    ("defensive", "Mais no campo defensivo"),
+    ("all", "Todos"),
+    ("offensive", "Ofensivo"),
+    ("defensive", "Defensivo"),
 )
 PA_AGE_OPTIONS: tuple[tuple[str, int | None], ...] = (
     ("all", None),
@@ -211,7 +216,7 @@ PA_AGE_OPTIONS: tuple[tuple[str, int | None], ...] = (
     ("u21", 21),
 )
 PA_AGE_LABELS: dict[str, str] = {
-    "all": "Todas as idades",
+    "all": "Todas",
     "u23": "Sub-23",
     "u21": "Sub-21",
 }
@@ -2984,13 +2989,12 @@ st.markdown(
     .pa-hero-card {
         display: flex;
         flex-direction: column;
-        gap: 0.85rem;
+        gap: 0.75rem;
         background: linear-gradient(180deg, rgba(30,41,59,0.55) 0%, rgba(15,23,42,0.35) 100%);
         border: 1px solid rgba(148,163,184,0.18);
         border-radius: 16px;
-        padding: 1.1rem 1.25rem;
+        padding: 1rem 1.15rem;
         box-shadow: 0 6px 22px rgba(2,6,23,0.28);
-        height: 100%;
         box-sizing: border-box;
     }
     .pa-hero-top {
@@ -3022,21 +3026,21 @@ st.markdown(
     .pa-hero-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .pa-hero-kpis {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 0.6rem;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
         margin-top: auto;
     }
     @media (max-width: 900px) {
-        .pa-hero-kpis { grid-template-columns: repeat(2, 1fr); }
+        .pa-hero-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .pa-hero-kpi {
         background: rgba(15,23,42,0.45);
         border: 1px solid rgba(148,163,184,0.14);
-        border-radius: 12px;
-        padding: 0.6rem 0.7rem;
+        border-radius: 11px;
+        padding: 0.5rem 0.65rem;
         display: flex;
         flex-direction: column;
-        gap: 0.15rem;
+        gap: 0.1rem;
     }
     .pa-hero-kpi-label {
         font-size: 0.68rem;
@@ -3052,27 +3056,30 @@ st.markdown(
         line-height: 1.1;
     }
     .pa-hero-kpi-value.accent { color: #38bdf8; }
-    /* Compact, left-aligned view toggles under the hero */
-    .st-key-pa_view_toggles { margin-top: 0.7rem; }
-    .pa-view-toggles-label {
-        font-size: 0.72rem;
+    /* Compact, left-aligned on-demand view picker under the hero */
+    .st-key-pa_view_toggles { margin-top: 0.55rem; }
+    .st-key-pa_view_toggles label[data-testid="stWidgetLabel"] p {
+        font-size: 0.72rem !important;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: #93a4bc;
-        font-weight: 700;
-        margin-bottom: 0.15rem;
+        color: #93a4bc !important;
+        font-weight: 700 !important;
+    }
+    /* Segmented controls: tighter pills so they fit the narrow filter card */
+    .st-key-pa_filter_card [data-baseweb="button-group"] button,
+    .st-key-pa_view_toggles [data-baseweb="button-group"] button {
+        padding-left: 0.6rem !important;
+        padding-right: 0.6rem !important;
+        font-size: 0.8rem !important;
+        font-weight: 700 !important;
     }
     .pa-profile-divider {
         height: 1px;
         background: linear-gradient(90deg, rgba(148,163,184,0) 0%, rgba(148,163,184,0.28) 50%, rgba(148,163,184,0) 100%);
-        margin: 1.15rem 0 1.1rem 0;
+        margin: 0.9rem 0 0.3rem 0;
     }
-    .st-key-pa_view_toggles [data-testid="stHorizontalBlock"] { gap: 0.9rem; }
-    .st-key-pa_view_toggles [data-testid="column"] {
-        flex: 0 0 auto !important;
-        width: auto !important;
-        min-width: 0 !important;
-    }
+    /* Pull the profile tabs up so top row and profile read as one block */
+    .st-key-pa_subtabs { margin-top: -0.4rem; }
     .st-key-pa_slicer_panel {
         margin-top: -0.35rem;
         margin-bottom: 0.9rem;
@@ -9324,20 +9331,27 @@ def _render_pa_filter_card(
         )
 
         field_labels = dict(PA_FIELD_OPTIONS)
-        field = st.radio(
+        field = st.segmented_control(
             "Campo de atuação",
             options=[key for key, _ in PA_FIELD_OPTIONS],
             format_func=lambda key: field_labels[key],
+            selection_mode="single",
+            default="all",
             key=PA_FILTER_FIELD_KEY,
-        )
+            help=(
+                "Origem das ações: ofensivo = maioria dos passes começa no campo de ataque; "
+                "defensivo = maioria começa no campo de defesa."
+            ),
+        ) or "all"
 
-        age_key = st.radio(
+        age_key = st.segmented_control(
             "Faixa etária",
             options=[key for key, _ in PA_AGE_OPTIONS],
             format_func=lambda key: PA_AGE_LABELS[key],
+            selection_mode="single",
+            default="all",
             key=PA_FILTER_AGE_KEY,
-            horizontal=True,
-        )
+        ) or "all"
         age_max = dict(PA_AGE_OPTIONS)[age_key]
 
         pool = _filter_pa_pool(
@@ -9426,23 +9440,34 @@ def _pa_hero_card_html(player: dict, xp_profile: dict | None) -> str:
         except (TypeError, ValueError):
             return "—"
 
+    def _one_decimal(value) -> str:
+        try:
+            return f"{float(value):.1f}"
+        except (TypeError, ValueError):
+            return "—"
+
+    def _pct(value) -> str:
+        try:
+            return f"{float(value):.1f}%"
+        except (TypeError, ValueError):
+            return "—"
+
     rating = xp.get("xp_pass_rating")
     rating_txt = fmt_rating_score(rating) if rating is not None else "—"
-    minutes_txt = _int_or_dash(player.get("minutes"))
-    passes_txt = _int_or_dash(player.get("passes_completed") or xp.get("passes_completed"))
     threat_p90 = xp.get("xp_m4_threat_passes_p90")
     if threat_p90 is None:
         threat_p90 = player.get("impact_passes_p90")
-    try:
-        threat_txt = f"{float(threat_p90):.1f}" if threat_p90 is not None else "—"
-    except (TypeError, ValueError):
-        threat_txt = "—"
 
     kpis = "".join([
         _pa_hero_kpi_html("xP Pass", rating_txt, accent=True),
-        _pa_hero_kpi_html("Minutos", minutes_txt),
-        _pa_hero_kpi_html("Passes", passes_txt),
-        _pa_hero_kpi_html(f"{IMPACT_PASS_ABBR}/90", threat_txt),
+        _pa_hero_kpi_html("Minutos", _int_or_dash(player.get("minutes"))),
+        _pa_hero_kpi_html(
+            "Passes",
+            _int_or_dash(player.get("passes_completed") or xp.get("passes_completed")),
+        ),
+        _pa_hero_kpi_html(f"{IMPACT_PASS_ABBR}/90", _one_decimal(threat_p90)),
+        _pa_hero_kpi_html("% Certos", _pct(player.get("pass_completion_pct"))),
+        _pa_hero_kpi_html("Prog./90", _one_decimal(player.get("progressive_passes_p90"))),
     ])
 
     return (
@@ -9662,15 +9687,16 @@ def render_player_analysis_section(
         else:
             st.markdown(_pa_hero_card_html(player, xp_profile), unsafe_allow_html=True)
             with st.container(key="pa_view_toggles"):
-                st.markdown(
-                    '<div class="pa-view-toggles-label">Visualizações sob demanda</div>',
-                    unsafe_allow_html=True,
-                )
-                toggle_scatter, toggle_maps = st.columns(2, gap="small")
-                with toggle_scatter:
-                    show_scatter = st.toggle("Gráficos (Scatter)", key=PA_SHOW_SCATTER_KEY)
-                with toggle_maps:
-                    show_maps = st.toggle("Mapas de passe", key=PA_SHOW_MAPS_KEY)
+                selected_views = st.segmented_control(
+                    "Visualizações sob demanda",
+                    options=[PA_VIEW_SCATTER, PA_VIEW_MAPS],
+                    format_func=lambda key: PA_VIEW_LABELS[key],
+                    selection_mode="multi",
+                    key=PA_VIEW_SELECT_KEY,
+                    help="Abra os gráficos e mapas apenas quando precisar — mantém o app leve.",
+                ) or []
+                show_scatter = PA_VIEW_SCATTER in selected_views
+                show_maps = PA_VIEW_MAPS in selected_views
 
     if player is None:
         st.markdown("</div>", unsafe_allow_html=True)
