@@ -2086,8 +2086,23 @@ st.markdown(
         gap: 0.75rem;
         margin-bottom: 0.85rem;
     }
+    .pres-cards-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 0.85rem;
+    }
+    .pres-cards-3 h5 em {
+        margin-left: 0.3rem;
+        color: #93a4bc;
+        font-size: 0.72rem;
+        font-weight: 700;
+        font-style: normal;
+        font-variant-numeric: tabular-nums;
+    }
     @media (max-width: 700px) {
         .pres-cards-2 { grid-template-columns: 1fr; }
+        .pres-cards-3 { grid-template-columns: 1fr; }
     }
     .pres-cards-4 {
         display: grid;
@@ -4014,104 +4029,74 @@ st.markdown(
     .pa-xp-profile-bars-ineligible {
         justify-content: center;
     }
-    .pa-xp-dim {
+    .pa-xp-pillar {
         display: flex;
         flex-direction: column;
-        gap: 0.42rem;
-        padding: 0.55rem 0.5rem 0.6rem;
+        gap: 0.45rem;
+        padding: 0.6rem 0.6rem 0.65rem;
         border-radius: 12px;
         background: linear-gradient(160deg, rgba(21, 27, 43, 0.55) 0%, rgba(15, 23, 42, 0.35) 100%);
         border: 1px solid rgba(51, 65, 85, 0.45);
     }
-    .pa-xp-dim-acc { padding: 0; overflow: hidden; }
-    .pa-xp-dim-summary {
-        list-style: none;
-        cursor: pointer;
-        display: block;
-        padding: 0.55rem 0.5rem 0.6rem;
+    .pa-xp-pillar-head {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
-    .pa-xp-dim-summary::-webkit-details-marker { display: none; }
-    .pa-xp-dim-head {
-        justify-content: space-between;
-    }
-    .pa-xp-dim-toggle {
-        flex-shrink: 0;
+    .pa-xp-pillar-icon {
+        flex: 0 0 auto;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 1.25rem;
-        height: 1.25rem;
-        border-radius: 6px;
-        color: #93c5fd;
-        font-size: 0.58rem;
-        background: rgba(147, 197, 253, 0.1);
-        border: 1px solid rgba(147, 197, 253, 0.22);
-        transition: transform 0.18s ease, background 0.14s ease;
+        width: 1.65rem;
+        height: 1.65rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        color: #c4b5fd;
+        background: rgba(168, 85, 247, 0.14);
+        border: 1px solid rgba(168, 85, 247, 0.32);
     }
-    .pa-xp-dim-acc[open] .pa-xp-dim-toggle {
-        transform: rotate(180deg);
-        background: rgba(147, 197, 253, 0.2);
-    }
-    .pa-xp-dim-summary:hover .pa-xp-dim-toggle { background: rgba(147, 197, 253, 0.2); }
-    .pa-xp-subbars {
-        display: flex;
-        flex-direction: column;
-        gap: 0.38rem;
-        padding: 0.5rem 0.55rem 0.55rem;
-        margin: 0 0.5rem 0.55rem;
-        border-radius: 9px;
-        background: rgba(10, 16, 30, 0.55);
-        border: 1px solid rgba(51, 65, 85, 0.35);
-    }
-    .pa-xp-subbar {
-        display: grid;
-        grid-template-columns: 5.4rem 1fr auto;
-        align-items: center;
-        gap: 0.55rem;
-        min-height: 1.35rem;
-    }
-    .pa-xp-subbar-label {
-        color: #cbd5e1;
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .pa-xp-subbar-track {
-        position: relative;
-        height: 9px;
-        border-radius: 999px;
-        background: rgba(30, 41, 59, 0.85);
-        overflow: hidden;
-        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
-    }
-    .pa-xp-subbar-fill {
-        position: absolute;
-        left: 0;
-        top: 0;
-        height: 100%;
-        border-radius: 999px;
-        transition: width 0.3s ease;
-        box-shadow: 0 0 6px rgba(255, 255, 255, 0.08);
-    }
-    .pa-xp-subbar-val {
-        display: inline-flex;
-        align-items: baseline;
-        gap: 0.35rem;
+    .pa-xp-pillar-label {
+        flex: 1;
+        min-width: 0;
         color: #f1f5f9;
-        font-size: 0.74rem;
+        font-size: 0.88rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+    .pa-xp-pillar-weight {
+        flex: 0 0 auto;
+        padding: 0.1rem 0.42rem;
+        border-radius: 999px;
+        color: #93a4bc;
+        font-size: 0.64rem;
         font-weight: 700;
         font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-        min-width: 4.8rem;
-        justify-content: flex-end;
+        background: rgba(51, 65, 85, 0.4);
+        border: 1px solid rgba(100, 116, 139, 0.3);
     }
-    .pa-xp-subbar-rank {
-        color: #64748b;
-        font-size: 0.64rem;
-        font-weight: 600;
+    .pa-xp-pillar-bar {
+        cursor: help;
+        outline: none;
+        transition: border-color 0.14s ease, box-shadow 0.14s ease;
+    }
+    .pa-xp-pillar-bar:hover,
+    .pa-xp-pillar-bar:focus-visible {
+        border-color: rgba(147, 197, 253, 0.55);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 6px 18px rgba(2, 6, 23, 0.32);
+    }
+    .pa-xp-pillar-bar:hover .pa-xp-gradient-bar-tipbox,
+    .pa-xp-pillar-bar:focus-visible .pa-xp-gradient-bar-tipbox,
+    .pa-xp-pillar-bar:focus-within .pa-xp-gradient-bar-tipbox {
+        opacity: 1;
+        visibility: visible;
+    }
+    /* The first pillar has no room above, so its tooltip opens downwards. */
+    .pa-xp-pillar:first-child .pa-xp-gradient-bar-tipbox {
+        top: calc(100% + 8px);
+        bottom: auto;
     }
     .pa-xp-index-wrap {
         margin-top: 0.7rem;
@@ -4193,32 +4178,6 @@ st.markdown(
     }
     .pa-xp-index-row-locked .pa-xp-index-row-val { color: #64748b; }
     .pa-xp-index-row-locked { opacity: 0.75; }
-    .pa-xp-gradient-bar-row {
-        display: flex;
-        flex-direction: column;
-        gap: 0.32rem;
-    }
-    .pa-xp-gradient-bar-head {
-        display: flex;
-        align-items: center;
-        gap: 0.42rem;
-    }
-    .pa-xp-gradient-bar-head::before {
-        content: "";
-        width: 3px;
-        height: 11px;
-        border-radius: 999px;
-        background: linear-gradient(180deg, #c4b5fd 0%, #a855f7 100%);
-        box-shadow: 0 0 8px rgba(168, 85, 247, 0.45);
-        flex-shrink: 0;
-    }
-    .pa-xp-gradient-bar-label {
-        color: #e2e8f0;
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.07em;
-        text-transform: uppercase;
-    }
     .pa-xp-gradient-bar-shell {
         position: relative;
         padding: 0.36rem 0.45rem 0.4rem;
@@ -4321,14 +4280,6 @@ st.markdown(
             0 0 14px rgba(239, 68, 68, 0.62),
             0 2px 8px rgba(2, 6, 23, 0.45);
     }
-    .pa-xp-gradient-bar-tip {
-        position: absolute;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 5;
-        display: inline-flex;
-        pointer-events: auto;
-    }
     .pa-xp-gradient-bar-marker-only {
         position: absolute;
         top: 50%;
@@ -4336,25 +4287,6 @@ st.markdown(
         z-index: 5;
         display: inline-flex;
         pointer-events: none;
-    }
-    .pa-xp-gradient-bar-tip .pa-xp-gradient-bar-marker {
-        position: relative;
-        top: auto;
-        left: auto;
-        transform: none;
-        cursor: help;
-        pointer-events: auto;
-    }
-    /* Enlarged invisible hit area so the tooltip is easy to trigger. */
-    .pa-xp-gradient-bar-tip::before {
-        content: "";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 30px;
-        height: 30px;
-        transform: translate(-50%, -50%);
-        border-radius: 50%;
     }
     .pa-xp-gradient-bar-tipbox {
         position: absolute;
@@ -4409,11 +4341,6 @@ st.markdown(
         color: #7dd3fc;
         font-size: 0.66rem;
         font-weight: 600;
-    }
-    .pa-xp-gradient-bar-tip:hover .pa-xp-gradient-bar-tipbox,
-    .pa-xp-gradient-bar-tip:focus-within .pa-xp-gradient-bar-tipbox {
-        opacity: 1;
-        visibility: visible;
     }
     .pa-xp-gradient-bar-ticks {
         display: flex;
@@ -6769,128 +6696,68 @@ def _xp_gradient_bar_tooltip_plain(xp_profile: dict, display_key: str) -> str:
     return " · ".join(parts)
 
 
-def _xp_gradient_bar_marker_html(
-    pct: float,
-    xp_profile: dict,
-    display_key: str,
-) -> str:
-    marker = '<span class="pa-xp-gradient-bar-marker"></span>'
-    if display_key in {"xp_activity_display", "xp_edge_display"}:
-        return (
-            f'<span class="pa-xp-gradient-bar-marker-only" style="left:{pct:.1f}%">'
-            f"{marker}"
-            "</span>"
+_XP_BAR_TICKS_HTML = (
+    '<div class="pa-xp-gradient-bar-ticks" aria-hidden="true">'
+    "<span></span><span></span><span></span><span></span>"
+    "</div>"
+)
+
+
+def _xp_profile_pillar_head_html(display_key: str) -> str:
+    label = xstats.XP_PROFILE_BAR_LABELS.get(display_key, display_key)
+    icon = xstats.XP_PROFILE_BAR_ICONS.get(display_key, "fa-circle-dot")
+    weight = xstats.XP_PROFILE_BAR_WEIGHTS.get(display_key)
+    weight_html = ""
+    if weight:
+        weight_txt = f"{float(weight) * 100:.0f}%"
+        weight_html = (
+            f'<span class="pa-xp-pillar-weight" title="Weight in the xP grade">'
+            f"{html.escape(weight_txt)}</span>"
         )
-    tooltip = _xp_gradient_bar_tooltip_html(xp_profile, display_key)
-    plain = html.escape(_xp_gradient_bar_tooltip_plain(xp_profile, display_key), quote=True)
     return (
-        f'<span class="pa-xp-gradient-bar-tip" style="left:{pct:.1f}%" tabindex="0" title="{plain}">'
-        f"{marker}"
-        f'<span class="pa-xp-gradient-bar-tipbox">{tooltip}</span>'
+        '<div class="pa-xp-pillar-head">'
+        '<span class="pa-xp-pillar-icon">'
+        f'<i class="fa-solid {html.escape(icon)}" aria-hidden="true"></i>'
         "</span>"
+        f'<span class="pa-xp-pillar-label">{html.escape(label)}</span>'
+        f"{weight_html}"
+        "</div>"
     )
 
 
-def _xp_gradient_bar_row_html(
-    label: str,
-    display_key: str,
-    xp_profile: dict,
-    *,
-    head_html: str | None = None,
-) -> str:
+def _xp_profile_pillar_html(display_key: str, xp_profile: dict) -> str:
+    """One xP pillar: icon + label + weight above a hoverable gradient bar."""
+    head_html = _xp_profile_pillar_head_html(display_key)
     pct = _xp_profile_display_pct(xp_profile, display_key)
     if pct is None:
-        track_html = (
+        bar_html = (
             '<div class="pa-xp-gradient-bar-shell">'
             '<div class="pa-xp-gradient-bar-track pa-xp-gradient-bar-empty"></div>'
-            '<div class="pa-xp-gradient-bar-ticks" aria-hidden="true">'
-            "<span></span><span></span><span></span><span></span>"
-            "</div>"
+            f"{_XP_BAR_TICKS_HTML}"
             "</div>"
         )
-    else:
-        tier = _xp_gradient_bar_tier(pct)
-        marker_html = _xp_gradient_bar_marker_html(pct, xp_profile, display_key)
-        track_html = (
-            f'<div class="pa-xp-gradient-bar-shell pa-xp-gradient-bar-tier-{tier}">'
-            '<div class="pa-xp-gradient-bar-track">'
-            '<span class="pa-xp-gradient-bar-clip">'
-            f'<span class="pa-xp-gradient-bar-glow" style="left:{pct:.1f}%"></span>'
-            "</span>"
-            f"{marker_html}"
-            "</div>"
-            '<div class="pa-xp-gradient-bar-ticks" aria-hidden="true">'
-            "<span></span><span></span><span></span><span></span>"
-            "</div>"
-            "</div>"
-        )
-    if head_html is None:
-        head_html = (
-            '<div class="pa-xp-gradient-bar-head">'
-            f'<span class="pa-xp-gradient-bar-label">{html.escape(label)}</span>'
-            "</div>"
-        )
-    return (
-        '<div class="pa-xp-gradient-bar-row">'
-        f"{head_html}"
-        f"{track_html}"
-        "</div>"
-    )
+        return f'<div class="pa-xp-pillar">{head_html}{bar_html}</div>'
 
-
-def _xp_profile_subbar_html(xp_profile: dict, metric: str) -> str:
-    label = xstats.pa_stats_metric_label(metric)
-    value = xstats.format_pa_stats_value(metric, xp_profile.get(metric))
-    score = xp_profile.get(f"{metric}_sub_display")
-    rank = xp_profile.get(f"{metric}_sub_index_rank_in_group")
-    total = xp_profile.get(f"{metric}_sub_index_rank_pool_in_group")
-    try:
-        pct = max(4.0, min(100.0, (float(score) - 3.0) / 6.0 * 100.0))
-        color = score_display_color(float(score))
-    except (TypeError, ValueError):
-        pct = 0.0
-        color = "#475569"
-    rank_txt = f"#{int(rank)}/{int(total)}" if rank and total else ""
-    return (
-        '<div class="pa-xp-subbar">'
-        f'<span class="pa-xp-subbar-label">{html.escape(label)}</span>'
-        '<span class="pa-xp-subbar-track">'
-        f'<span class="pa-xp-subbar-fill" style="width:{pct:.0f}%;background:{color}"></span>'
+    tier = _xp_gradient_bar_tier(pct)
+    plain = html.escape(_xp_gradient_bar_tooltip_plain(xp_profile, display_key), quote=True)
+    bar_html = (
+        f'<div class="pa-xp-gradient-bar-shell pa-xp-gradient-bar-tier-{tier} pa-xp-pillar-bar" '
+        f'tabindex="0" role="img" aria-label="{plain}" title="{plain}">'
+        '<div class="pa-xp-gradient-bar-track">'
+        '<span class="pa-xp-gradient-bar-clip">'
+        f'<span class="pa-xp-gradient-bar-glow" style="left:{pct:.1f}%"></span>'
         "</span>"
-        '<span class="pa-xp-subbar-val">'
-        f"{html.escape(value)}"
-        f'<span class="pa-xp-subbar-rank">{html.escape(rank_txt)}</span>'
+        f'<span class="pa-xp-gradient-bar-marker-only" style="left:{pct:.1f}%">'
+        '<span class="pa-xp-gradient-bar-marker"></span>'
+        "</span>"
+        "</div>"
+        f"{_XP_BAR_TICKS_HTML}"
+        '<span class="pa-xp-gradient-bar-tipbox">'
+        f"{_xp_gradient_bar_tooltip_html(xp_profile, display_key)}"
         "</span>"
         "</div>"
     )
-
-
-def _xp_profile_dim_html(display_key: str, xp_profile: dict) -> str:
-    label = xstats.XP_PROFILE_BAR_LABELS[display_key]
-    metrics = xstats.XP_PROFILE_BAR_METRICS.get(display_key, ())
-    subs = "".join(_xp_profile_subbar_html(xp_profile, metric) for metric in metrics)
-    if not subs:
-        main_bar = _xp_gradient_bar_row_html(label, display_key, xp_profile)
-        return f'<div class="pa-xp-dim">{main_bar}</div>'
-    head_html = (
-        '<div class="pa-xp-gradient-bar-head pa-xp-dim-head">'
-        f'<span class="pa-xp-gradient-bar-label">{html.escape(label)}</span>'
-        '<span class="pa-xp-dim-toggle" aria-hidden="true">'
-        '<i class="fa-solid fa-chevron-down"></i>'
-        "</span>"
-        "</div>"
-    )
-    main_bar = _xp_gradient_bar_row_html(
-        label, display_key, xp_profile, head_html=head_html
-    )
-    return (
-        '<details class="pa-xp-dim pa-xp-dim-acc" name="pa-xp-dim">'
-        '<summary class="pa-xp-dim-summary">'
-        f"{main_bar}"
-        "</summary>"
-        f'<div class="pa-xp-subbars">{subs}</div>'
-        "</details>"
-    )
+    return f'<div class="pa-xp-pillar">{head_html}{bar_html}</div>'
 
 
 def _xp_profile_ineligibility_note(xp_profile: dict) -> str:
@@ -6924,7 +6791,7 @@ def _xp_profile_bars_html(xp_profile: dict | None) -> str:
         )
         return f'<div class="pa-xp-profile-bars pa-xp-profile-bars-ineligible">{note}</div>'
     rows = "".join(
-        _xp_profile_dim_html(key, xp_profile)
+        _xp_profile_pillar_html(key, xp_profile)
         for key in xstats.XP_PROFILE_BAR_KEYS
     )
     return f'<div class="pa-xp-profile-bars">{rows}</div>'
@@ -10392,17 +10259,21 @@ def render_presentation_tab(
         unsafe_allow_html=True,
     )
 
-    st.markdown('<p class="pres-section-label">The 2 Analysis Axes</p>', unsafe_allow_html=True)
+    st.markdown('<p class="pres-section-label">The 3 Analysis Pillars</p>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="pres-cards-2">'
+        '<div class="pres-cards-3">'
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-chart-simple"></i></span>'
-        "<h5>Productivity</h5>"
-        "<p>How much total value the player delivers and produces per game through their passes.</p></div>"
+        "<h5>Productivity <em>40%</em></h5>"
+        "<p>xP generated per game — how much total value the player delivers through their passes.</p></div>"
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-bolt"></i></span>'
-        "<h5>Effectiveness</h5>"
-        "<p>How much value the player delivers per pass — a relative measure.</p></div>"
+        "<h5>Effectiveness <em>30%</em></h5>"
+        "<p>xP per pass — how much value each delivery carries, regardless of volume.</p></div>"
+        '<div class="pres-tile pres-dim">'
+        '<span class="pres-icon"><i class="fa-solid fa-arrow-trend-up"></i></span>'
+        "<h5>Quality <em>30%</em></h5>"
+        "<p>Median xP above the model's expectation — value that comes from surprise, not position.</p></div>"
         "</div>",
         unsafe_allow_html=True,
     )

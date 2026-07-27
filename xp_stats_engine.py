@@ -611,10 +611,11 @@ XP_ARCHETYPE_RADAR_LABELS: dict[str, str] = {
     "xp_archetype_finisher_display": "Finisher-pass",
 }
 
-# Rendered profile bars (main gradient bar + sub-bars per metric).
+# The three pillars rendered as a flat list of gradient bars in the xP Profile.
 XP_PROFILE_BAR_KEYS: tuple[str, ...] = (
     "xp_activity_display",
     "xp_edge_display",
+    "xp_quality_display",
 )
 
 # Axes used only to classify the xP profile archetype (not all are rendered).
@@ -628,23 +629,31 @@ XP_ARCHETYPE_AXIS_KEYS: tuple[str, ...] = (
 XP_PROFILE_BAR_LABELS: dict[str, str] = {
     "xp_activity_display": "Productivity",
     "xp_edge_display": "Effectiveness",
-    "xp_quality_display": "Delivery vs Expected",
+    "xp_quality_display": "Quality",
     "xp_consistency_display": "Consistency",
 }
 
+XP_PROFILE_BAR_ICONS: dict[str, str] = {
+    "xp_activity_display": "fa-chart-simple",
+    "xp_edge_display": "fa-bolt",
+    "xp_quality_display": "fa-arrow-trend-up",
+    "xp_consistency_display": "fa-wave-square",
+}
+
 XP_PROFILE_BAR_METRICS: dict[str, tuple[str, ...]] = {
-    "xp_activity_display": ("xp_per_90", "threat_passes_p90"),
-    "xp_edge_display": ("xp_m4_per_pass", "xp_m4_per_threat_pass"),
+    "xp_activity_display": ("xp_per_90",),
+    "xp_edge_display": ("xp_m4_per_pass",),
     "xp_quality_display": ("xp_residual_median",),
     "xp_consistency_display": ("xp_game_std_adj_score",),
 }
 
-# Individual metrics that get their own sub-bar under each rendered profile bar.
+# Metrics that carry their own rank-based mini-bar in the comparison view.
 XP_PROFILE_SUBMETRICS: tuple[str, ...] = (
     "xp_per_90",
     "threat_passes_p90",
     "xp_m4_per_pass",
     "xp_m4_per_threat_pass",
+    "xp_residual_median",
 )
 
 # Secondary indices shown as coloured status boxes below the regular stats.
@@ -746,9 +755,9 @@ XP_COMPARE_METRIC_TOOLTIPS: dict[str, str] = {
 }
 
 XP_PROFILE_BAR_TOOLTIPS: dict[str, str] = {
-    "xp_activity_display": f"Passing productivity per game: xP generated and {IMPACT_PASS_ABBR} produced.",
-    "xp_edge_display": f"Passing effectiveness: average xP per pass and per {IMPACT_PASS_ABBR}.",
-    "xp_quality_display": "How much the player delivers above the model's expected value.",
+    "xp_activity_display": "How much xP the player generates per game — passing volume times value.",
+    "xp_edge_display": "Average xP per pass — how valuable each delivery is, regardless of volume.",
+    "xp_quality_display": "Median xP above the model's expectation — value that comes from surprise.",
     "xp_consistency_display": "How stable game-to-game xP delivery is.",
 }
 
@@ -816,16 +825,24 @@ XP_PROFILE_ARCHETYPE_ICONS: dict[str, str] = {
 
 XP_PROFILE_ARCHETYPE_FILTER_ALL = ""
 
-ACTIVITY_METRICS: tuple[str, ...] = ("xp_per_90", "threat_passes_p90")
-EDGE_METRICS: tuple[str, ...] = ("xp_m4_per_pass", "xp_m4_per_threat_pass")
+ACTIVITY_METRICS: tuple[str, ...] = ("xp_per_90",)
+EDGE_METRICS: tuple[str, ...] = ("xp_m4_per_pass",)
 
-# Grade uses only Impacto Geral (IG) and Impacto por Passe (IpP) inputs.
-XP_PASS_RATING_FEATURES: tuple[str, ...] = (
-    "xp_per_90",
-    "threat_passes_p90",
-    "xp_m4_per_pass",
-    "xp_m4_per_threat_pass",
-)
+# Grade = weighted arithmetic mean of the three pillars (Productivity,
+# Effectiveness, Quality), each represented by a single metric.
+XP_PASS_RATING_FEATURE_WEIGHTS: dict[str, float] = {
+    "xp_per_90": 0.40,
+    "xp_m4_per_pass": 0.30,
+    "xp_residual_median": 0.30,
+}
+XP_PASS_RATING_FEATURES: tuple[str, ...] = tuple(XP_PASS_RATING_FEATURE_WEIGHTS)
+
+# Weight each rendered pillar carries in the composite grade.
+XP_PROFILE_BAR_WEIGHTS: dict[str, float] = {
+    display_key: XP_PASS_RATING_FEATURE_WEIGHTS[metrics[0]]
+    for display_key, metrics in XP_PROFILE_BAR_METRICS.items()
+    if metrics and metrics[0] in XP_PASS_RATING_FEATURE_WEIGHTS
+}
 XP_PASS_RATING_TANH_SCALE = 1.25
 XP_PASS_RATING_TANH_AMPLITUDE = 1.15
 XP_PASS_RATING_PERCENTILE_BANDS: tuple[tuple[float, float, float], ...] = (
@@ -1672,18 +1689,16 @@ def xp_pass_rating_percentile_display(rank: int, pool_size: int) -> float:
 
 
 def attach_xp_pass_ratings(players: list[dict]) -> None:
-    """Attach xP pass rating (4-axis PCA + shrinkage) with percentile display.
+    """Attach xP pass rating (3-pillar weighted mean + shrinkage) with percentile display.
 
-    PC1 combines within-position z-scores of the four xP profile dimensions
-    (Impacto Geral, Impacto por ação, Entrega vs Esperado, Consistência). Players are ranked
-    by the raw PCA composite; the displayed grade maps that rank to a 4.5–9.0 scale
-    (top 10% -> 8–9, 10–30% -> 7–8, rest -> 4.5–7) with a single light
-    confidence pull toward 6.0 (50% passes, 50% minutes).
+    The composite is a weighted arithmetic mean of within-position z-scores:
+    Productivity (xP/game, 40%), Effectiveness (xP/pass, 30%) and Quality
+    (median residual, 30%). Players are ranked by that composite; the displayed
+    grade maps the rank to a 4.5–9.0 scale (top 10% -> 8–9, 10–30% -> 7–8,
+    rest -> 4.5–7) with a single light confidence pull toward 6.0.
     """
     if not players:
         return
-
-    from sklearn.decomposition import PCA
 
     pools: dict[str, list[dict]] = {}
     for player in players:
@@ -1709,20 +1724,19 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
 
         feature_frame = pd.DataFrame(shrunk_by_feature)
         z_frame = feature_frame.apply(_zscore)
-        if pool_size >= 8:
-            pca = PCA(n_components=1, random_state=42)
-            pca_scores = pca.fit_transform(z_frame.to_numpy(dtype=float)).ravel().tolist()
-        else:
-            pca_scores = z_frame.mean(axis=1).astype(float).tolist()
+        weights = pd.Series(XP_PASS_RATING_FEATURE_WEIGHTS)
+        composite_scores = (
+            z_frame.mul(weights, axis=1).sum(axis=1) / weights.sum()
+        ).astype(float).tolist()
 
         for player in rows:
             player["position_p25_passes"] = round(p25_passes, 1)
 
-        raw_displays = [_xp_pass_rating_tanh_display(score) for score in pca_scores]
-        for player, raw_display, pca_z in zip(rows, raw_displays, pca_scores):
+        raw_displays = [_xp_pass_rating_tanh_display(score) for score in composite_scores]
+        for player, raw_display, composite_z in zip(rows, raw_displays, composite_scores):
             player["xp_pass_rating_raw_display"] = round(raw_display, 2)
             player["xp_pass_rating_confidence"] = round(_xp_pass_rating_confidence(player), 4)
-            player["xp_pass_rating_pca_z"] = round(float(pca_z), 4)
+            player["xp_pass_rating_composite_z"] = round(float(composite_z), 4)
 
         ranked = sorted(
             zip(rows, raw_displays),
