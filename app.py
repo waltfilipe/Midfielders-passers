@@ -7157,7 +7157,7 @@ XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
     "special_line_break_p90": (
         "Line-breaking passes per game — origin outside the outer 10% lateral bands, "
         "destination outside the outer 15%, forward angle ≤ 50°, distance 20–30 m "
-        "(midfield) or 10–30 m (attack), breaking the midfield line."
+        "(origin 30–60 m), 15–30 m (60–80 m), or 10–30 m (80–120 m)."
     ),
     "impact_passes_p90": (
         f"Impact passes per game — composite xP score (45% destination value + 35% residual "

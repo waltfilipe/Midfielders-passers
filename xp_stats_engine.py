@@ -18,12 +18,15 @@ FIRST_THIRD_X = FIELD_X / 3.0
 CENTRAL_Y_MIN = 20.0
 CENTRAL_Y_MAX = 60.0
 LINE_BREAK_FORWARD_ANGLE_DEG = 50.0
-LINE_BREAK_FIELD_BEFORE_30_X = FIELD_X * 0.30
-LINE_BREAK_FIELD_MID_50_X = FIELD_X * 0.50
+LINE_BREAK_ORIGIN_MIN_X = 30.0
+LINE_BREAK_ORIGIN_ZONE1_MAX_X = 60.0
+LINE_BREAK_ORIGIN_ZONE2_MAX_X = 80.0
+LINE_BREAK_ORIGIN_ZONE3_MAX_X = FIELD_X
 LINE_BREAK_ORIGIN_LATERAL_EXCLUDE_SHARE = 0.10
 LINE_BREAK_DEST_LATERAL_EXCLUDE_SHARE = 0.15
-LINE_BREAK_DIST_MIN_ATTACK_M = 10.0
-LINE_BREAK_DIST_MIN_MID_M = 20.0
+LINE_BREAK_DIST_MIN_ZONE1_M = 20.0
+LINE_BREAK_DIST_MIN_ZONE2_M = 15.0
+LINE_BREAK_DIST_MIN_ZONE3_M = 10.0
 LINE_BREAK_DIST_MAX_M = 30.0
 CROSS_DIST_MIN_M = 15.0
 CROSS_LATERAL_DELTA_MIN_M = 8.0
@@ -123,16 +126,14 @@ def _line_break_destination_ok(y: np.ndarray) -> np.ndarray:
 
 
 def _line_break_distance_ok(x_start: np.ndarray, dist: np.ndarray) -> np.ndarray:
-    """Distance bands by origin zone: none before 30%, 20–30 m at 30–50%, 10–30 m in attack."""
-    before_30 = x_start <= LINE_BREAK_FIELD_BEFORE_30_X
-    mid_zone = (x_start > LINE_BREAK_FIELD_BEFORE_30_X) & (x_start <= LINE_BREAK_FIELD_MID_50_X)
-    attack_zone = x_start > LINE_BREAK_FIELD_MID_50_X
+    """Distance bands by origin x: 30–60 m → 20–30 m; 60–80 → 15–30; 80–120 → 10–30."""
+    zone1 = (x_start >= LINE_BREAK_ORIGIN_MIN_X) & (x_start <= LINE_BREAK_ORIGIN_ZONE1_MAX_X)
+    zone2 = (x_start > LINE_BREAK_ORIGIN_ZONE1_MAX_X) & (x_start <= LINE_BREAK_ORIGIN_ZONE2_MAX_X)
+    zone3 = (x_start > LINE_BREAK_ORIGIN_ZONE2_MAX_X) & (x_start <= LINE_BREAK_ORIGIN_ZONE3_MAX_X)
     return (
-        ~before_30
-        & (
-            (mid_zone & (dist >= LINE_BREAK_DIST_MIN_MID_M) & (dist <= LINE_BREAK_DIST_MAX_M))
-            | (attack_zone & (dist >= LINE_BREAK_DIST_MIN_ATTACK_M) & (dist <= LINE_BREAK_DIST_MAX_M))
-        )
+        (zone1 & (dist >= LINE_BREAK_DIST_MIN_ZONE1_M) & (dist <= LINE_BREAK_DIST_MAX_M))
+        | (zone2 & (dist >= LINE_BREAK_DIST_MIN_ZONE2_M) & (dist <= LINE_BREAK_DIST_MAX_M))
+        | (zone3 & (dist >= LINE_BREAK_DIST_MIN_ZONE3_M) & (dist <= LINE_BREAK_DIST_MAX_M))
     )
 
 
