@@ -226,8 +226,8 @@ PA_AGE_LABELS: dict[str, str] = {
     "u23": "Sub-23",
     "u21": "Sub-21",
 }
-XP_CELL_MAP_HEIGHT = 590
-INTERACTIVE_CELL_MAP_CACHE_VERSION = 3
+XP_CELL_MAP_HEIGHT = 980
+INTERACTIVE_CELL_MAP_CACHE_VERSION = 4
 PA_URL_PLAYER_KEY = "_pa_url_player_id"
 PA_USER_PLAYER_PICK_KEY = "_pa_user_player_pick"
 PA_USER_POSITION_PICK_KEY = "_pa_user_position_pick"
@@ -472,6 +472,23 @@ _XP_IDENTITY_BADGES: tuple[tuple[str, str, str], ...] = (
     ("threat", "fa-crosshairs", "threat"),
     ("consistency", "fa-wave-square", "consistency"),
 )
+
+
+def _pa_pass_length_badges_html(xp_profile: dict | None) -> str:
+    if not xp_profile:
+        return ""
+    badges: list[str] = []
+    if xp_profile.get("pass_length_badge_long"):
+        badges.append(
+            '<span class="pa-pass-length-badge pa-pass-length-badge-long" title="Alta % de passes longos">Longo</span>'
+        )
+    if xp_profile.get("pass_length_badge_short"):
+        badges.append(
+            '<span class="pa-pass-length-badge pa-pass-length-badge-short" title="Alta % de passes curtos">Curto</span>'
+        )
+    if not badges:
+        return ""
+    return f'<div class="pa-pass-length-badges">{"".join(badges)}</div>'
 
 
 def _xp_identity_badges_html(xp_profile: dict | None) -> str:
@@ -4488,34 +4505,32 @@ st.markdown(
         border: 1px solid rgba(234, 88, 12, 0.55);
         box-shadow: 0 1px 6px rgba(234, 88, 12, 0.28);
     }
-    .pa-dist-badge {
+    .pa-pass-length-badges {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 0.28rem;
+        margin-top: 0.28rem;
+    }
+    .pa-pass-length-badge {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
-        margin-left: 0.28rem;
-        padding: 0.1rem 0.42rem;
+        padding: 0.08rem 0.38rem;
         border-radius: 999px;
-        font-size: 0.58rem;
+        font-size: 0.56rem;
         font-weight: 800;
         letter-spacing: 0.03em;
         line-height: 1;
         white-space: nowrap;
-        vertical-align: middle;
     }
-    .pa-dist-badge-short {
-        color: #0c4a6e;
-        background: rgba(56, 189, 248, 0.18);
-        border: 1px solid rgba(56, 189, 248, 0.45);
-    }
-    .pa-dist-badge-balanced {
-        color: #334155;
-        background: rgba(148, 163, 184, 0.22);
-        border: 1px solid rgba(148, 163, 184, 0.45);
-    }
-    .pa-dist-badge-long {
-        color: #431407;
+    .pa-pass-length-badge-long {
+        color: #78350f;
         background: rgba(251, 191, 36, 0.2);
-        border: 1px solid rgba(245, 158, 11, 0.5);
+        border: 1px solid rgba(245, 158, 11, 0.45);
+    }
+    .pa-pass-length-badge-short {
+        color: #0c4a6e;
+        background: rgba(56, 189, 248, 0.16);
+        border: 1px solid rgba(56, 189, 248, 0.4);
     }
     .pa-regular-stat-tip {
         position: relative;
@@ -6475,6 +6490,7 @@ def _build_player_analysis_left_card_html(
     search_pos = sim.player_search_position(player)
     group_label = sim.similarity_position_label(search_pos) if search_pos else "—"
     badges = _xp_identity_badges_html(xp_profile)
+    length_badges = _pa_pass_length_badges_html(xp_profile)
     badges_block = (
         f'<div class="pa-identity-badges">{badges}</div>' if badges else ""
     )
@@ -6512,6 +6528,7 @@ def _build_player_analysis_left_card_html(
         f'<div class="pa-identity-photo-wrap">{_player_photo_html(player)}</div>'
         '<div class="pa-identity-head-text">'
         f'<h2 class="pa-identity-title">{html.escape(str(player.get("player_name", "—")))}</h2>'
+        f"{length_badges}"
         f'<p class="pa-identity-meta">{html.escape(str(player.get("team", "—")))} · '
         f'{html.escape(str(player.get("position", "—")))} · '
         f'{html.escape(group_label)}</p>'
@@ -7209,6 +7226,7 @@ XP_PA_REGULAR_STAT_KEYS: tuple[str, ...] = (
     "passes_total",
     "pass_completion_pct",
     "long_balls",
+    "long_pass_share_pct",
     "long_ball_completion_pct",
     "progressive_passes",
     "final_third_passes",
@@ -7216,13 +7234,13 @@ XP_PA_REGULAR_STAT_KEYS: tuple[str, ...] = (
     "key_passes",
     "special_line_break_p90",
     "impact_passes_p90",
-    "pass_mean_distance",
 )
 
 XP_PA_REGULAR_STAT_LABELS: dict[str, str] = {
     "passes_total": "Passes / game",
     "pass_completion_pct": "% Passes certos",
     "long_balls": "Long passes / game",
+    "long_pass_share_pct": "% Long passes",
     "long_ball_completion_pct": "% Completed long passes",
     "progressive_passes": "Progressive passes / game",
     "final_third_passes": "Passes into final third / game",
@@ -7230,13 +7248,13 @@ XP_PA_REGULAR_STAT_LABELS: dict[str, str] = {
     "key_passes": "Key passes / game",
     "special_line_break_p90": "Line Breaking Passes / game",
     "impact_passes_p90": "Impact passes / game",
-    "pass_mean_distance": "Mean pass distance",
 }
 
 XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
     "passes_total": "Passes attempted per 90 minutes.",
     "pass_completion_pct": "Completed pass percentage.",
     "long_balls": "Long passes (≥30 m) per 90 minutes.",
+    "long_pass_share_pct": "Share of completed passes that are long (distance band >30 m).",
     "long_ball_completion_pct": "Completed long-pass percentage.",
     "progressive_passes": (
         "Progressive passes completed per game (p90) — Wyscout criterion: "
@@ -7255,13 +7273,13 @@ XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
         f"Impact passes per game — composite xP score (45% destination value + 35% residual "
         "+ 20% progress) in the top 10% for distance band, with forward progress ≥ P60."
     ),
-    "pass_mean_distance": "Mean distance of completed passes, in meters.",
 }
 
 XP_PA_REGULAR_STAT_KIND: dict[str, str] = {
     "passes_total": "p90",
     "pass_completion_pct": "pct",
     "long_balls": "p90",
+    "long_pass_share_pct": "pct",
     "long_ball_completion_pct": "pct",
     "progressive_passes": "p90",
     "final_third_passes": "p90",
@@ -7269,7 +7287,6 @@ XP_PA_REGULAR_STAT_KIND: dict[str, str] = {
     "key_passes": "p90",
     "special_line_break_p90": "p90",
     "impact_passes_p90": "p90",
-    "pass_mean_distance": "dist",
 }
 
 
@@ -7334,22 +7351,6 @@ def _pa_top_badge_html(rank_info: dict | None) -> str:
     return ""
 
 
-def _pa_distance_style_badge_html(source: dict) -> str:
-    style = str(source.get("pass_distance_style") or "").strip().lower()
-    label = str(source.get("pass_distance_style_label") or "").strip()
-    if not style or not label:
-        return ""
-    css = {
-        "short": "pa-dist-badge-short",
-        "balanced": "pa-dist-badge-balanced",
-        "long": "pa-dist-badge-long",
-    }.get(style, "pa-dist-badge-balanced")
-    return (
-        f'<span class="pa-dist-badge {css}" title="{html.escape(label)}" '
-        f'aria-label="{html.escape(label)}">{html.escape(label)}</span>'
-    )
-
-
 def _pa_regular_stat_rank_info(
     source: dict,
     metric_ranks: dict,
@@ -7398,8 +7399,6 @@ def _pa_regular_stat_line_html(source: dict, metric_ranks: dict, key: str) -> st
     badge = _pa_top_badge_html(
         {"rank": rank_info[0], "total": rank_info[1]} if rank_info else None
     )
-    if key == "pass_mean_distance":
-        badge = f"{badge}{_pa_distance_style_badge_html(source)}"
     value_html = _pa_regular_stat_value_tip_html(
         label,
         value,
@@ -9528,7 +9527,11 @@ def _build_interactive_cell_map_html(analysis: dict) -> str:
             "xp_maps_interactive.build_cell_map_html is missing after reload — "
             "redeploy the app so xp_maps_interactive.py is on the server."
         )
-    return builder(analysis)
+    return builder(
+        analysis,
+        plot_height=520,
+        player_plot_height=420,
+    )
 
 
 def _fmt_int_ptbr(value: int) -> str:
@@ -9536,7 +9539,7 @@ def _fmt_int_ptbr(value: int) -> str:
 
 
 def _render_interactive_cell_map(top_n: int) -> None:
-    """Hover-driven heatmap: compares where the passes of each 12x8 cell end up."""
+    """Aggregate hover map (all athletes) + per-player O→D route explorer."""
     analysis = load_midfielder_cell_heatmaps(top_n)
     if not analysis or not analysis.get("origins"):
         st.info("Rotas por célula indisponíveis para esta base.")
@@ -9553,7 +9556,7 @@ def _render_interactive_cell_map(top_n: int) -> None:
     st.markdown(
         '<div class="pa-ondemand-head">'
         '<span class="pa-ondemand-ic"><i class="fa-solid fa-hand-pointer"></i></span>'
-        f"Mapa interativo — selecione um atleta e explore o grid {cols}×{rows}</div>",
+        f"Mapa interativo — grid {cols}×{rows}</div>",
         unsafe_allow_html=True,
     )
     try:
@@ -9571,9 +9574,9 @@ def _render_interactive_cell_map(top_n: int) -> None:
         scrolling=False,
     )
     st.caption(
-        f"Selecione um meio-campista no painel à direita para ver no mapa os destinos dos passes "
-        f"dele (volume e xP médio). Passe o mouse por uma célula do grid {cols}×{rows} para ver "
-        "de onde saem os passes daquele ponto; clique para fixar. "
+        f"Mapa superior: todos os atletas agregados — passe o mouse por uma célula de origem "
+        f"para ver os destinos. Mapa inferior: selecione um jogador para ver destinos e as "
+        "rotas O→D mais comuns e com maior xP gerado. "
         f"Células com menos de {int(analysis.get('min_origin_passes') or 0)} "
         "passes de saída não viram origem."
     )
@@ -10394,11 +10397,11 @@ def render_presentation_tab(
         '<div class="pres-cards-2">'
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-chart-simple"></i></span>'
-        "<h5>Overall Impact</h5>"
+        "<h5>Productivity</h5>"
         "<p>How much total value the player delivers and produces per game through their passes.</p></div>"
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-bolt"></i></span>'
-        "<h5>Impact per Pass</h5>"
+        "<h5>Effectiveness</h5>"
         "<p>How much value the player delivers per pass — a relative measure.</p></div>"
         "</div>",
         unsafe_allow_html=True,

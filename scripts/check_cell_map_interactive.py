@@ -1,7 +1,7 @@
 """Headless smoke test for the interactive 12x8 cell map component.
 
-Renders the generated HTML in Chromium, hovers a few grid cells and asserts the
-side panel switches to the hovered cell. Run manually:
+Renders the generated HTML in Chromium, hovers aggregate cells and switches
+players in the per-athlete O→D route panel. Run manually:
 
     python3 scripts/check_cell_map_interactive.py
 """
@@ -42,79 +42,96 @@ def main() -> int:
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": 1200, "height": 760})
+        page = browser.new_page(viewport={"width": 1200, "height": 1100})
         errors: list[str] = []
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         page.goto(path.as_uri())
-        page.wait_for_selector("#qmap-player-select", timeout=30_000)
+        page.wait_for_selector("#qmap-agg-plot", timeout=30_000)
+        page.wait_for_selector("#qmap-pl-player-select", timeout=30_000)
         page.wait_for_timeout(1500)
 
         default_player = (analysis.get("players") or [{}])[0]
         default_name = str(default_player.get("name") or "")
-        if default_name and default_name not in page.inner_text(".qp-title"):
+        player_panel = page.locator("#qmap-pl-panel .qp-title")
+        if default_name and default_name not in player_panel.inner_text():
             failures.append(
-                f"initial panel title unexpected: {page.inner_text('.qp-title')!r}; "
+                f"player panel title unexpected: {player_panel.inner_text()!r}; "
                 f"expected player {default_name!r}"
             )
+
+        agg_panel = page.locator("#qmap-agg-panel .qp-title")
+        if "Todos os atletas" not in agg_panel.inner_text():
+            failures.append(f"aggregate panel title unexpected: {agg_panel.inner_text()!r}")
 
         field_x = float(analysis["field_x"])
         field_y = float(analysis["field_y"])
 
-        # Ask Plotly itself where a pitch coordinate lands: the axes are reversed
-        # and domain-constrained, so the drag layer is not a linear stand-in.
-        def cell_point(col: int, row: int) -> tuple[float, float]:
+        def cell_point(plot_id: str, col: int, row: int) -> tuple[float, float]:
             pos = page.evaluate(
-                """(p) => {
-                    const gd = document.getElementById('qmap-plot');
+                """(args) => {
+                    const gd = document.getElementById(args.plotId);
                     const fl = gd._fullLayout;
                     const bb = gd.getBoundingClientRect();
                     return {
-                        x: bb.left + fl.xaxis._offset + fl.xaxis.l2p(p[0]),
-                        y: bb.top + fl.yaxis._offset + fl.yaxis.l2p(p[1]),
+                        x: bb.left + fl.xaxis._offset + fl.xaxis.l2p(args.point[0]),
+                        y: bb.top + fl.yaxis._offset + fl.yaxis.l2p(args.point[1]),
                     };
                 }""",
-                [(col + 0.5) * field_x / cols, (row + 0.5) * field_y / rows],
+                {
+                    "plotId": plot_id,
+                    "point": [(col + 0.5) * field_x / cols, (row + 0.5) * field_y / rows],
+                },
             )
             return pos["x"], pos["y"]
 
-        def hover_cell(col: int, row: int) -> tuple[float, float]:
-            x, y = cell_point(col, row)
-            # A second nudge inside the same cell guarantees a fresh mousemove even
-            # when the pointer was already parked on these coordinates.
+        def hover_agg_cell(col: int, row: int) -> tuple[float, float]:
+            x, y = cell_point("qmap-agg-plot", col, row)
             page.mouse.move(x, y, steps=4)
             page.mouse.move(x + 1, y + 1)
             page.wait_for_timeout(400)
             return x, y
 
         for col, row in ((5, 3), (9, 1), (2, 6)):
-            hover_cell(col, row)
-            title = page.inner_text(".qp-title")
+            hover_agg_cell(col, row)
+            title = agg_panel.inner_text()
             expected = f"C{col + 1}/L{row + 1}"
             if expected not in title:
-                failures.append(f"hover ({col},{row}) -> panel {title!r}, expected {expected}")
-            if not page.locator(".qp-meta-card").count():
-                failures.append(f"hover ({col},{row}) produced no player summary cards")
+                failures.append(f"agg hover ({col},{row}) -> panel {title!r}, expected {expected}")
 
-        # Click pins the cell so later hovers must not change the panel.
-        x, y = hover_cell(5, 3)
+        x, y = hover_agg_cell(5, 3)
         page.mouse.click(x, y)
         page.wait_for_timeout(400)
-        if not page.locator(".qp-pin").count():
-            failures.append("click did not pin the cell")
-        hover_cell(9, 6)
-        if "C6/L4" not in page.inner_text(".qp-title"):
-            failures.append("pinned cell changed on hover")
+        if not page.locator("#qmap-agg-panel .qp-pin").count():
+            failures.append("click did not pin the aggregate cell")
+        pinned_title = agg_panel.inner_text()
+        hover_agg_cell(9, 6)
+        if pinned_title not in agg_panel.inner_text():
+            failures.append("pinned aggregate cell changed on hover")
 
-        page.click("#qmap-reset")
+        page.click("#qmap-agg-reset")
         page.wait_for_timeout(400)
-        if default_name and default_name not in page.inner_text(".qp-title"):
-            failures.append("reset did not restore the selected player view")
+        if "Todos os atletas" not in agg_panel.inner_text():
+            failures.append("reset did not restore the aggregate view")
 
-        page.click('.qmap-btn[data-metric="volume"]')
+        page.click('#qmap-agg-wrap .qmap-btn[data-metric="volume"]')
         page.wait_for_timeout(400)
-        page.click('.qmap-btn[data-scale="relative"]')
+        page.click('#qmap-agg-wrap .qmap-btn[data-scale="relative"]')
         page.wait_for_timeout(400)
+
+        panel_text = page.locator("#qmap-pl-panel").inner_text().lower()
+        if "mais comuns" not in panel_text:
+            failures.append("player panel missing common O→D routes section")
+        if "maior xp" not in panel_text:
+            failures.append("player panel missing high-xP O→D routes section")
+
+        players = analysis.get("players") or []
+        if len(players) > 1:
+            second = players[1]
+            page.select_option("#qmap-pl-player-select", str(second["id"]))
+            page.wait_for_timeout(600)
+            if str(second.get("name") or "") not in player_panel.inner_text():
+                failures.append("player select did not switch the route panel")
 
         if errors:
             failures.append("JS errors: " + " | ".join(errors[:5]))
@@ -125,7 +142,7 @@ def main() -> int:
         for line in failures:
             print(" -", line)
         return 1
-    print("OK — hover, pin, reset and toolbar toggles all behave")
+    print("OK — aggregate hover, pin, reset, toolbar and player routes behave")
     return 0
 
 

@@ -626,8 +626,8 @@ XP_ARCHETYPE_AXIS_KEYS: tuple[str, ...] = (
 )
 
 XP_PROFILE_BAR_LABELS: dict[str, str] = {
-    "xp_activity_display": "Overall Impact",
-    "xp_edge_display": "Impact per Pass",
+    "xp_activity_display": "Productivity",
+    "xp_edge_display": "Effectiveness",
     "xp_quality_display": "Delivery vs Expected",
     "xp_consistency_display": "Consistency",
 }
@@ -746,8 +746,8 @@ XP_COMPARE_METRIC_TOOLTIPS: dict[str, str] = {
 }
 
 XP_PROFILE_BAR_TOOLTIPS: dict[str, str] = {
-    "xp_activity_display": f"Offensive impact per game: xP generated and {IMPACT_PASS_ABBR} produced.",
-    "xp_edge_display": f"Value per pass: average xP per pass and per {IMPACT_PASS_ABBR}.",
+    "xp_activity_display": f"Passing productivity per game: xP generated and {IMPACT_PASS_ABBR} produced.",
+    "xp_edge_display": f"Passing effectiveness: average xP per pass and per {IMPACT_PASS_ABBR}.",
     "xp_quality_display": "How much the player delivers above the model's expected value.",
     "xp_consistency_display": "How stable game-to-game xP delivery is.",
 }
@@ -1185,7 +1185,7 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
     "final_third_passes",
     "passes_to_box",
     "key_passes",
-    "pass_mean_distance",
+    "long_pass_share_pct",
     "special_line_break_p90",
     "impact_passes_p90",
 )
@@ -1749,51 +1749,12 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
             row["metric_ranks"] = metric_ranks
 
 
-PASS_DISTANCE_STYLE_LABELS: dict[str, str] = {
-    "short": "Curto",
-    "balanced": "Equilibrado",
-    "long": "Longo",
-}
+PASS_LENGTH_BADGE_PERCENTILE = 67.0
+PASS_LENGTH_BADGE_MIN_SHARE = 0.38
 
 
-def _robust_zscore_array(values: np.ndarray) -> np.ndarray:
-    """Median/MAD z-scores; fall back to IQR when MAD is near zero."""
-    arr = np.asarray(values, dtype=float)
-    if arr.size == 0:
-        return arr
-    med = float(np.median(arr))
-    mad = float(np.median(np.abs(arr - med)))
-    scale = 1.4826 * mad
-    if scale <= 1e-9:
-        q75, q25 = np.percentile(arr, [75, 25])
-        scale = max(float(q75 - q25) / 1.349, 1e-9)
-    return (arr - med) / scale
-
-
-def _pass_distance_style_score(row: dict) -> float | None:
-    """Blend mean pass distance with long-pass share for a robust style signal."""
-    try:
-        mean_dist = float(row.get("pass_mean_distance") or 0.0)
-    except (TypeError, ValueError):
-        return None
-    if mean_dist <= 0:
-        return None
-    try:
-        short = float(row.get("passes_short") or 0.0)
-        long_ = float(row.get("passes_long") or 0.0)
-    except (TypeError, ValueError):
-        short, long_ = 0.0, 0.0
-    band_total = short + long_
-    long_share = long_ / band_total if band_total > 0 else 0.0
-    return mean_dist, long_share
-
-
-def attach_pass_distance_style_profiles(players: list[dict]) -> None:
-    """Classify each player as short / balanced / long within profile peers.
-
-    Uses a composite of robust z-scores on mean pass distance and long-pass
-    share, then assigns terciles inside each campo ofensivo/defensivo pool.
-    """
+def attach_pass_length_share_badges(players: list[dict]) -> None:
+    """Flag players in the top third of short/long pass share within profile peers."""
     if not players:
         return
 
@@ -1802,39 +1763,43 @@ def attach_pass_distance_style_profiles(players: list[dict]) -> None:
         pools.setdefault(_metric_rank_pool_key(player), []).append(player)
 
     for rows in pools.values():
-        scored: list[tuple[dict, float]] = []
         for row in rows:
-            parsed = _pass_distance_style_score(row)
-            if parsed is None:
+            row.pop("pass_length_badge_long", None)
+            row.pop("pass_length_badge_short", None)
+            short = float(row.get("passes_short") or 0.0)
+            long_ = float(row.get("passes_long") or 0.0)
+            band_total = short + long_
+            if band_total > 0:
+                row["long_pass_share_pct"] = round(long_ / band_total * 100.0, 1)
+                row["short_pass_share_pct"] = round(short / band_total * 100.0, 1)
+            else:
+                row["long_pass_share_pct"] = 0.0
+                row["short_pass_share_pct"] = 0.0
+
+        long_entries: list[tuple[dict, float]] = []
+        short_entries: list[tuple[dict, float]] = []
+        for row in rows:
+            try:
+                long_share = float(row.get("long_pass_share_pct") or 0.0) / 100.0
+                short_share = float(row.get("short_pass_share_pct") or 0.0) / 100.0
+            except (TypeError, ValueError):
                 continue
-            mean_dist, long_share = parsed
-            scored.append((row, (mean_dist, long_share)))
+            if long_share > 0:
+                long_entries.append((row, long_share))
+            if short_share > 0:
+                short_entries.append((row, short_share))
 
-        for row in rows:
-            row.pop("pass_distance_style", None)
-            row.pop("pass_distance_style_label", None)
-            row.pop("pass_distance_style_score", None)
-
-        if len(scored) < 3:
+        if len(long_entries) < 3 or len(short_entries) < 3:
             continue
 
-        mean_dists = np.array([item[1][0] for item in scored], dtype=float)
-        long_shares = np.array([item[1][1] for item in scored], dtype=float)
-        z_dist = _robust_zscore_array(mean_dists)
-        z_long = _robust_zscore_array(long_shares)
-        composite = 0.65 * z_dist + 0.35 * z_long
-        p33, p67 = np.percentile(composite, [33.33, 66.67])
-
-        for (row, _), score in zip(scored, composite):
-            if score <= p33:
-                style = "short"
-            elif score >= p67:
-                style = "long"
-            else:
-                style = "balanced"
-            row["pass_distance_style"] = style
-            row["pass_distance_style_label"] = PASS_DISTANCE_STYLE_LABELS[style]
-            row["pass_distance_style_score"] = round(float(score), 4)
+        long_cut = float(np.percentile([share for _, share in long_entries], PASS_LENGTH_BADGE_PERCENTILE))
+        short_cut = float(np.percentile([share for _, share in short_entries], PASS_LENGTH_BADGE_PERCENTILE))
+        for row, share in long_entries:
+            if share >= long_cut and share >= PASS_LENGTH_BADGE_MIN_SHARE:
+                row["pass_length_badge_long"] = True
+        for row, share in short_entries:
+            if share >= short_cut and share >= PASS_LENGTH_BADGE_MIN_SHARE:
+                row["pass_length_badge_short"] = True
 
 
 def attach_distance_indices(players: list[dict]) -> None:

@@ -1164,6 +1164,78 @@ def build_cell_heatmap_analysis(
     }
 
 
+def build_origin_destination_routes(
+    passes: pd.DataFrame,
+    *,
+    cols: int = XP_GRID_COLS,
+    rows: int = XP_GRID_ROWS,
+    xp_col: str = "xp_m4",
+    top_n: int = 5,
+    min_route_passes: int = 3,
+) -> dict[str, list[dict]]:
+    """Top origin→destination cell pairs by volume and by total xP."""
+    empty: dict[str, list[dict]] = {"common": [], "high_xp": []}
+    if passes is None or passes.empty:
+        return empty
+
+    work = passes[passes["is_won"] & passes["has_end"]].dropna(
+        subset=["x_start", "y_start", "x_end", "y_end"]
+    )
+    if work.empty:
+        return empty
+
+    n_cells = cols * rows
+    ox_idx, oy_idx = _cell_indices(
+        work["x_start"].to_numpy(dtype=float),
+        work["y_start"].to_numpy(dtype=float),
+        cols=cols,
+        rows=rows,
+    )
+    dx_idx, dy_idx = _cell_indices(
+        work["x_end"].to_numpy(dtype=float),
+        work["y_end"].to_numpy(dtype=float),
+        cols=cols,
+        rows=rows,
+    )
+    xp_values = (
+        work[xp_col].to_numpy(dtype=float)
+        if xp_col in work.columns
+        else np.zeros(len(work), dtype=float)
+    )
+    origin_flat = oy_idx * cols + ox_idx
+    dest_flat = dy_idx * cols + dx_idx
+    pair_flat = origin_flat * n_cells + dest_flat
+    total_passes = max(len(work), 1)
+
+    pair_counts = np.bincount(pair_flat, minlength=n_cells * n_cells)
+    pair_xp = np.bincount(pair_flat, weights=xp_values, minlength=n_cells * n_cells)
+    labels = cell_index_labels(cols, rows)
+
+    routes: list[dict] = []
+    for pair_idx in np.flatnonzero(pair_counts >= min_route_passes):
+        count = int(pair_counts[pair_idx])
+        origin_idx = int(pair_idx // n_cells)
+        dest_idx = int(pair_idx % n_cells)
+        total_xp = float(pair_xp[pair_idx])
+        routes.append({
+            "origin_index": origin_idx,
+            "dest_index": dest_idx,
+            "origin_label": labels[origin_idx],
+            "dest_label": labels[dest_idx],
+            "route_label": f"{labels[origin_idx]} → {labels[dest_idx]}",
+            "count": count,
+            "share_pct": round(count / total_passes * 100.0, 2),
+            "total_xp": round(total_xp, 2),
+            "mean_xp": round(total_xp / count, 3),
+        })
+
+    if not routes:
+        return empty
+    common = sorted(routes, key=lambda row: row["count"], reverse=True)[:top_n]
+    high_xp = sorted(routes, key=lambda row: row["total_xp"], reverse=True)[:top_n]
+    return {"common": common, "high_xp": high_xp}
+
+
 def build_player_cell_heatmap_bundle(
     passes: pd.DataFrame,
     *,
@@ -1219,6 +1291,7 @@ def build_player_cell_heatmap_bundle(
             "mean_xp": float(overall.get("mean_xp") or 0.0),
             "overall": overall,
             "origins": player_analysis.get("origins") or {},
+            "routes": build_origin_destination_routes(grp, cols=aggregate.get("cols", XP_GRID_COLS), rows=aggregate.get("rows", XP_GRID_ROWS)),
         })
 
     players.sort(key=lambda row: (-int(row.get("passes") or 0), str(row.get("name") or "")))
