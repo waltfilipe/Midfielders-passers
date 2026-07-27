@@ -162,7 +162,6 @@ IMPACT_PASS_ABBR = getattr(xstats, "IMPACT_PASS_ABBR", "I.P.")
 XP_PROFILE_BAR_KEYS_RENDER: tuple[str, ...] = (
     "xp_activity_display",
     "xp_edge_display",
-    "xp_quality_display",
 )
 XP_PROFILE_BAR_ICONS: dict[str, str] = getattr(
     xstats,
@@ -170,7 +169,6 @@ XP_PROFILE_BAR_ICONS: dict[str, str] = getattr(
     {
         "xp_activity_display": "fa-chart-simple",
         "xp_edge_display": "fa-bolt",
-        "xp_quality_display": "fa-arrow-trend-up",
         "xp_consistency_display": "fa-wave-square",
     },
 )
@@ -178,9 +176,8 @@ XP_PROFILE_BAR_WEIGHTS: dict[str, float] = getattr(
     xstats,
     "XP_PROFILE_BAR_WEIGHTS",
     {
-        "xp_activity_display": 0.40,
-        "xp_edge_display": 0.30,
-        "xp_quality_display": 0.30,
+        "xp_activity_display": 0.50,
+        "xp_edge_display": 0.50,
     },
 )
 _xp_study_maps = _load_xp_study_maps()
@@ -10313,21 +10310,17 @@ def render_presentation_tab(
         unsafe_allow_html=True,
     )
 
-    st.markdown('<p class="pres-section-label">The 3 Analysis Pillars</p>', unsafe_allow_html=True)
+    st.markdown('<p class="pres-section-label">The 2 Analysis Pillars</p>', unsafe_allow_html=True)
     st.markdown(
         '<div class="pres-cards-3">'
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-chart-simple"></i></span>'
-        "<h5>Productivity <em>40%</em></h5>"
+        "<h5>Productivity <em>50%</em></h5>"
         "<p>xP generated per game — how much total value the player delivers through their passes.</p></div>"
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-bolt"></i></span>'
-        "<h5>Effectiveness <em>30%</em></h5>"
+        "<h5>Effectiveness <em>50%</em></h5>"
         "<p>xP per pass — how much value each delivery carries, regardless of volume.</p></div>"
-        '<div class="pres-tile pres-dim">'
-        '<span class="pres-icon"><i class="fa-solid fa-arrow-trend-up"></i></span>'
-        "<h5>Quality <em>30%</em></h5>"
-        "<p>Median xP above the model's expectation — value that comes from surprise, not position.</p></div>"
         "</div>",
         unsafe_allow_html=True,
     )

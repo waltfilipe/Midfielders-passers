@@ -642,11 +642,10 @@ XP_ARCHETYPE_RADAR_LABELS: dict[str, str] = {
     "xp_archetype_finisher_display": "Finisher-pass",
 }
 
-# The three pillars rendered as a flat list of gradient bars in the xP Profile.
+# The two pillars rendered as gradient bars in the xP Profile (grade drivers).
 XP_PROFILE_BAR_KEYS: tuple[str, ...] = (
     "xp_activity_display",
     "xp_edge_display",
-    "xp_quality_display",
 )
 
 # Axes used only to classify the xP profile archetype (not all are rendered).
@@ -859,12 +858,10 @@ XP_PROFILE_ARCHETYPE_FILTER_ALL = ""
 ACTIVITY_METRICS: tuple[str, ...] = ("xp_per_90",)
 EDGE_METRICS: tuple[str, ...] = ("xp_m4_per_pass",)
 
-# Grade = weighted arithmetic mean of the three pillars (Productivity,
-# Effectiveness, Quality), each represented by a single metric.
+# Grade = weighted arithmetic mean of Productivity (xP/game) and Effectiveness (xP/pass).
 XP_PASS_RATING_FEATURE_WEIGHTS: dict[str, float] = {
-    "xp_per_90": 0.40,
-    "xp_m4_per_pass": 0.30,
-    "xp_residual_median": 0.30,
+    "xp_per_90": 0.50,
+    "xp_m4_per_pass": 0.50,
 }
 XP_PASS_RATING_FEATURES: tuple[str, ...] = tuple(XP_PASS_RATING_FEATURE_WEIGHTS)
 
@@ -1720,13 +1717,13 @@ def xp_pass_rating_percentile_display(rank: int, pool_size: int) -> float:
 
 
 def attach_xp_pass_ratings(players: list[dict]) -> None:
-    """Attach xP pass rating (3-pillar weighted mean + shrinkage) with percentile display.
+    """Attach xP pass rating (2-metric weighted mean + shrinkage) with percentile display.
 
     The composite is a weighted arithmetic mean of within-position z-scores:
-    Productivity (xP/game, 40%), Effectiveness (xP/pass, 30%) and Quality
-    (median residual, 30%). Players are ranked by that composite; the displayed
-    grade maps the rank to a 4.5–9.0 scale (top 10% -> 8–9, 10–30% -> 7–8,
-    rest -> 4.5–7) with a single light confidence pull toward 6.0.
+    Productivity (xP/game, 50%) and Effectiveness (xP/pass, 50%). Players are ranked
+    by that composite; the displayed grade maps the rank to a 4.5–9.0 scale (top 10%
+    -> 8–9, 10–30% -> 7–8, rest -> 4.5–7) with a single light confidence pull
+    toward 6.0.
     """
     if not players:
         return
