@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 import passes_engine as pe
 import xp_study_engine as xse
 
-XP_DATA_CACHE_VERSION = 49
+XP_DATA_CACHE_VERSION = 50
 XP_POSITION_RANK_METRICS: tuple[str, ...] = (
     "xp_m4_total",
     "xp_m4_per_pass",
@@ -697,6 +697,7 @@ def build_european_league_xp_analytics(
             .to_dict()
         )
     registry = pe.build_player_registry(season)
+    raw_pass_frame = pe._filter_pass_frame_to_midfielders(pe._load_european_league_pass_frame())
     players: list[dict] = []
     registry_by_id = {str(p["code"]): p for p in registry}
 
@@ -713,6 +714,8 @@ def build_european_league_xp_analytics(
         if not metrics:
             continue
         minutes = mins.get("minutes")
+        player_raw = raw_pass_frame[raw_pass_frame["player_id"].astype(str) == pid]
+        xstats.attach_regular_pass_stats(metrics, player_raw, minutes)
         xstats.apply_per90_metrics(metrics, minutes)
         league_source = str(league_by_player.get(pid, ""))
         players.append({

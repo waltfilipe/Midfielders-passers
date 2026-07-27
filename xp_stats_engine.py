@@ -888,7 +888,7 @@ def p20_pass_thresholds_by_group(
     """Minimum passes at the position-group percentile (default P30)."""
     pools: dict[str, list[float]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(float(player.get(passes_col) or 0.0))
     return {
         group: float(np.percentile(counts, percentile)) if counts else 0.0
@@ -1413,7 +1413,7 @@ def is_xp_profile_bar_eligible(
     minutes_pct = player.get("minutes_pct")
     if minutes_pct is None or float(minutes_pct) <= float(min_minutes_pct):
         return False
-    group = str(player.get("position_group") or "CM")
+    group = _metric_rank_pool_key(player)
     min_passes = float(pass_thresholds.get(group, 0.0))
     return float(player.get("passes_completed") or 0.0) >= min_passes
 
@@ -1436,7 +1436,7 @@ def _attach_xp_profile_bar_eligibility_for_pool(rows: list[dict]) -> list[dict]:
         return []
 
     pass_thresholds = xp_profile_bar_pass_thresholds(rows)
-    group = str(rows[0].get("position_group") or "CM")
+    group = _metric_rank_pool_key(rows[0])
     p30_threshold = round(float(pass_thresholds.get(group, 0.0)), 1)
     base_eligible = [
         row for row in rows
@@ -1493,7 +1493,7 @@ def attach_xp_profile_bar_eligibility(players: list[dict]) -> None:
     """Flag players who meet profile-bar eligibility within each position group."""
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     for rows in pools.values():
@@ -1506,7 +1506,7 @@ def attach_composite_indices(players: list[dict]) -> None:
         return
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     for rows in pools.values():
@@ -1680,7 +1680,7 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
 
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     for rows in pools.values():
@@ -1748,7 +1748,7 @@ def attach_distance_indices(players: list[dict]) -> None:
         return
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     skill_weight = DISTANCE_INDEX_SKILL_WEIGHT
@@ -1857,6 +1857,14 @@ def _eligible_profile_pool_rows(rows: list[dict]) -> list[dict]:
     return [row for row in rows if row.get("xp_profile_bars_eligible")]
 
 
+def _metric_rank_pool_key(player: dict) -> str:
+    """Rank peers within campo ofensivo/defensivo when assigned; else position group."""
+    origin = str(player.get("midfield_origin_profile") or "").strip().lower()
+    if origin in {"campo_ofensivo", "campo_defensivo"}:
+        return origin
+    return str(player.get("position_group") or "CM")
+
+
 def _clear_metric_ranks(row: dict, metrics: tuple[str, ...]) -> None:
     for metric in metrics:
         if metric.startswith("xp_dist_index_"):
@@ -1874,7 +1882,7 @@ def attach_metric_ranks_within_position(
     """Rank metrics within position group, optionally restricted to profile-eligible peers."""
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     rank_metrics = tuple(

@@ -7297,13 +7297,14 @@ def _pa_regular_stat_rank_info(
     metric_ranks: dict,
     key: str,
 ) -> tuple[int, int] | None:
-    info = metric_ranks.get(key)
-    if isinstance(info, dict) and info.get("rank") and info.get("total"):
-        return int(info["rank"]), int(info["total"])
+    # Regular Stats values come from the xP profile (p90); rank must match that source.
     rank = source.get(f"{key}_rank_in_group")
     total = source.get(f"{key}_rank_pool_in_group")
     if rank and total:
         return int(rank), int(total)
+    info = metric_ranks.get(key)
+    if isinstance(info, dict) and info.get("rank") and info.get("total"):
+        return int(info["rank"]), int(info["total"])
     return None
 
 
@@ -7361,7 +7362,8 @@ def _pa_regular_stats_panel_html(
     player: dict | None,
     xp_profile: dict | None = None,
 ) -> str:
-    source = {**(xp_profile or {}), **(player or {})}
+    # xP profile owns p90 regular stats; player dict may still carry raw season totals.
+    source = {**(player or {}), **(xp_profile or {})}
     metric_ranks = (
         player.get("metric_ranks")
         if isinstance((player or {}).get("metric_ranks"), dict)
