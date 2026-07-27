@@ -212,13 +212,17 @@ PA_FIELD_OPTIONS: tuple[tuple[str, str], ...] = (
     ("offensive", "Campo ofensivo"),
     ("defensive", "Campo defensivo"),
 )
-PA_AGE_OPTIONS: tuple[tuple[str, int | None], ...] = (
-    ("all", None),
-    ("u23", 23),
-    ("u21", 21),
+PA_AGE_OPTIONS: tuple[tuple[str, int | None, int | None], ...] = (
+    ("all", None, None),
+    ("over30", 31, None),
+    ("23_30", 23, 30),
+    ("u23", None, 23),
+    ("u21", None, 21),
 )
 PA_AGE_LABELS: dict[str, str] = {
     "all": "Todas as idades",
+    "over30": ">30 anos",
+    "23_30": "23-30 anos",
     "u23": "Sub-23",
     "u21": "Sub-21",
 }
@@ -9236,6 +9240,7 @@ def _filter_pa_pool(
     *,
     league: str,
     field: str,
+    age_min: int | None,
     age_max: int | None,
 ) -> list[dict]:
     """Filter the midfielder pool by league, field orientation and age band."""
@@ -9250,9 +9255,14 @@ def _filter_pa_pool(
             continue
         if field == "defensive" and group != "central_midfielders":
             continue
-        if age_max is not None:
+        if age_min is not None or age_max is not None:
             age = player.get("age")
-            if age is None or int(age) > age_max:
+            if age is None:
+                continue
+            age_val = int(age)
+            if age_min is not None and age_val < age_min:
+                continue
+            if age_max is not None and age_val > age_max:
                 continue
         out.append(player)
     return out
@@ -9309,18 +9319,19 @@ def _render_pa_filter_card(
         with col_age:
             age_key = st.selectbox(
                 "Faixa etária",
-                options=[key for key, _ in PA_AGE_OPTIONS],
+                options=[key for key, _, _ in PA_AGE_OPTIONS],
                 format_func=lambda key: PA_AGE_LABELS[key],
                 key=PA_FILTER_AGE_KEY,
-                help="Idade via base pública; jogadores sem idade ficam fora de Sub-23/Sub-21.",
+                help="Idade via base pública; jogadores sem idade ficam fora das faixas filtradas.",
             )
-        age_max = dict(PA_AGE_OPTIONS)[age_key]
+        age_min, age_max = dict((key, (lo, hi)) for key, lo, hi in PA_AGE_OPTIONS)[age_key]
 
         pool = _filter_pa_pool(
             all_players,
             progression_by_id,
             league=league,
             field=field,
+            age_min=age_min,
             age_max=age_max,
         )
         all_codes, all_groups = _all_position_filters()
@@ -10335,7 +10346,7 @@ def render_presentation_tab(
         '<div class="pres-tile">'
         '<span class="pres-icon"><i class="fa-solid fa-sliders"></i></span>'
         "<h5>Filters</h5><p>In <strong>Player Analysis</strong>, filter midfielders by league, "
-        "field orientation (attacking or defensive) and age band (U23 / U21).</p></div>"
+        "field orientation (attacking or defensive) and age band (&gt;30, 23-30, Sub-23, Sub-21).</p></div>"
         '<div class="pres-tile">'
         '<span class="pres-icon"><i class="fa-solid fa-user"></i></span>'
         "<h5>Player Analysis</h5><p>Full player profile with stats and positional rank.</p></div>"
