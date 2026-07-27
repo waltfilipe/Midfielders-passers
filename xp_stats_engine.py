@@ -472,7 +472,6 @@ def attach_regular_pass_stats_from_enriched(
 
     metrics["progressive_passes"] = float(pass_metrics.get("progressive_passes_p90", 0) or 0)
     metrics["final_third_passes"] = float(pass_metrics.get("final_third_passes_p90", 0) or 0)
-    metrics["impact_passes_p90"] = float(pass_metrics.get("impact_passes_p90", 0) or 0)
     metrics["pass_completion_pct"] = pass_metrics.get("pass_completion_pct", 0.0)
     metrics["long_ball_completion_pct"] = pass_metrics.get("long_ball_completion_pct", 0.0)
 
@@ -491,7 +490,6 @@ def attach_regular_pass_stats(
             "final_third_passes",
             "passes_to_box",
             "key_passes",
-            "impact_passes_p90",
         ):
             metrics.setdefault(key, 0.0)
         metrics.setdefault("pass_completion_pct", 0.0)
@@ -508,7 +506,6 @@ def attach_regular_pass_stats(
 
     metrics["progressive_passes"] = float(pass_metrics.get("progressive_passes_p90", 0) or 0)
     metrics["final_third_passes"] = float(pass_metrics.get("final_third_passes_p90", 0) or 0)
-    metrics["impact_passes_p90"] = float(pass_metrics.get("impact_passes_p90", 0) or 0)
     metrics["pass_completion_pct"] = pass_metrics.get("pass_completion_pct", 0.0)
     metrics["long_ball_completion_pct"] = pass_metrics.get("long_ball_completion_pct", 0.0)
 
@@ -517,6 +514,8 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
     """Add per-90 variants in place."""
     if not minutes or float(minutes) <= 0:
         metrics["xp_per_90"] = 0.0
+        metrics["threat_passes_p90"] = 0.0
+        metrics["impact_passes_p90"] = 0.0
         for sp_key in SPECIAL_PASS_COUNT_KEYS:
             metrics[special_pass_per_game_key(sp_key)] = 0.0
         for zone_key in THREAT_ZONE_FILTER_KEYS:
@@ -527,6 +526,7 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
     metrics["xp_per_90"] = float(metrics.get("xp_m4_total", 0.0)) * factor
     threat_count = int(metrics.get("xp_m4_threat_passes", 0))
     metrics["threat_passes_p90"] = float(threat_count) * factor
+    metrics["impact_passes_p90"] = metrics["threat_passes_p90"]
     metrics["xp_m4_threat_passes_p90"] = float(metrics.get("xp_m4_threat_xp_total", 0.0)) * factor
     for band in BANDS:
         band_threats = int(metrics.get(f"xp_m4_threat_{band}", 0))
@@ -706,7 +706,8 @@ XP_COMPARE_HIGHLIGHT_TOOLTIPS: dict[str, str] = {
         "produces per game."
     ),
     "threat_passes_p90": (
-        f"{IMPACT_PASS_ABBR} produced per 90 minutes — volume of passes that create real danger."
+        f"{IMPACT_PASS_ABBR} produced per 90 minutes — passes with high destination value, "
+        "positive surprise vs expected, and meaningful forward progress."
     ),
     "xp_m4_per_pass": (
         "Average xP per pass — measures the efficiency of each delivery, "
@@ -993,7 +994,8 @@ XP_PA_LABELS: dict[str, str] = {
 XP_PA_TOOLTIPS: dict[str, str] = {
     "xp_per_90": "xP volume from passing, normalized per 90 minutes.",
     "threat_passes_p90": (
-        f"{IMPACT_PASS_ABBR} per game — residual in the top 10% for distance and xP ≥ P75 in the same band."
+        f"{IMPACT_PASS_ABBR} per game — composite score (45% xP + 35% residual + 20% progress) "
+        "in the top 10% for distance band, with forward progress ≥ P60."
     ),
     "xp_m4_per_pass": "Average xP per pass — measures the efficiency of each delivery.",
     "xp_m4_per_threat_pass": f"Average xP on {IMPACT_PASS_ABBR} (surprise + high value for distance).",

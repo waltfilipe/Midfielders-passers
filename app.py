@@ -4460,15 +4460,15 @@ st.markdown(
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 1.35rem;
-        height: 1.35rem;
+        width: 1.05rem;
+        height: 1.05rem;
         padding: 0;
         border-radius: 999px;
         line-height: 1;
         white-space: nowrap;
     }
     .pa-top-badge i {
-        font-size: 0.62rem;
+        font-size: 0.5rem;
     }
     .pa-top-badge-gold {
         color: #422006;
@@ -7252,8 +7252,8 @@ XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
         "breaking the midfield line."
     ),
     "impact_passes_p90": (
-        f"Impact passes ({IMPACT_PASS_ABBR}) per game — top residual xP passes "
-        "that beat the model expectation."
+        f"Impact passes per game — composite xP score (45% destination value + 35% residual "
+        "+ 20% progress) in the top 10% for distance band, with forward progress ≥ P60."
     ),
     "pass_mean_distance": "Mean distance of completed passes, in meters.",
 }
@@ -8034,7 +8034,8 @@ def render_xp_season_rankings(xp_players: list[dict]) -> None:
     st.markdown("### xP M4 — Copa do Mundo")
     st.caption(
         f"Model 4 (origin 12×8 → destination 12×8) · Team seasonal surface · "
-        f"{IMPACT_PASS_ABBR} = top {int(xe.THREAT_QUANTILE * 100)}% residual + xP ≥ P{int(xe.THREAT_XP_QUANTILE * 100)} by distance · "
+        f"{IMPACT_PASS_ABBR} = composite score (45% xP + 35% residual + 20% progress) ≥ P90 per band "
+        f"and progress ≥ P60 per band · "
         f"{meta.get('passes', '—'):,} passes · "
         f"{meta.get('threats', '—'):,} xP {IMPACT_PASS_ABBR}"
         if meta
