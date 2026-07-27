@@ -673,3 +673,7 @@ def build_cell_map_html(
         .replace("__VOL_SCALE__", json.dumps([[s, c] for s, c in VOLUME_COLORSCALE]))
         .replace("__PLOT_HEIGHT__", str(int(plot_height)))
     )
+
+
+# Backward-compatible alias for older imports / hot-reload caches.
+build_quadrant_map_html = build_cell_map_html

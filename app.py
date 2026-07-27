@@ -121,7 +121,6 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import passes_engine as pe
-import xp_maps_interactive as xmi
 from heuristic_scoring import GROUP_COLORS, position_group_label, rating_position_group
 sim = _load_similarity_engine()
 from comparison_config import (
@@ -224,6 +223,7 @@ PA_AGE_LABELS: dict[str, str] = {
     "u21": "Sub-21",
 }
 XP_CELL_MAP_HEIGHT = 590
+INTERACTIVE_CELL_MAP_CACHE_VERSION = 2
 PA_URL_PLAYER_KEY = "_pa_url_player_id"
 PA_USER_PLAYER_PICK_KEY = "_pa_user_player_pick"
 PA_USER_POSITION_PICK_KEY = "_pa_user_position_pick"
@@ -9423,8 +9423,10 @@ def _top_midfielder_pass_pool(completed: pd.DataFrame, top_n: int) -> dict:
 def load_midfielder_cell_heatmaps(
     top_n: int,
     _xp_cache: int = XP_DATA_CACHE_VERSION,
+    _map_cache: int = INTERACTIVE_CELL_MAP_CACHE_VERSION,
 ) -> dict:
     """Destination heatmaps (volume and mean xP) for passes leaving each 12x8 cell."""
+    _ = _map_cache
     season = xe.load_european_league_season_passes(_xp_cache)
     if season is None or season.empty:
         return {}
@@ -9433,6 +9435,26 @@ def load_midfielder_cell_heatmaps(
         return {}
     pool = _top_midfielder_pass_pool(completed, top_n)
     return xpe.build_cell_heatmap_analysis(pool["passes"])
+
+
+def _build_interactive_cell_map_html(analysis: dict) -> str:
+    """Build the Plotly iframe HTML, reloading the helper module on Streamlit Cloud.
+
+    A stale module object can survive hot reloads and still expose the old
+    quadrant-based API even after app.py was updated.
+    """
+    import importlib
+
+    import xp_maps_interactive as xmi
+
+    importlib.reload(xmi)
+    builder = getattr(xmi, "build_cell_map_html", None)
+    if builder is None:
+        raise AttributeError(
+            "xp_maps_interactive.build_cell_map_html is missing after reload — "
+            "redeploy the app so xp_maps_interactive.py is on the server."
+        )
+    return builder(analysis)
 
 
 def _fmt_int_ptbr(value: int) -> str:
@@ -9445,6 +9467,12 @@ def _render_interactive_cell_map(top_n: int) -> None:
     if not analysis or not analysis.get("origins"):
         st.info("Rotas por célula indisponíveis para esta base.")
         return
+    if "cols" not in analysis and "dest_cols" in analysis:
+        st.warning(
+            "Cache do mapa interativo desatualizado. Reinicie o app no Streamlit Cloud "
+            "(Manage app → Reboot) para carregar o grid 12×8."
+        )
+        return
 
     cols = int(analysis.get("cols") or 0)
     rows = int(analysis.get("rows") or 0)
@@ -9454,8 +9482,17 @@ def _render_interactive_cell_map(top_n: int) -> None:
         f"Mapa interativo — passe o mouse por uma célula do grid {cols}×{rows}</div>",
         unsafe_allow_html=True,
     )
+    try:
+        map_html = _build_interactive_cell_map_html(analysis)
+    except AttributeError as exc:
+        st.error(
+            "Não foi possível carregar o mapa interativo — o módulo `xp_maps_interactive` "
+            "parece desatualizado no servidor. Reinicie o app no Streamlit Cloud."
+        )
+        st.caption(str(exc))
+        return
     components.html(
-        xmi.build_cell_map_html(analysis),
+        map_html,
         height=XP_CELL_MAP_HEIGHT,
         scrolling=False,
     )
