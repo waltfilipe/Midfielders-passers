@@ -159,6 +159,30 @@ xpe = _load_xp_study_engine()
 xe = _load_xp_engine()
 xstats = _load_xp_stats_engine()
 IMPACT_PASS_ABBR = getattr(xstats, "IMPACT_PASS_ABBR", "I.P.")
+XP_PROFILE_BAR_KEYS_RENDER: tuple[str, ...] = getattr(
+    xstats,
+    "XP_PROFILE_BAR_KEYS",
+    ("xp_activity_display", "xp_edge_display", "xp_quality_display"),
+)
+XP_PROFILE_BAR_ICONS: dict[str, str] = getattr(
+    xstats,
+    "XP_PROFILE_BAR_ICONS",
+    {
+        "xp_activity_display": "fa-chart-simple",
+        "xp_edge_display": "fa-bolt",
+        "xp_quality_display": "fa-arrow-trend-up",
+        "xp_consistency_display": "fa-wave-square",
+    },
+)
+XP_PROFILE_BAR_WEIGHTS: dict[str, float] = getattr(
+    xstats,
+    "XP_PROFILE_BAR_WEIGHTS",
+    {
+        "xp_activity_display": 0.40,
+        "xp_edge_display": 0.30,
+        "xp_quality_display": 0.30,
+    },
+)
 _xp_study_maps = _load_xp_study_maps()
 _CMAP_XP_GRAY_RED = _xp_study_maps.CMAP_XP_GRAY_RED
 draw_passes_destination_heatmap = _xp_study_maps.draw_passes_destination_heatmap
@@ -6705,8 +6729,8 @@ _XP_BAR_TICKS_HTML = (
 
 def _xp_profile_pillar_head_html(display_key: str) -> str:
     label = xstats.XP_PROFILE_BAR_LABELS.get(display_key, display_key)
-    icon = xstats.XP_PROFILE_BAR_ICONS.get(display_key, "fa-circle-dot")
-    weight = xstats.XP_PROFILE_BAR_WEIGHTS.get(display_key)
+    icon = XP_PROFILE_BAR_ICONS.get(display_key, "fa-circle-dot")
+    weight = XP_PROFILE_BAR_WEIGHTS.get(display_key)
     weight_html = ""
     if weight:
         weight_txt = f"{float(weight) * 100:.0f}%"
@@ -6792,7 +6816,7 @@ def _xp_profile_bars_html(xp_profile: dict | None) -> str:
         return f'<div class="pa-xp-profile-bars pa-xp-profile-bars-ineligible">{note}</div>'
     rows = "".join(
         _xp_profile_pillar_html(key, xp_profile)
-        for key in xstats.XP_PROFILE_BAR_KEYS
+        for key in XP_PROFILE_BAR_KEYS_RENDER
     )
     return f'<div class="pa-xp-profile-bars">{rows}</div>'
 
