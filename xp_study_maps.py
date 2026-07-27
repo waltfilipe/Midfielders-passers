@@ -34,6 +34,10 @@ CMAP_XP = plt.cm.plasma
 CMAP_XP_GRAY_RED = LinearSegmentedColormap.from_list(
     "xp_gray_red", ["#6b7280", "#9ca3af", "#f87171", "#ef4444", "#b91c1c"]
 )
+# Residual: abaixo do esperado (azul) → neutro → acima do esperado (verde).
+CMAP_RESIDUAL = LinearSegmentedColormap.from_list(
+    "residual_div", ["#3b82f6", "#cbd5e1", "#22c55e"]
+)
 
 
 def _base_pitch(*, figsize: tuple[float, float] = (FIG_W, FIG_H), dpi: int = FIG_DPI):
@@ -189,6 +193,78 @@ def draw_top_xp_passes_map(
     return fig
 
 
+def draw_top_residual_passes_map(
+    top_passes,
+    *,
+    player_name: str,
+    season_label: str = "temporada",
+    residual_col: str = "xp_residual",
+    highlight_index: int | None = None,
+    show_labels: bool = True,
+):
+    """Top-N passes by xP residual, color-coded by surprise (actual − expected)."""
+    fig, ax, pitch = _base_pitch()
+
+    if top_passes is None or top_passes.empty:
+        ax.text(
+            60, 40, "No passes with residual",
+            ha="center", va="center", color="white", fontsize=10,
+        )
+        ax.set_title(
+            f"{player_name}\nTop Residual · {season_label}",
+            color="white", fontsize=10, pad=8,
+        )
+        return fig
+
+    work = top_passes.copy()
+    if residual_col not in work.columns and {"xp_m4", "xp_expected"}.issubset(work.columns):
+        work[residual_col] = work["xp_m4"].astype(float) - work["xp_expected"].astype(float)
+
+    values = work[residual_col].to_numpy(dtype=float)
+    abs_max = max(float(np.max(np.abs(values))), 0.02)
+    norm = Normalize(vmin=-abs_max, vmax=abs_max)
+
+    _draw_passes_on_pitch(
+        ax,
+        pitch,
+        work,
+        xp_col=residual_col,
+        highlight_index=highlight_index,
+        show_labels=show_labels,
+        cmap=CMAP_RESIDUAL,
+    )
+
+    sm = ScalarMappable(norm=norm, cmap=CMAP_RESIDUAL)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.02)
+    cbar.set_label("Δ residual (xP real − esperado)", color="white", fontsize=8)
+    cbar.ax.yaxis.set_tick_params(color="white", labelcolor="white")
+
+    legend_handles = [
+        Line2D([0], [0], color=CMAP_RESIDUAL(0.95), lw=2.0, label="Acima do esperado"),
+        Line2D([0], [0], color=CMAP_RESIDUAL(0.05), lw=2.0, label="Abaixo do esperado"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="#94a3b8", markersize=5, linestyle="None", label="Origem"),
+        Line2D([0], [0], marker="s", color="w", markerfacecolor="#94a3b8", markersize=5, linestyle="None", label="Destino"),
+    ]
+    leg = ax.legend(
+        handles=legend_handles,
+        loc="upper left",
+        bbox_to_anchor=(0.01, 0.99),
+        frameon=True,
+        facecolor="#1a1a2e",
+        edgecolor="#444466",
+        fontsize=7,
+    )
+    for text in leg.get_texts():
+        text.set_color("white")
+
+    ax.set_title(
+        f"{player_name}\nTop {len(work)} Residual · {season_label}",
+        color="white", fontsize=10, pad=8,
+    )
+    return fig
+
+
 def _draw_passes_on_pitch(
     ax,
     pitch: Pitch,
@@ -203,10 +279,17 @@ def _draw_passes_on_pitch(
     color_by_xp = xp_col is not None and xp_col in work.columns
     if color_by_xp:
         values = work[xp_col].to_numpy(dtype=float)
-        vmax = max(float(np.max(values)), 0.05)
-        norm = Normalize(vmin=0.0, vmax=min(vmax, XP_PASS_MAX))
+        if float(np.min(values)) < 0.0:
+            abs_max = max(float(np.max(np.abs(values))), 0.02)
+            norm = Normalize(vmin=-abs_max, vmax=abs_max)
+            diverging = True
+        else:
+            vmax = max(float(np.max(values)), 0.05)
+            norm = Normalize(vmin=0.0, vmax=min(vmax, XP_PASS_MAX))
+            diverging = False
     else:
         norm = None
+        diverging = False
 
     rows = list(work.itertuples(index=False))
     draw_order = [i for i in range(len(rows)) if i != highlight_index]
@@ -219,7 +302,11 @@ def _draw_passes_on_pitch(
         if color_by_xp and not is_highlight:
             xp_value = float(getattr(row, xp_col))
             color = cmap(norm(xp_value))
-            lw_scale = 0.85 + 0.35 * min(xp_value / XP_PASS_MAX, 1.0)
+            if diverging:
+                abs_max = max(abs(float(norm.vmin)), abs(float(norm.vmax)), 0.02)
+                lw_scale = 0.85 + 0.35 * min(abs(xp_value) / abs_max, 1.0)
+            else:
+                lw_scale = 0.85 + 0.35 * min(xp_value / XP_PASS_MAX, 1.0)
         elif is_highlight:
             color = "#fbbf24"
             lw_scale = 1.35

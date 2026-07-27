@@ -185,7 +185,10 @@ MAPS_SPECIAL_PASS_OPTIONS: tuple[tuple[str, str], ...] = (
     ),
     ("diagonal_long", "Long Diagonal"),
     ("line_break", "Line Break"),
+    ("top_residual", "Top Residual"),
 )
+MAPS_TOP_RESIDUAL_PASS_KEY = "top_residual"
+MAPS_TOP_RESIDUAL_N = 20
 MAPS_STAT_TYPE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("regular", "Regular Stats"),
     ("special", "xP Stats"),
@@ -233,12 +236,40 @@ def is_maps_xp_threat_pass(filter_key: str) -> bool:
     return _xp_threat_map_band(filter_key) is not None
 
 
+def is_maps_top_residual_pass(filter_key: str) -> bool:
+    return str(filter_key or "").strip() == MAPS_TOP_RESIDUAL_PASS_KEY
+
+
+def _ensure_residual_column(work: pd.DataFrame) -> pd.DataFrame:
+    if work.empty:
+        return work
+    if RESIDUAL_COL not in work.columns and {"xp_m4", "xp_expected"}.issubset(work.columns):
+        out = work.copy()
+        out[RESIDUAL_COL] = out["xp_m4"].astype(float) - out["xp_expected"].astype(float)
+        return out
+    return work
+
+
+def filter_top_residual_passes(
+    passes: pd.DataFrame,
+    *,
+    n: int = MAPS_TOP_RESIDUAL_N,
+) -> pd.DataFrame:
+    """Top-N completed passes by xP residual (actual − expected)."""
+    work = _ensure_residual_column(_completed_pass_frame(passes))
+    if work.empty or RESIDUAL_COL not in work.columns:
+        return work.iloc[0:0].copy()
+    return work.sort_values(RESIDUAL_COL, ascending=False).head(int(n)).reset_index(drop=True)
+
+
 def filter_passes_for_map(passes: pd.DataFrame, filter_key: str) -> pd.DataFrame:
     """Return completed passes matching a Maps pass-type selection."""
     work = _completed_pass_frame(passes)
     if work.empty:
         return work
     key = str(filter_key or "").strip()
+    if key == MAPS_TOP_RESIDUAL_PASS_KEY:
+        return filter_top_residual_passes(passes)
     threat_band = _xp_threat_map_band(key)
     if threat_band is not None:
         return filter_passes_by_threat_type(work, threat_band)

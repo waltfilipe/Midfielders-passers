@@ -159,10 +159,10 @@ xpe = _load_xp_study_engine()
 xe = _load_xp_engine()
 xstats = _load_xp_stats_engine()
 IMPACT_PASS_ABBR = getattr(xstats, "IMPACT_PASS_ABBR", "I.P.")
-XP_PROFILE_BAR_KEYS_RENDER: tuple[str, ...] = getattr(
-    xstats,
-    "XP_PROFILE_BAR_KEYS",
-    ("xp_activity_display", "xp_edge_display", "xp_quality_display"),
+XP_PROFILE_BAR_KEYS_RENDER: tuple[str, ...] = (
+    "xp_activity_display",
+    "xp_edge_display",
+    "xp_quality_display",
 )
 XP_PROFILE_BAR_ICONS: dict[str, str] = getattr(
     xstats,
@@ -188,6 +188,7 @@ _CMAP_XP_GRAY_RED = _xp_study_maps.CMAP_XP_GRAY_RED
 draw_passes_destination_heatmap = _xp_study_maps.draw_passes_destination_heatmap
 draw_special_passes_season_map = _xp_study_maps.draw_special_passes_season_map
 draw_top_xp_passes_map = _xp_study_maps.draw_top_xp_passes_map
+draw_top_residual_passes_map = _xp_study_maps.draw_top_residual_passes_map
 draw_xp_destination_surface = _xp_study_maps.draw_xp_destination_surface
 draw_midfielder_common_passes_map = _xp_study_maps.draw_midfielder_common_passes_map
 draw_midfielder_rare_passes_map = _xp_study_maps.draw_midfielder_rare_passes_map
@@ -250,8 +251,8 @@ PA_AGE_LABELS: dict[str, str] = {
     "u23": "Sub-23",
     "u21": "Sub-21",
 }
-XP_CELL_MAP_HEIGHT = 980
-INTERACTIVE_CELL_MAP_CACHE_VERSION = 4
+XP_CELL_MAP_HEIGHT = 1320
+INTERACTIVE_CELL_MAP_CACHE_VERSION = 5
 PA_URL_PLAYER_KEY = "_pa_url_player_id"
 PA_USER_PLAYER_PICK_KEY = "_pa_user_player_pick"
 PA_USER_POSITION_PICK_KEY = "_pa_user_position_pick"
@@ -8246,16 +8247,17 @@ def _filter_threat_passes_for_map(passes_df, threat_band_key: str):
     return xstats.filter_passes_by_threat_type(passes_df, threat_band_key)
 
 
-def _maps_passes_table(pass_df) -> "pd.DataFrame":
+def _maps_passes_table(pass_df, *, sort_by_residual: bool = False) -> "pd.DataFrame":
     import pandas as pd
 
     work = pass_df.copy()
-    if "xp_m4" in work.columns:
-        work = work.sort_values("xp_m4", ascending=False)
-    work = work.reset_index(drop=True)
     if "xp_residual" not in work.columns and {"xp_m4", "xp_expected"}.issubset(work.columns):
         work["xp_residual"] = work["xp_m4"].astype(float) - work["xp_expected"].astype(float)
-    return work
+    if sort_by_residual and "xp_residual" in work.columns:
+        work = work.sort_values("xp_residual", ascending=False)
+    elif "xp_m4" in work.columns:
+        work = work.sort_values("xp_m4", ascending=False)
+    return work.reset_index(drop=True)
 
 
 def _maps_pass_option_label(row, index: int) -> str:
@@ -8850,18 +8852,38 @@ def render_maps_section(
     if passes_df is None or passes_df.empty:
         st.info("No completed passes for this player with the selected filter.")
     else:
-        work = _maps_passes_table(passes_df)
-        player_name = str(player.get("player_name", "—"))
-        fig_passes = draw_special_passes_season_map(
-            work,
-            player_name=player_name,
-            season_label=APP_LEAGUE,
-            category_label=map_category_label,
-            xp_col="xp_m4",
-            highlight_index=None,
-            show_labels=False,
-            cmap=_CMAP_XP_GRAY_RED,
+        work = _maps_passes_table(
+            passes_df,
+            sort_by_residual=xstats.is_maps_top_residual_pass(map_filter_key),
         )
+        player_name = str(player.get("player_name", "—"))
+        if xstats.is_maps_top_residual_pass(map_filter_key):
+            fig_passes = draw_top_residual_passes_map(
+                work,
+                player_name=player_name,
+                season_label=APP_LEAGUE,
+                show_labels=True,
+            )
+            pass_caption = (
+                f"Top {len(work)} passes by residual · color = Δ (xP real − esperado)"
+            )
+        else:
+            fig_passes = draw_special_passes_season_map(
+                work,
+                player_name=player_name,
+                season_label=APP_LEAGUE,
+                category_label=map_category_label,
+                xp_col="xp_m4",
+                highlight_index=None,
+                show_labels=False,
+                cmap=_CMAP_XP_GRAY_RED,
+            )
+            pass_kind = (
+                f"xP {IMPACT_PASS_ABBR}"
+                if xstats.is_maps_xp_threat_pass(map_filter_key)
+                else "completed passes"
+            )
+            pass_caption = f"{len(work)} {pass_kind} · pass color = xP (gray → strong red)"
         fig_dest = draw_passes_destination_heatmap(
             work,
             player_name=player_name,
@@ -8872,14 +8894,7 @@ def render_maps_section(
         map_col, dest_col = st.columns(2, gap="small")
         with map_col:
             st.pyplot(fig_passes, clear_figure=True, use_container_width=True)
-            pass_kind = (
-                f"xP {IMPACT_PASS_ABBR}"
-                if xstats.is_maps_xp_threat_pass(map_filter_key)
-                else "completed passes"
-            )
-            st.caption(
-                f"{len(work)} {pass_kind} · pass color = xP (gray → strong red)"
-            )
+            st.caption(pass_caption)
         with dest_col:
             st.pyplot(fig_dest, clear_figure=True, use_container_width=True)
             st.caption("Destination heatmap · where the selected passes end")
@@ -9420,8 +9435,8 @@ def _build_interactive_cell_map_html(analysis: dict) -> str:
         )
     return builder(
         analysis,
-        plot_height=520,
-        player_plot_height=420,
+        plot_height=480,
+        player_plot_height=460,
     )
 
 
@@ -9462,7 +9477,7 @@ def _render_interactive_cell_map(top_n: int) -> None:
     components.html(
         map_html,
         height=XP_CELL_MAP_HEIGHT,
-        scrolling=False,
+        scrolling=True,
     )
     st.caption(
         f"Mapa superior: todos os atletas agregados — passe o mouse por uma célula de origem "
@@ -9692,18 +9707,38 @@ def _render_pa_maps_panel(player: dict, player_id: str) -> None:
     if passes_df is None or passes_df.empty:
         st.info("Nenhum passe completo para este jogador com o filtro selecionado.")
     else:
-        work = _maps_passes_table(passes_df)
-        player_name = str(player.get("player_name", "—"))
-        fig_passes = draw_special_passes_season_map(
-            work,
-            player_name=player_name,
-            season_label=APP_LEAGUE,
-            category_label=map_category_label,
-            xp_col="xp_m4",
-            highlight_index=None,
-            show_labels=False,
-            cmap=_CMAP_XP_GRAY_RED,
+        work = _maps_passes_table(
+            passes_df,
+            sort_by_residual=xstats.is_maps_top_residual_pass(map_filter_key),
         )
+        player_name = str(player.get("player_name", "—"))
+        if xstats.is_maps_top_residual_pass(map_filter_key):
+            fig_passes = draw_top_residual_passes_map(
+                work,
+                player_name=player_name,
+                season_label=APP_LEAGUE,
+                show_labels=True,
+            )
+            pass_caption = (
+                f"Top {len(work)} passes por resíduo · cor = Δ (xP real − esperado)"
+            )
+        else:
+            fig_passes = draw_special_passes_season_map(
+                work,
+                player_name=player_name,
+                season_label=APP_LEAGUE,
+                category_label=map_category_label,
+                xp_col="xp_m4",
+                highlight_index=None,
+                show_labels=False,
+                cmap=_CMAP_XP_GRAY_RED,
+            )
+            pass_kind = (
+                f"xP {IMPACT_PASS_ABBR}"
+                if xstats.is_maps_xp_threat_pass(map_filter_key)
+                else "passes completos"
+            )
+            pass_caption = f"{len(work)} {pass_kind} · cor = xP (cinza → vermelho forte)"
         fig_dest = draw_passes_destination_heatmap(
             work,
             player_name=player_name,
@@ -9714,12 +9749,7 @@ def _render_pa_maps_panel(player: dict, player_id: str) -> None:
         map_col, dest_col = st.columns(2, gap="small")
         with map_col:
             st.pyplot(fig_passes, clear_figure=True, use_container_width=True)
-            pass_kind = (
-                f"xP {IMPACT_PASS_ABBR}"
-                if xstats.is_maps_xp_threat_pass(map_filter_key)
-                else "passes completos"
-            )
-            st.caption(f"{len(work)} {pass_kind} · cor = xP (cinza → vermelho forte)")
+            st.caption(pass_caption)
         with dest_col:
             st.pyplot(fig_dest, clear_figure=True, use_container_width=True)
             st.caption("Mapa de calor de destino · onde os passes terminam")

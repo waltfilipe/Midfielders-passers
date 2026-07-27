@@ -39,7 +39,8 @@ _SHARED_CSS = """
   .qmap-btn.is-active { background: rgba(56,189,248,0.16); border-color: rgba(56,189,248,0.6); color: #bae6fd; }
   .qmap-body { display: grid; grid-template-columns: minmax(300px, 1.55fr) minmax(250px, 1fr); gap: 0.75rem; align-items: start; }
   @media (max-width: 640px) { .qmap-body { grid-template-columns: 1fr; } }
-  .qmap-plot { width: 100%; border-radius: 12px; overflow: hidden; }
+  #qmap-pl-wrap .qmap-body { grid-template-columns: 1fr; }
+  .qmap-plot { width: 100%; border-radius: 12px; overflow: visible; min-height: 0; }
   .qmap-panel { background: rgba(15,23,42,0.55); border: 1px solid rgba(148,163,184,0.16); border-radius: 12px;
     padding: 0.7rem 0.8rem; overflow-y: auto; scrollbar-width: thin; }
   .qp-title { display: block; font-size: 0.95rem; font-weight: 800; color: #e2e8f0; margin: 0 0 0.15rem 0; }
@@ -321,8 +322,10 @@ _TEMPLATE = """<!DOCTYPE html>
 <script src="__PLOTLY_CDN__"></script>
 <style>
 __SHARED_CSS__
-  #qmap-agg-panel, #qmap-pl-panel { height: __AGG_PLOT_HEIGHT__px; }
-  #qmap-pl-panel { height: __PL_PLOT_HEIGHT__px; }
+  #qmap-agg-panel { height: __AGG_PLOT_HEIGHT__px; }
+  #qmap-agg-plot, #qmap-pl-plot { min-height: __AGG_PLOT_HEIGHT__px; }
+  #qmap-pl-plot { min-height: __PL_PLOT_HEIGHT__px; }
+  #qmap-pl-panel { max-height: 340px; height: auto; }
 </style>
 </head>
 <body>
