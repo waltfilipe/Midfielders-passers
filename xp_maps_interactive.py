@@ -207,6 +207,58 @@ _TEMPLATE = """<!DOCTYPE html>
     font-size: 0.66rem;
   }
   .qp-legend .qp-dot { width: 7px; height: 7px; background: #94a3b8; }
+  .qp-player-label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #93a4bc;
+    margin: 0 0 0.35rem 0;
+  }
+  .qp-player-select {
+    width: 100%;
+    margin-bottom: 0.55rem;
+    padding: 0.42rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid rgba(148,163,184,0.28);
+    background: rgba(2,6,23,0.55);
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    outline: none;
+  }
+  .qp-player-select:focus {
+    border-color: rgba(56,189,248,0.55);
+    box-shadow: 0 0 0 2px rgba(56,189,248,0.12);
+  }
+  .qp-player-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+    margin-bottom: 0.45rem;
+  }
+  .qp-meta-card {
+    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 8px;
+    padding: 0.35rem 0.45rem;
+    background: rgba(2,6,23,0.35);
+  }
+  .qp-meta-label {
+    display: block;
+    font-size: 0.58rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #93a4bc;
+  }
+  .qp-meta-value {
+    display: block;
+    margin-top: 0.12rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #e2e8f0;
+  }
 </style>
 </head>
 <body>
@@ -233,6 +285,8 @@ _TEMPLATE = """<!DOCTYPE html>
   var XP_SCALE = __XP_SCALE__;
   var VOL_SCALE = __VOL_SCALE__;
   var PLOT_HEIGHT = __PLOT_HEIGHT__;
+  var PLAYERS = DATA.players || [];
+  var selectedPlayerId = DATA.default_player_id || (PLAYERS[0] && PLAYERS[0].id) || null;
 
   var FIELD_X = DATA.field_x;
   var FIELD_Y = DATA.field_y;
@@ -257,9 +311,42 @@ _TEMPLATE = """<!DOCTYPE html>
   function fmtPct(v) { return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'; }
   function fmtXp(v) { return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
+  function selectedPlayer() {
+    if (!selectedPlayerId) return null;
+    for (var i = 0; i < PLAYERS.length; i++) {
+      if (PLAYERS[i].id === selectedPlayerId) return PLAYERS[i];
+    }
+    return null;
+  }
+
+  function activeDataset() {
+    var player = selectedPlayer();
+    if (player) {
+      return {
+        overall: player.overall,
+        origins: player.origins || {},
+        label: player.name,
+        team: player.team,
+        passes: player.passes,
+        mean_xp: player.mean_xp
+      };
+    }
+    return {
+      overall: DATA.overall,
+      origins: DATA.origins || {},
+      label: 'Todos os meio-campistas',
+      team: '',
+      passes: DATA.total_passes || 0,
+      mean_xp: DATA.overall ? DATA.overall.mean_xp : 0
+    };
+  }
+
   function currentState() {
-    if (activeCell !== null && DATA.origins[activeCell]) return DATA.origins[activeCell];
-    return DATA.overall;
+    var ds = activeDataset();
+    if (activeCell !== null && ds.origins[String(activeCell)]) {
+      return ds.origins[String(activeCell)];
+    }
+    return ds.overall;
   }
 
   function volumeValues(state) {
@@ -407,12 +494,13 @@ _TEMPLATE = """<!DOCTYPE html>
   function hoverText(state) {
     var total = Math.max(state.passes, 1);
     var values = stateValues(state);
+    var ds = activeDataset();
     var out = [];
     for (var r = 0; r < ROWS; r++) {
       var row = [];
       for (var c = 0; c < COLS; c++) {
         var i = r * COLS + c;
-        var origin = DATA.origins[i];
+        var origin = ds.origins[String(i)];
         var originLine;
         if (i === activeCell) {
           originLine = '<i>origem atual · ' + fmtInt(state.passes) + ' passes saem daqui</i>';
@@ -537,38 +625,65 @@ _TEMPLATE = """<!DOCTYPE html>
   }
 
   function renderPanel(state) {
+    var ds = activeDataset();
+    var player = selectedPlayer();
     var tops = topDestinations(state);
     var head, sub, warn = '';
+    var selectHtml = '<span class="qp-player-label">Atleta</span>'
+      + '<select class="qp-player-select" id="qmap-player-select">'
+      + PLAYERS.map(function (p) {
+        return '<option value="' + p.id + '"' + (p.id === selectedPlayerId ? ' selected' : '') + '>'
+          + p.name + ' · ' + p.team + ' (' + fmtInt(p.passes) + ' passes)</option>';
+      }).join('')
+      + '</select>';
+
+    if (!PLAYERS.length) {
+      panelEl.innerHTML = '<span class="qp-title">Sem atletas</span>'
+        + '<p class="qp-hint">Não há meio-campistas com amostra suficiente para este mapa.</p>';
+      return;
+    }
+
     if (activeCell !== null) {
       head = state.label;
       sub = fmtInt(state.passes) + ' passes saindo daqui · ' + fmtPct(state.share_pct)
-        + ' do total · xP médio ' + fmtXp(state.mean_xp);
+        + ' do total do atleta · xP médio ' + fmtXp(state.mean_xp);
       if (pinnedCell !== null) head += '<span class="qp-pin">fixado</span>';
       if (state.passes < 150) {
         warn = '<span class="qp-warn">Amostra pequena para esta célula — leia os destinos com cautela.</span>';
       }
     } else {
-      head = 'Visão geral';
-      sub = fmtInt(state.passes) + ' passes de meio-campistas. Passe o mouse por qualquer célula '
-        + 'do grid ' + COLS + '×' + ROWS + ' para ver para onde vão os passes que saem dela. '
-        + 'Clique para fixar.';
+      head = player ? player.name : 'Atleta selecionado';
+      sub = (player ? player.team + ' · ' : '')
+        + fmtInt(ds.passes) + ' passes completados · xP médio ' + fmtXp(ds.mean_xp || 0)
+        + '. Passe o mouse por uma célula para ver de onde saem os passes; os marcadores no mapa '
+        + 'destacam os destinos mais comuns e mais raros (xP alto).';
     }
-    panelEl.innerHTML = '<span class="qp-title">' + head + '</span>'
+
+    panelEl.innerHTML = selectHtml
+      + '<span class="qp-title">' + head + '</span>'
       + '<span class="qp-sub">' + sub + '</span>'
       + warn
+      + '<div class="qp-player-meta">'
+      + '<div class="qp-meta-card"><span class="qp-meta-label">Passes</span>'
+      + '<span class="qp-meta-value">' + fmtInt(ds.passes) + '</span></div>'
+      + '<div class="qp-meta-card"><span class="qp-meta-label">xP médio</span>'
+      + '<span class="qp-meta-value">' + fmtXp(ds.mean_xp || 0) + '</span></div>'
+      + '</div>'
       + '<span class="qp-section-label">Distribuição por quadrante</span>'
       + quadBlocks(state)
-      + '<span class="qp-section-label">Destinos mais comuns</span>'
-      + (tops.common.length
-        ? tops.common.map(function (d) { return destRow(d, false, state); }).join('')
-        : '<p class="qp-hint">Sem passes registrados.</p>')
-      + '<span class="qp-section-label">Destinos mais raros (xP alto)</span>'
-      + (tops.rare.length
-        ? tops.rare.map(function (d) { return destRow(d, true, state); }).join('')
-        : '<p class="qp-hint">Amostra insuficiente.</p>')
       + '<div class="qp-legend"><span class="qp-dot"></span><span>comum (volume)</span>'
       + '<span class="qp-dot is-rare"></span><span>raro (xP alto, mín. '
       + fmtInt(tops.floor) + ' passes) · os 3 primeiros de cada lista aparecem no mapa</span></div>';
+
+    var selectEl = document.getElementById('qmap-player-select');
+    if (selectEl) {
+      selectEl.onchange = function () {
+        selectedPlayerId = selectEl.value;
+        activeCell = null;
+        pinnedCell = null;
+        draw();
+      };
+    }
   }
 
   function draw() {
@@ -589,7 +704,8 @@ _TEMPLATE = """<!DOCTYPE html>
 
   function setActive(idx) {
     if (idx === activeCell) return;
-    if (idx !== null && !DATA.origins[idx]) return;
+    var ds = activeDataset();
+    if (idx !== null && !ds.origins[String(idx)]) return;
     activeCell = idx;
     scheduleDraw();
   }
@@ -607,7 +723,8 @@ _TEMPLATE = """<!DOCTYPE html>
       var pt = ev.points && ev.points[0];
       if (!pt || typeof pt.x !== 'number' || typeof pt.y !== 'number') return;
       var idx = cellIndexAt(pt.x, pt.y);
-      if (!DATA.origins[idx]) return;
+      var ds = activeDataset();
+      if (!ds.origins[String(idx)]) return;
       pinnedCell = pinnedCell === idx ? null : idx;
       activeCell = idx;
       draw();
@@ -653,6 +770,8 @@ def build_cell_map_html(
     payload = {
         "origins": analysis.get("origins") or {},
         "overall": analysis.get("overall"),
+        "players": analysis.get("players") or [],
+        "default_player_id": analysis.get("default_player_id"),
         "total_passes": analysis.get("total_passes", 0),
         "cols": analysis.get("cols", 12),
         "rows": analysis.get("rows", 8),

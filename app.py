@@ -227,7 +227,7 @@ PA_AGE_LABELS: dict[str, str] = {
     "u21": "Sub-21",
 }
 XP_CELL_MAP_HEIGHT = 590
-INTERACTIVE_CELL_MAP_CACHE_VERSION = 2
+INTERACTIVE_CELL_MAP_CACHE_VERSION = 3
 PA_URL_PLAYER_KEY = "_pa_url_player_id"
 PA_USER_PLAYER_PICK_KEY = "_pa_user_player_pick"
 PA_USER_POSITION_PICK_KEY = "_pa_user_position_pick"
@@ -4459,17 +4459,16 @@ st.markdown(
     .pa-top-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.28rem;
-        padding: 0.12rem 0.46rem;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        padding: 0;
         border-radius: 999px;
-        font-size: 0.62rem;
-        font-weight: 800;
-        letter-spacing: 0.04em;
         line-height: 1;
         white-space: nowrap;
     }
     .pa-top-badge i {
-        font-size: 0.6rem;
+        font-size: 0.62rem;
     }
     .pa-top-badge-gold {
         color: #422006;
@@ -4488,6 +4487,35 @@ st.markdown(
         background: linear-gradient(135deg, #fed7aa 0%, #c2410c 100%);
         border: 1px solid rgba(234, 88, 12, 0.55);
         box-shadow: 0 1px 6px rgba(234, 88, 12, 0.28);
+    }
+    .pa-dist-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 0.28rem;
+        padding: 0.1rem 0.42rem;
+        border-radius: 999px;
+        font-size: 0.58rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        line-height: 1;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+    .pa-dist-badge-short {
+        color: #0c4a6e;
+        background: rgba(56, 189, 248, 0.18);
+        border: 1px solid rgba(56, 189, 248, 0.45);
+    }
+    .pa-dist-badge-balanced {
+        color: #334155;
+        background: rgba(148, 163, 184, 0.22);
+        border: 1px solid rgba(148, 163, 184, 0.45);
+    }
+    .pa-dist-badge-long {
+        color: #431407;
+        background: rgba(251, 191, 36, 0.2);
+        border: 1px solid rgba(245, 158, 11, 0.5);
     }
     .pa-regular-stat-tip {
         position: relative;
@@ -7186,6 +7214,8 @@ XP_PA_REGULAR_STAT_KEYS: tuple[str, ...] = (
     "final_third_passes",
     "passes_to_box",
     "key_passes",
+    "special_line_break_p90",
+    "impact_passes_p90",
     "pass_mean_distance",
 )
 
@@ -7198,6 +7228,8 @@ XP_PA_REGULAR_STAT_LABELS: dict[str, str] = {
     "final_third_passes": "Passes into final third / game",
     "passes_to_box": "Passes into box / game",
     "key_passes": "Key passes / game",
+    "special_line_break_p90": "Line Breaking Passes / game",
+    "impact_passes_p90": "Impact passes / game",
     "pass_mean_distance": "Mean pass distance",
 }
 
@@ -7215,6 +7247,14 @@ XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
     ),
     "passes_to_box": "Passes completed into the box per 90 minutes.",
     "key_passes": "Passes leading to a shot per 90 minutes.",
+    "special_line_break_p90": (
+        "Line-breaking passes per game — central corridor, forward angle, "
+        "breaking the midfield line."
+    ),
+    "impact_passes_p90": (
+        f"Impact passes ({IMPACT_PASS_ABBR}) per game — top residual xP passes "
+        "that beat the model expectation."
+    ),
     "pass_mean_distance": "Mean distance of completed passes, in meters.",
 }
 
@@ -7227,6 +7267,8 @@ XP_PA_REGULAR_STAT_KIND: dict[str, str] = {
     "final_third_passes": "p90",
     "passes_to_box": "p90",
     "key_passes": "p90",
+    "special_line_break_p90": "p90",
+    "impact_passes_p90": "p90",
     "pass_mean_distance": "dist",
 }
 
@@ -7276,20 +7318,36 @@ def _pa_top_badge_html(rank_info: dict | None) -> str:
         return ""
     if rank <= PA_MEDAL_GOLD_TOP:
         return (
-            '<span class="pa-top-badge pa-top-badge-gold">'
-            '<i class="fa-solid fa-medal" aria-hidden="true"></i>Top 10</span>'
+            '<span class="pa-top-badge pa-top-badge-gold" title="Top 10" aria-label="Top 10">'
+            '<i class="fa-solid fa-medal" aria-hidden="true"></i></span>'
         )
     if rank <= PA_MEDAL_SILVER_TOP:
         return (
-            '<span class="pa-top-badge pa-top-badge-silver">'
-            '<i class="fa-solid fa-medal" aria-hidden="true"></i>Top 20</span>'
+            '<span class="pa-top-badge pa-top-badge-silver" title="Top 20" aria-label="Top 20">'
+            '<i class="fa-solid fa-medal" aria-hidden="true"></i></span>'
         )
     if rank <= PA_MEDAL_BRONZE_TOP:
         return (
-            '<span class="pa-top-badge pa-top-badge-bronze">'
-            '<i class="fa-solid fa-medal" aria-hidden="true"></i>Top 30</span>'
+            '<span class="pa-top-badge pa-top-badge-bronze" title="Top 30" aria-label="Top 30">'
+            '<i class="fa-solid fa-medal" aria-hidden="true"></i></span>'
         )
     return ""
+
+
+def _pa_distance_style_badge_html(source: dict) -> str:
+    style = str(source.get("pass_distance_style") or "").strip().lower()
+    label = str(source.get("pass_distance_style_label") or "").strip()
+    if not style or not label:
+        return ""
+    css = {
+        "short": "pa-dist-badge-short",
+        "balanced": "pa-dist-badge-balanced",
+        "long": "pa-dist-badge-long",
+    }.get(style, "pa-dist-badge-balanced")
+    return (
+        f'<span class="pa-dist-badge {css}" title="{html.escape(label)}" '
+        f'aria-label="{html.escape(label)}">{html.escape(label)}</span>'
+    )
 
 
 def _pa_regular_stat_rank_info(
@@ -7340,6 +7398,8 @@ def _pa_regular_stat_line_html(source: dict, metric_ranks: dict, key: str) -> st
     badge = _pa_top_badge_html(
         {"rank": rank_info[0], "total": rank_info[1]} if rank_info else None
     )
+    if key == "pass_mean_distance":
+        badge = f"{badge}{_pa_distance_style_badge_html(source)}"
     value_html = _pa_regular_stat_value_tip_html(
         label,
         value,
@@ -9447,7 +9507,7 @@ def load_midfielder_cell_heatmaps(
     if completed.empty:
         return {}
     pool = _top_midfielder_pass_pool(completed, top_n)
-    return xpe.build_cell_heatmap_analysis(pool["passes"])
+    return xpe.build_player_cell_heatmap_bundle(pool["passes"])
 
 
 def _build_interactive_cell_map_html(analysis: dict) -> str:
@@ -9492,7 +9552,7 @@ def _render_interactive_cell_map(top_n: int) -> None:
     st.markdown(
         '<div class="pa-ondemand-head">'
         '<span class="pa-ondemand-ic"><i class="fa-solid fa-hand-pointer"></i></span>'
-        f"Mapa interativo — passe o mouse por uma célula do grid {cols}×{rows}</div>",
+        f"Mapa interativo — selecione um atleta e explore o grid {cols}×{rows}</div>",
         unsafe_allow_html=True,
     )
     try:
@@ -9510,9 +9570,10 @@ def _render_interactive_cell_map(top_n: int) -> None:
         scrolling=False,
     )
     st.caption(
-        f"Cada célula do grid {cols}×{rows} (o mesmo do modelo de xP) vira origem ao passar o mouse: "
-        "o mapa passa a mostrar o destino dos passes que saem dela. Clique para fixar uma célula "
-        f"e “Ver todos” para voltar. Células com menos de {int(analysis.get('min_origin_passes') or 0)} "
+        f"Selecione um meio-campista no painel à direita para ver no mapa os destinos dos passes "
+        f"dele (volume e xP médio). Passe o mouse por uma célula do grid {cols}×{rows} para ver "
+        "de onde saem os passes daquele ponto; clique para fixar. "
+        f"Células com menos de {int(analysis.get('min_origin_passes') or 0)} "
         "passes de saída não viram origem."
     )
 

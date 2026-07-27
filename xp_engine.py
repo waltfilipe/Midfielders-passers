@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 import passes_engine as pe
 import xp_study_engine as xse
 
-XP_DATA_CACHE_VERSION = 50
+XP_DATA_CACHE_VERSION = 51
 XP_POSITION_RANK_METRICS: tuple[str, ...] = (
     "xp_m4_total",
     "xp_m4_per_pass",
@@ -667,6 +667,7 @@ def build_xp_analytics(
     for i, p in enumerate(players, start=1):
         p["xp_m4_rank"] = i
     xstats.attach_distance_indices(players)
+    xstats.attach_pass_distance_style_profiles(players)
     xstats.attach_composite_indices(players)
     xstats.attach_xp_pass_ratings(players)
     xstats.attach_all_stats_ranks(players)
@@ -736,6 +737,7 @@ def build_european_league_xp_analytics(
     for i, p in enumerate(players, start=1):
         p["xp_m4_rank"] = i
     xstats.attach_distance_indices(players)
+    xstats.attach_pass_distance_style_profiles(players)
     xstats.attach_composite_indices(players)
     xstats.attach_xp_pass_ratings(players)
     xstats.attach_all_stats_ranks(players)

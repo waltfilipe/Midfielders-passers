@@ -1162,3 +1162,66 @@ def build_cell_heatmap_analysis(
         "xp_scale_max": round(max(xp_scale_max, 1e-3), 4),
         "volume_scale_max": round(max(volume_scale_max, 0.1), 3),
     }
+
+
+def build_player_cell_heatmap_bundle(
+    passes: pd.DataFrame,
+    *,
+    min_player_passes: int = 100,
+    **kwargs,
+) -> dict:
+    """Aggregate map plus per-player destination grids for the interactive selector."""
+    aggregate = build_cell_heatmap_analysis(passes, **kwargs)
+    if passes is None or passes.empty:
+        aggregate["players"] = []
+        aggregate["default_player_id"] = None
+        return aggregate
+
+    work = passes[passes["is_won"] & passes["has_end"]].copy()
+    if work.empty:
+        aggregate["players"] = []
+        aggregate["default_player_id"] = None
+        return aggregate
+
+    name_lookup: dict[str, str] = {}
+    team_lookup: dict[str, str] = {}
+    if "player_name" in work.columns:
+        name_lookup = {
+            str(pid): str(val)
+            for pid, val in work.groupby("player_id", sort=False)["player_name"]
+            .agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
+            .astype(str)
+            .items()
+        }
+    if "team" in work.columns:
+        team_lookup = {
+            str(pid): str(val)
+            for pid, val in work.groupby("player_id", sort=False)["team"]
+            .agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
+            .astype(str)
+            .items()
+        }
+
+    players: list[dict] = []
+    for pid, grp in work.groupby("player_id", sort=False):
+        pid_s = str(pid)
+        if len(grp) < min_player_passes:
+            continue
+        player_analysis = build_cell_heatmap_analysis(grp, **kwargs)
+        overall = player_analysis.get("overall")
+        if not overall or int(overall.get("passes") or 0) < min_player_passes:
+            continue
+        players.append({
+            "id": pid_s,
+            "name": str(name_lookup.get(pid_s, pid_s)),
+            "team": str(team_lookup.get(pid_s, "—")),
+            "passes": int(overall.get("passes") or 0),
+            "mean_xp": float(overall.get("mean_xp") or 0.0),
+            "overall": overall,
+            "origins": player_analysis.get("origins") or {},
+        })
+
+    players.sort(key=lambda row: (-int(row.get("passes") or 0), str(row.get("name") or "")))
+    aggregate["players"] = players
+    aggregate["default_player_id"] = players[0]["id"] if players else None
+    return aggregate

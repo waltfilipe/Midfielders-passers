@@ -31,7 +31,7 @@ def _pool():
 def main() -> int:
     from playwright.sync_api import sync_playwright
 
-    analysis = xpe.build_cell_heatmap_analysis(_pool())
+    analysis = xpe.build_player_cell_heatmap_bundle(_pool())
     html = xmi.build_cell_map_html(analysis)
     path = pathlib.Path(tempfile.mkdtemp()) / "cell_map.html"
     path.write_text(html, encoding="utf-8")
@@ -47,11 +47,16 @@ def main() -> int:
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         page.goto(path.as_uri())
-        page.wait_for_selector(".qp-title", timeout=30_000)
+        page.wait_for_selector("#qmap-player-select", timeout=30_000)
         page.wait_for_timeout(1500)
 
-        if "Visão geral" not in page.inner_text(".qp-title"):
-            failures.append(f"initial panel title unexpected: {page.inner_text('.qp-title')!r}")
+        default_player = (analysis.get("players") or [{}])[0]
+        default_name = str(default_player.get("name") or "")
+        if default_name and default_name not in page.inner_text(".qp-title"):
+            failures.append(
+                f"initial panel title unexpected: {page.inner_text('.qp-title')!r}; "
+                f"expected player {default_name!r}"
+            )
 
         field_x = float(analysis["field_x"])
         field_y = float(analysis["field_y"])
@@ -88,8 +93,8 @@ def main() -> int:
             expected = f"C{col + 1}/L{row + 1}"
             if expected not in title:
                 failures.append(f"hover ({col},{row}) -> panel {title!r}, expected {expected}")
-            if not page.locator(".qp-row").count():
-                failures.append(f"hover ({col},{row}) produced no destination rows")
+            if not page.locator(".qp-meta-card").count():
+                failures.append(f"hover ({col},{row}) produced no player summary cards")
 
         # Click pins the cell so later hovers must not change the panel.
         x, y = hover_cell(5, 3)
@@ -103,8 +108,8 @@ def main() -> int:
 
         page.click("#qmap-reset")
         page.wait_for_timeout(400)
-        if "Visão geral" not in page.inner_text(".qp-title"):
-            failures.append("reset did not restore the overall view")
+        if default_name and default_name not in page.inner_text(".qp-title"):
+            failures.append("reset did not restore the selected player view")
 
         page.click('.qmap-btn[data-metric="volume"]')
         page.wait_for_timeout(400)
