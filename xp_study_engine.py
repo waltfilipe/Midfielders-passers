@@ -999,65 +999,51 @@ def zone_label_grid(cols: int, rows: int) -> list[list[str]]:
     ]
 
 
-def _quadrant_cell_slices(key: str, cols: int, rows: int) -> tuple[slice, slice]:
-    """Grid rows/cols covered by a quadrant (grid must split evenly at midfield)."""
-    c0, c1 = (0, cols // 2) if str(key).startswith("def") else (cols // 2, cols)
-    r0, r1 = (0, rows // 2) if str(key).endswith("left") else (rows // 2, rows)
-    return slice(r0, r1), slice(c0, c1)
+CELL_MAP_MIN_ORIGIN_PASSES = 25
 
 
-def _quadrant_codes(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """Vectorized quadrant index aligned with QUADRANT_ORDER."""
-    return (x >= QUADRANT_X_SPLIT).astype(np.int8) * 2 + (y >= QUADRANT_Y_SPLIT).astype(np.int8)
+def cell_index_labels(cols: int, rows: int) -> list[str]:
+    """Flat (row-major) human label per grid cell, e.g. 'Meio-centro · C6/L4'."""
+    cell_w = FIELD_X / cols
+    cell_h = FIELD_Y / rows
+    return [
+        f"{_zone_label((c + 0.5) * cell_w, (r + 0.5) * cell_h)} · C{c + 1}/L{r + 1}"
+        for r in range(rows)
+        for c in range(cols)
+    ]
 
 
-def _cell_record(
-    row: int,
-    col: int,
-    count: float,
-    mean_xp: float,
-    *,
-    cell_w: float,
-    cell_h: float,
-) -> dict:
-    x_center = (col + 0.5) * cell_w
-    y_center = (row + 0.5) * cell_h
-    return {
-        "row": int(row),
-        "col": int(col),
-        "x": round(float(x_center), 2),
-        "y": round(float(y_center), 2),
-        "label": _zone_label(x_center, y_center),
-        "count": int(count),
-        "mean_xp": round(float(mean_xp), 4),
-    }
-
-
-def build_quadrant_heatmap_analysis(
+def build_cell_heatmap_analysis(
     passes: pd.DataFrame,
     *,
-    dest_cols: int = XP_GRID_COLS,
-    dest_rows: int = XP_GRID_ROWS,
+    cols: int = XP_GRID_COLS,
+    rows: int = XP_GRID_ROWS,
     xp_col: str = "xp_m4",
     min_cell_passes: int = 20,
+    min_origin_passes: int = CELL_MAP_MIN_ORIGIN_PASSES,
 ) -> dict:
-    """Destination heatmaps (volume and mean xP) for passes leaving each quadrant.
+    """Destination heatmaps (volume and mean xP) for passes leaving each 12x8 cell.
 
-    For every origin quadrant the result carries a `dest_cols` x `dest_rows`
-    destination grid plus, for each of the four destination quadrants, the most
-    common cell (by volume) and the rarest one (highest mean xP, the model's
-    rarity score) with enough sample to be trustworthy.
+    Every origin cell with enough sample carries a full destination grid, flattened
+    row-major so the browser can swap heatmaps on hover without recomputing anything.
     """
+    n_cells = cols * rows
     empty: dict = {
-        "dest_cols": dest_cols,
-        "dest_rows": dest_rows,
+        "cols": cols,
+        "rows": rows,
         "field_x": FIELD_X,
         "field_y": FIELD_Y,
         "xp_max": XP_PASS_MAX,
         "min_cell_passes": min_cell_passes,
+        "min_origin_passes": min_origin_passes,
         "total_passes": 0,
+        "cell_labels": cell_index_labels(cols, rows),
+        "quadrant_labels": dict(QUADRANT_LABELS),
+        "origin_counts": [0] * n_cells,
         "overall": None,
         "origins": {},
+        "xp_scale_max": XP_PASS_MAX,
+        "volume_scale_max": 1.0,
     }
     if passes is None or passes.empty:
         return empty
@@ -1068,149 +1054,111 @@ def build_quadrant_heatmap_analysis(
     if work.empty:
         return empty
 
-    x_start = work["x_start"].to_numpy(dtype=float)
-    y_start = work["y_start"].to_numpy(dtype=float)
-    x_end = work["x_end"].to_numpy(dtype=float)
-    y_end = work["y_end"].to_numpy(dtype=float)
+    ox_idx, oy_idx = _cell_indices(
+        work["x_start"].to_numpy(dtype=float),
+        work["y_start"].to_numpy(dtype=float),
+        cols=cols,
+        rows=rows,
+    )
+    dx_idx, dy_idx = _cell_indices(
+        work["x_end"].to_numpy(dtype=float),
+        work["y_end"].to_numpy(dtype=float),
+        cols=cols,
+        rows=rows,
+    )
     xp_values = (
         work[xp_col].to_numpy(dtype=float)
         if xp_col in work.columns
         else np.zeros(len(work), dtype=float)
     )
 
-    dx_idx, dy_idx = _cell_indices(x_end, y_end, cols=dest_cols, rows=dest_rows)
-    origin_codes = _quadrant_codes(x_start, y_start)
-    dest_codes = _quadrant_codes(x_end, y_end)
-
-    cell_w = FIELD_X / dest_cols
-    cell_h = FIELD_Y / dest_rows
+    origin_flat = oy_idx * cols + ox_idx
+    dest_flat = dy_idx * cols + dx_idx
+    pair_flat = origin_flat * n_cells + dest_flat
     total_passes = int(len(work))
 
-    def _grids(mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        counts = np.zeros((dest_rows, dest_cols), dtype=float)
-        xp_sum = np.zeros((dest_rows, dest_cols), dtype=float)
-        np.add.at(counts, (dy_idx[mask], dx_idx[mask]), 1.0)
-        np.add.at(xp_sum, (dy_idx[mask], dx_idx[mask]), xp_values[mask])
-        means = np.zeros_like(counts)
-        filled = counts > 0
-        means[filled] = xp_sum[filled] / counts[filled]
-        return counts, means
+    pair_counts = np.bincount(pair_flat, minlength=n_cells * n_cells).reshape(n_cells, n_cells)
+    pair_xp = np.bincount(
+        pair_flat, weights=xp_values, minlength=n_cells * n_cells
+    ).reshape(n_cells, n_cells)
 
-    def _serialize_grid(grid: np.ndarray, counts: np.ndarray) -> list[list[float | None]]:
-        """Empty cells become null so the heatmap renders them as gaps."""
-        return [
-            [round(float(grid[r, c]), 4) if counts[r, c] > 0 else None for c in range(dest_cols)]
-            for r in range(dest_rows)
-        ]
+    origin_counts = pair_counts.sum(axis=1)
+    origin_xp_sum = pair_xp.sum(axis=1)
 
-    def _extremes(counts: np.ndarray, means: np.ndarray, dest_key: str) -> tuple[dict | None, dict | None]:
-        r_slice, c_slice = _quadrant_cell_slices(dest_key, dest_cols, dest_rows)
-        sub_counts = counts[r_slice, c_slice]
-        sub_means = means[r_slice, c_slice]
-        if sub_counts.sum() <= 0:
-            return None, None
-
-        flat = int(np.argmax(sub_counts))
-        r, c = np.unravel_index(flat, sub_counts.shape)
-        common = _cell_record(
-            r_slice.start + int(r), c_slice.start + int(c),
-            sub_counts[r, c], sub_means[r, c],
-            cell_w=cell_w, cell_h=cell_h,
+    def _serialize(counts_row: np.ndarray, xp_row: np.ndarray) -> tuple[list[int], list[float | None]]:
+        filled = counts_row > 0
+        means = np.zeros(n_cells, dtype=float)
+        means[filled] = xp_row[filled] / counts_row[filled]
+        return (
+            [int(v) for v in counts_row],
+            [round(float(means[i]), 3) if filled[i] else None for i in range(n_cells)],
         )
 
-        eligible = sub_counts >= min_cell_passes
-        if not eligible.any():
-            eligible = sub_counts > 0
-        masked = np.where(eligible, sub_means, -np.inf)
-        flat_rare = int(np.argmax(masked))
-        rr, rc = np.unravel_index(flat_rare, masked.shape)
-        rare = _cell_record(
-            r_slice.start + int(rr), c_slice.start + int(rc),
-            sub_counts[rr, rc], sub_means[rr, rc],
-            cell_w=cell_w, cell_h=cell_h,
-        )
-        return common, rare
-
-    overall_counts, overall_means = _grids(np.ones(total_passes, dtype=bool))
+    overall_counts = pair_counts.sum(axis=0)
+    overall_xp = pair_xp.sum(axis=0)
+    counts_list, xp_list = _serialize(overall_counts, overall_xp)
     overall = {
-        "key": "all",
-        "label": "Todos os quadrantes",
+        "index": None,
+        "label": "Todo o campo",
         "passes": total_passes,
         "share_pct": 100.0,
         "mean_xp": round(float(xp_values.mean()), 4),
-        "count_grid": [[int(v) for v in row] for row in overall_counts],
-        "xp_grid": _serialize_grid(overall_means, overall_counts),
-        "destinations": {},
+        "counts": counts_list,
+        "xp": xp_list,
     }
-    for code, dest_key in enumerate(QUADRANT_ORDER):
-        dest_mask = dest_codes == code
-        dest_total = int(dest_mask.sum())
-        common, rare = _extremes(overall_counts, overall_means, dest_key)
-        overall["destinations"][dest_key] = {
-            "key": dest_key,
-            "label": QUADRANT_LABELS[dest_key],
-            "passes": dest_total,
-            "share_pct": round(dest_total / max(total_passes, 1) * 100.0, 1),
-            "mean_xp": round(float(xp_values[dest_mask].mean()), 4) if dest_total else 0.0,
-            "common": common,
-            "rare": rare,
-        }
 
+    labels = cell_index_labels(cols, rows)
     origins: dict[str, dict] = {}
-    for code, key in enumerate(QUADRANT_ORDER):
-        origin_mask = origin_codes == code
-        origin_total = int(origin_mask.sum())
-        if origin_total <= 0:
-            origins[key] = {
-                "key": key,
-                "label": QUADRANT_LABELS[key],
-                "bounds": quadrant_bounds(key),
-                "passes": 0,
-                "share_pct": 0.0,
-                "mean_xp": 0.0,
-                "count_grid": [[0] * dest_cols for _ in range(dest_rows)],
-                "xp_grid": [[None] * dest_cols for _ in range(dest_rows)],
-                "destinations": {},
-            }
+    volume_shares: list[float] = []
+    for idx in range(n_cells):
+        origin_total = int(origin_counts[idx])
+        if origin_total < min_origin_passes:
             continue
-
-        counts, means = _grids(origin_mask)
-        destinations: dict[str, dict] = {}
-        for dest_code, dest_key in enumerate(QUADRANT_ORDER):
-            leg_mask = origin_mask & (dest_codes == dest_code)
-            leg_total = int(leg_mask.sum())
-            common, rare = _extremes(counts, means, dest_key)
-            destinations[dest_key] = {
-                "key": dest_key,
-                "label": QUADRANT_LABELS[dest_key],
-                "passes": leg_total,
-                "share_pct": round(leg_total / max(origin_total, 1) * 100.0, 1),
-                "mean_xp": round(float(xp_values[leg_mask].mean()), 4) if leg_total else 0.0,
-                "is_same": dest_key == key,
-                "common": common,
-                "rare": rare,
-            }
-
-        origins[key] = {
-            "key": key,
-            "label": QUADRANT_LABELS[key],
-            "bounds": quadrant_bounds(key),
+        counts_list, xp_list = _serialize(pair_counts[idx], pair_xp[idx])
+        origins[str(idx)] = {
+            "index": idx,
+            "row": idx // cols,
+            "col": idx % cols,
+            "label": labels[idx],
             "passes": origin_total,
-            "share_pct": round(origin_total / max(total_passes, 1) * 100.0, 1),
-            "mean_xp": round(float(xp_values[origin_mask].mean()), 4),
-            "count_grid": [[int(v) for v in row] for row in counts],
-            "xp_grid": _serialize_grid(means, counts),
-            "destinations": destinations,
+            "share_pct": round(origin_total / max(total_passes, 1) * 100.0, 2),
+            "mean_xp": round(float(origin_xp_sum[idx]) / origin_total, 4),
+            "counts": counts_list,
+            "xp": xp_list,
         }
+        volume_shares.extend(
+            float(v) / origin_total * 100.0 for v in pair_counts[idx] if v > 0
+        )
+
+    # Fixed colour scales keep hover states comparable; percentiles stop a single
+    # tiny-sample cell from flattening every other map.
+    eligible_pairs = pair_counts >= min_cell_passes
+    if eligible_pairs.any():
+        pair_means = np.zeros_like(pair_xp)
+        pair_means[eligible_pairs] = pair_xp[eligible_pairs] / pair_counts[eligible_pairs]
+        xp_scale_max = float(np.percentile(pair_means[eligible_pairs], 99))
+    else:
+        xp_scale_max = XP_PASS_MAX
+    volume_scale_max = (
+        float(np.percentile(np.asarray(volume_shares, dtype=float), 98))
+        if volume_shares
+        else 1.0
+    )
 
     return {
-        "dest_cols": dest_cols,
-        "dest_rows": dest_rows,
+        "cols": cols,
+        "rows": rows,
         "field_x": FIELD_X,
         "field_y": FIELD_Y,
         "xp_max": XP_PASS_MAX,
         "min_cell_passes": min_cell_passes,
+        "min_origin_passes": min_origin_passes,
         "total_passes": total_passes,
+        "cell_labels": labels,
+        "quadrant_labels": dict(QUADRANT_LABELS),
+        "origin_counts": [int(v) for v in origin_counts],
         "overall": overall,
         "origins": origins,
+        "xp_scale_max": round(max(xp_scale_max, 1e-3), 4),
+        "volume_scale_max": round(max(volume_scale_max, 0.1), 3),
     }

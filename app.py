@@ -223,7 +223,7 @@ PA_AGE_LABELS: dict[str, str] = {
     "u23": "Sub-23",
     "u21": "Sub-21",
 }
-XP_QUADRANT_MAP_HEIGHT = 575
+XP_CELL_MAP_HEIGHT = 590
 PA_URL_PLAYER_KEY = "_pa_url_player_id"
 PA_USER_PLAYER_PICK_KEY = "_pa_user_player_pick"
 PA_USER_POSITION_PICK_KEY = "_pa_user_position_pick"
@@ -9419,12 +9419,12 @@ def _top_midfielder_pass_pool(completed: pd.DataFrame, top_n: int) -> dict:
     }
 
 
-@st.cache_data(show_spinner="Agregando rotas por quadrante…")
-def load_midfielder_quadrant_heatmaps(
+@st.cache_data(show_spinner="Agregando rotas por célula do grid…")
+def load_midfielder_cell_heatmaps(
     top_n: int,
     _xp_cache: int = XP_DATA_CACHE_VERSION,
 ) -> dict:
-    """Destination heatmaps (volume and mean xP) for passes leaving each quadrant."""
+    """Destination heatmaps (volume and mean xP) for passes leaving each 12x8 cell."""
     season = xe.load_european_league_season_passes(_xp_cache)
     if season is None or season.empty:
         return {}
@@ -9432,37 +9432,38 @@ def load_midfielder_quadrant_heatmaps(
     if completed.empty:
         return {}
     pool = _top_midfielder_pass_pool(completed, top_n)
-    return xpe.build_quadrant_heatmap_analysis(pool["passes"])
+    return xpe.build_cell_heatmap_analysis(pool["passes"])
 
 
 def _fmt_int_ptbr(value: int) -> str:
     return f"{int(value):,}".replace(",", ".")
 
 
-def _render_interactive_quadrant_map(top_n: int) -> None:
-    """Hover-driven heatmap: compares where the passes of each quadrant end up."""
-    analysis = load_midfielder_quadrant_heatmaps(top_n)
+def _render_interactive_cell_map(top_n: int) -> None:
+    """Hover-driven heatmap: compares where the passes of each 12x8 cell end up."""
+    analysis = load_midfielder_cell_heatmaps(top_n)
     if not analysis or not analysis.get("origins"):
-        st.info("Rotas por quadrante indisponíveis para esta base.")
+        st.info("Rotas por célula indisponíveis para esta base.")
         return
 
+    cols = int(analysis.get("cols") or 0)
+    rows = int(analysis.get("rows") or 0)
     st.markdown(
         '<div class="pa-ondemand-head">'
         '<span class="pa-ondemand-ic"><i class="fa-solid fa-hand-pointer"></i></span>'
-        "Mapa interativo — passe o mouse por um quadrante</div>",
+        f"Mapa interativo — passe o mouse por uma célula do grid {cols}×{rows}</div>",
         unsafe_allow_html=True,
     )
     components.html(
-        xmi.build_quadrant_map_html(
-            analysis,
-            quadrant_labels=xpe.QUADRANT_LABELS,
-            zone_labels=xpe.zone_label_grid(
-                int(analysis["dest_cols"]),
-                int(analysis["dest_rows"]),
-            ),
-        ),
-        height=XP_QUADRANT_MAP_HEIGHT,
+        xmi.build_cell_map_html(analysis),
+        height=XP_CELL_MAP_HEIGHT,
         scrolling=False,
+    )
+    st.caption(
+        f"Cada célula do grid {cols}×{rows} (o mesmo do modelo de xP) vira origem ao passar o mouse: "
+        "o mapa passa a mostrar o destino dos passes que saem dela. Clique para fixar uma célula "
+        f"e “Ver todos” para voltar. Células com menos de {int(analysis.get('min_origin_passes') or 0)} "
+        "passes de saída não viram origem."
     )
 
 
@@ -9474,7 +9475,7 @@ def render_xp_maps_analysis_tab() -> None:
         "O xP mede <strong>raridade</strong>: passes que terminam em zonas pouco frequentes "
         "valem mais. Aqui você vê, de forma simples, <strong>onde os meio-campistas mais "
         "passam</strong> (volume) e <strong>onde os passes são mais raros</strong> "
-        "(xP médio por destino), com os quadrantes do campo destacados."
+        "(xP médio por destino), célula a célula no grid do modelo."
         "</p>",
         unsafe_allow_html=True,
     )
@@ -9498,7 +9499,7 @@ def render_xp_maps_analysis_tab() -> None:
         "4 ligas europeias (PL, Serie A, La Liga, Bundesliga)."
     )
 
-    _render_interactive_quadrant_map(top_n)
+    _render_interactive_cell_map(top_n)
 
     st.markdown(
         '<div class="pa-ondemand-head">'

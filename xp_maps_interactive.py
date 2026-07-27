@@ -1,4 +1,4 @@
-"""Interactive quadrant heatmap: hover a quadrant to compare where its passes go."""
+"""Interactive 12x8 cell heatmap: hover a cell to see where its passes end up."""
 
 from __future__ import annotations
 
@@ -56,6 +56,7 @@ _TEMPLATE = """<!DOCTYPE html>
     letter-spacing: 0.05em;
     margin-right: 0.25rem;
   }
+  .qmap-toolbar-sep { flex: 0 0 auto; width: 1px; height: 18px; background: rgba(148,163,184,0.22); margin: 0 0.3rem; }
   .qmap-btn {
     background: rgba(15,23,42,0.7);
     border: 1px solid rgba(148,163,184,0.28);
@@ -75,7 +76,7 @@ _TEMPLATE = """<!DOCTYPE html>
   }
   .qmap-body {
     display: grid;
-    grid-template-columns: minmax(300px, 1.5fr) minmax(255px, 1fr);
+    grid-template-columns: minmax(300px, 1.55fr) minmax(250px, 1fr);
     gap: 0.75rem;
     align-items: start;
   }
@@ -83,14 +84,47 @@ _TEMPLATE = """<!DOCTYPE html>
     .qmap-body { grid-template-columns: 1fr; }
   }
   #qmap-plot { width: 100%; border-radius: 12px; overflow: hidden; }
+  /* Fixed height with inner scroll: the panel grows when a cell is selected and a
+     reflow here would resize the plot underneath the pointer mid-hover. */
   .qmap-panel {
     background: rgba(15,23,42,0.55);
     border: 1px solid rgba(148,163,184,0.16);
     border-radius: 12px;
     padding: 0.7rem 0.8rem;
+    height: __PLOT_HEIGHT__px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148,163,184,0.35) transparent;
   }
+  .qmap-panel::-webkit-scrollbar { width: 6px; }
+  .qmap-panel::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.35); border-radius: 3px; }
   .qp-title { display: block; font-size: 0.95rem; font-weight: 800; color: #e2e8f0; margin: 0 0 0.15rem 0; }
   .qp-sub { display: block; color: #94a3b8; font-size: 0.75rem; line-height: 1.4; margin-bottom: 0.55rem; }
+  .qp-pin {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: rgba(56,189,248,0.18);
+    border: 1px solid rgba(56,189,248,0.45);
+    color: #bae6fd;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .qp-warn {
+    display: block;
+    margin-bottom: 0.5rem;
+    padding: 0.3rem 0.45rem;
+    border-radius: 7px;
+    background: rgba(245,158,11,0.12);
+    border: 1px solid rgba(245,158,11,0.35);
+    color: #fcd34d;
+    font-size: 0.7rem;
+    line-height: 1.35;
+  }
   .qp-section-label {
     display: block;
     font-size: 0.68rem;
@@ -98,63 +132,70 @@ _TEMPLATE = """<!DOCTYPE html>
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: #93a4bc;
-    margin: 0 0 0.35rem 0;
+    margin: 0.55rem 0 0.35rem 0;
   }
-  .qp-dest {
+  .qp-section-label:first-of-type { margin-top: 0; }
+  .qp-row {
     position: relative;
     border: 1px solid rgba(148,163,184,0.14);
-    border-radius: 9px;
-    padding: 0.34rem 0.5rem 0.38rem 0.5rem;
-    margin-bottom: 0.32rem;
+    border-radius: 8px;
+    padding: 0.26rem 0.45rem 0.28rem 0.45rem;
+    margin-bottom: 0.26rem;
     overflow: hidden;
     background: rgba(2,6,23,0.35);
   }
-  .qp-dest.is-same { border-color: rgba(56,189,248,0.35); }
-  .qp-dest-bar {
+  .qp-row.is-self { border-color: rgba(56,189,248,0.35); }
+  .qp-row-bar {
     position: absolute;
     left: 0; top: 0; bottom: 0;
     background: rgba(56,189,248,0.10);
     z-index: 0;
   }
-  .qp-dest-inner { position: relative; z-index: 1; }
-  .qp-dest-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.4rem;
-  }
-  .qp-dest-name { font-size: 0.79rem; font-weight: 700; color: #e2e8f0; }
-  .qp-dest-share { font-size: 0.79rem; font-weight: 800; color: #38bdf8; }
-  .qp-dest-meta { color: #94a3b8; font-size: 0.7rem; margin-bottom: 0.18rem; }
-  .qp-cell {
+  .qp-row.is-rare .qp-row-bar { background: rgba(239,68,68,0.12); }
+  .qp-row-inner {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    font-size: 0.71rem;
-    line-height: 1.5;
-  }
-  .qp-cell-tag {
-    flex: 0 0 auto;
-    width: 42px;
-    color: #94a3b8;
-    font-weight: 700;
-    text-transform: uppercase;
-    font-size: 0.62rem;
-    letter-spacing: 0.04em;
   }
   .qp-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(248,250,252,0.3); }
   .qp-dot.is-rare { border-radius: 2px; transform: rotate(45deg); }
-  .qp-cell-name {
+  .qp-row-name {
     flex: 1 1 auto;
     min-width: 0;
-    color: #cbd5e1;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #e2e8f0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .qp-cell-val { flex: 0 0 auto; color: #94a3b8; white-space: nowrap; }
-  .qp-cell-val b { color: #e2e8f0; font-weight: 700; }
-  .qp-hint { color: #94a3b8; font-size: 0.78rem; line-height: 1.5; margin: 0.3rem 0 0 0; }
+  .qp-row-val { flex: 0 0 auto; font-size: 0.71rem; color: #94a3b8; white-space: nowrap; }
+  .qp-row-val b { color: #e2e8f0; font-weight: 800; }
+  .qp-quads { display: flex; gap: 0.25rem; margin-top: 0.1rem; }
+  .qp-quad {
+    flex: 1 1 0;
+    min-width: 0;
+    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 7px;
+    padding: 0.24rem 0.3rem;
+    background: rgba(2,6,23,0.35);
+    text-align: center;
+  }
+  .qp-quad-name {
+    display: block;
+    font-size: 0.58rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #93a4bc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .qp-quad-val { display: block; font-size: 0.82rem; font-weight: 800; color: #38bdf8; }
+  .qp-hint { color: #94a3b8; font-size: 0.76rem; line-height: 1.5; margin: 0.3rem 0 0 0; }
   .qp-legend {
     display: flex;
     align-items: center;
@@ -171,9 +212,13 @@ _TEMPLATE = """<!DOCTYPE html>
 <body>
 <div class="qmap-wrap">
   <div class="qmap-toolbar">
-    <span class="qmap-toolbar-label">Cor do mapa</span>
+    <span class="qmap-toolbar-label">Cor</span>
     <button class="qmap-btn is-active" data-metric="xp">xP médio</button>
     <button class="qmap-btn" data-metric="volume">Volume (%)</button>
+    <span class="qmap-toolbar-sep"></span>
+    <span class="qmap-toolbar-label">Escala</span>
+    <button class="qmap-btn is-active" data-scale="fixed">Fixa</button>
+    <button class="qmap-btn" data-scale="relative">Relativa</button>
     <button class="qmap-btn" id="qmap-reset" style="margin-left:auto">Ver todos</button>
   </div>
   <div class="qmap-body">
@@ -187,53 +232,61 @@ _TEMPLATE = """<!DOCTYPE html>
   var DATA = __DATA__;
   var XP_SCALE = __XP_SCALE__;
   var VOL_SCALE = __VOL_SCALE__;
-  var QUAD_ORDER = __QUAD_ORDER__;
   var PLOT_HEIGHT = __PLOT_HEIGHT__;
 
   var FIELD_X = DATA.field_x;
   var FIELD_Y = DATA.field_y;
-  var COLS = DATA.dest_cols;
-  var ROWS = DATA.dest_rows;
+  var COLS = DATA.cols;
+  var ROWS = DATA.rows;
+  var NCELLS = COLS * ROWS;
   var CELL_W = FIELD_X / COLS;
   var CELL_H = FIELD_Y / ROWS;
   var SPLIT_X = FIELD_X / 2;
   var SPLIT_Y = FIELD_Y / 2;
+  var TOP_LIST = 5;
 
   var plotEl = document.getElementById('qmap-plot');
   var panelEl = document.getElementById('qmap-panel');
   var metric = 'xp';
-  var activeQuad = null;
+  var scaleMode = 'fixed';
+  var activeCell = null;
+  var pinnedCell = null;
+  var pendingFrame = null;
 
   function fmtInt(v) { return Number(v).toLocaleString('pt-BR'); }
   function fmtPct(v) { return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'; }
   function fmtXp(v) { return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
   function currentState() {
-    return activeQuad ? DATA.origins[activeQuad] : DATA.overall;
+    if (activeCell !== null && DATA.origins[activeCell]) return DATA.origins[activeCell];
+    return DATA.overall;
   }
 
-  function volumeGrid(state) {
+  function volumeValues(state) {
     var total = Math.max(state.passes, 1);
-    return state.count_grid.map(function (row) {
-      return row.map(function (v) { return v > 0 ? (v / total) * 100 : null; });
-    });
+    return state.counts.map(function (v) { return v > 0 ? (v / total) * 100 : null; });
   }
 
-  // Fixed scales across hover states keep colours comparable between quadrants.
-  function scaleMax(kind) {
-    var states = [DATA.overall].concat(QUAD_ORDER.map(function (k) { return DATA.origins[k]; }));
+  function stateValues(state) {
+    return metric === 'xp' ? state.xp : volumeValues(state);
+  }
+
+  function toGrid(flat) {
+    var out = [];
+    for (var r = 0; r < ROWS; r++) out.push(flat.slice(r * COLS, (r + 1) * COLS));
+    return out;
+  }
+
+  // Fixed scales come from the aggregation (99th/98th percentile) so hovering
+  // different cells keeps colours comparable; relative rescales per cell.
+  function scaleMax(state) {
+    if (scaleMode === 'fixed') {
+      return metric === 'xp' ? DATA.xp_scale_max : DATA.volume_scale_max;
+    }
     var best = 0;
-    states.forEach(function (s) {
-      if (!s || !s.passes) return;
-      var grid = kind === 'xp' ? s.xp_grid : volumeGrid(s);
-      grid.forEach(function (row) {
-        row.forEach(function (v) { if (v !== null && v > best) best = v; });
-      });
-    });
+    stateValues(state).forEach(function (v) { if (v !== null && v > best) best = v; });
     return best || 1;
   }
-  var XP_MAX = scaleMax('xp');
-  var VOL_MAX = scaleMax('volume');
 
   function stopsToScale(stops) { return stops.map(function (s) { return [s[0], s[1]]; }); }
 
@@ -255,7 +308,7 @@ _TEMPLATE = """<!DOCTYPE html>
       + Math.round(a[2] + (b[2] - a[2]) * k) + ')';
   }
 
-  function xpDot(value) { return colorAt(XP_SCALE, value / XP_MAX); }
+  function xpDot(value) { return colorAt(XP_SCALE, value / DATA.xp_scale_max); }
 
   function cellCenters(n, size) {
     var out = [];
@@ -263,9 +316,64 @@ _TEMPLATE = """<!DOCTYPE html>
     return out;
   }
 
-  function quadrantAt(x, y) {
-    if (x < SPLIT_X) return y < SPLIT_Y ? 'def_left' : 'def_right';
-    return y < SPLIT_Y ? 'att_left' : 'att_right';
+  function cellIndexAt(x, y) {
+    var c = Math.max(0, Math.min(COLS - 1, Math.floor(x / CELL_W)));
+    var r = Math.max(0, Math.min(ROWS - 1, Math.floor(y / CELL_H)));
+    return r * COLS + c;
+  }
+
+  function cellBounds(idx) {
+    var c = idx % COLS, r = Math.floor(idx / COLS);
+    return [c * CELL_W, r * CELL_H, (c + 1) * CELL_W, (r + 1) * CELL_H];
+  }
+
+  function cellCenter(idx) {
+    var c = idx % COLS, r = Math.floor(idx / COLS);
+    return [(c + 0.5) * CELL_W, (r + 0.5) * CELL_H];
+  }
+
+  function quadrantKeyAt(idx) {
+    var p = cellCenter(idx);
+    if (p[0] < SPLIT_X) return p[1] < SPLIT_Y ? 'def_left' : 'def_right';
+    return p[1] < SPLIT_Y ? 'att_left' : 'att_right';
+  }
+
+  // Rare cells need a sample floor, but a single origin cell has far fewer
+  // passes than the whole pitch, so the floor scales with the state.
+  function rareMinCount(state) {
+    return Math.max(3, Math.min(DATA.min_cell_passes, Math.round(state.passes / 40)));
+  }
+
+  function topDestinations(state) {
+    var total = Math.max(state.passes, 1);
+    var items = [];
+    for (var i = 0; i < NCELLS; i++) {
+      if (!state.counts[i]) continue;
+      items.push({
+        index: i,
+        count: state.counts[i],
+        share: (state.counts[i] / total) * 100,
+        xp: state.xp[i] === null ? 0 : state.xp[i]
+      });
+    }
+    var common = items.slice().sort(function (a, b) { return b.count - a.count; }).slice(0, TOP_LIST);
+    var floor = rareMinCount(state);
+    var eligible = items.filter(function (d) { return d.count >= floor; });
+    if (!eligible.length) eligible = items;
+    var rare = eligible.slice().sort(function (a, b) { return b.xp - a.xp; }).slice(0, TOP_LIST);
+    return { common: common, rare: rare, floor: floor };
+  }
+
+  function quadrantSplit(state) {
+    var total = Math.max(state.passes, 1);
+    var acc = { def_left: 0, def_right: 0, att_left: 0, att_right: 0 };
+    for (var i = 0; i < NCELLS; i++) {
+      if (!state.counts[i]) continue;
+      acc[quadrantKeyAt(i)] += state.counts[i];
+    }
+    return ['def_left', 'def_right', 'att_left', 'att_right'].map(function (k) {
+      return { key: k, label: DATA.quadrant_labels[k], share: (acc[k] / total) * 100, passes: acc[k] };
+    });
   }
 
   function pitchShapes() {
@@ -283,46 +391,63 @@ _TEMPLATE = """<!DOCTYPE html>
       { type: 'circle', x0: SPLIT_X - 10, y0: SPLIT_Y - 10, x1: SPLIT_X + 10, y1: SPLIT_Y + 10, line: { color: line, width: 1.1 }, layer: 'above' }
     ];
 
-    // Outline the origin quadrant only: the other quadrants still carry the
-    // destination data we want readable, so they must not be dimmed.
-    if (activeQuad) {
-      var ob = DATA.origins[activeQuad].bounds;
+    // Outline the origin cell only: every other cell still carries destination
+    // data we want readable, so nothing gets dimmed.
+    if (activeCell !== null) {
+      var b = cellBounds(activeCell);
       shapes.push({
-        type: 'rect', x0: ob[0], y0: ob[1], x1: ob[2], y1: ob[3],
-        line: { color: 'rgba(56,189,248,0.95)', width: 2.4 },
+        type: 'rect', x0: b[0], y0: b[1], x1: b[2], y1: b[3],
+        line: { color: 'rgba(56,189,248,0.95)', width: 2.6 },
         fillcolor: 'rgba(0,0,0,0)', layer: 'above'
       });
     }
-
-    shapes.push({ type: 'line', x0: SPLIT_X, y0: 0, x1: SPLIT_X, y1: FIELD_Y, line: { color: 'rgba(203,213,225,0.55)', width: 1.5, dash: 'dot' }, layer: 'above' });
-    shapes.push({ type: 'line', x0: 0, y0: SPLIT_Y, x1: FIELD_X, y1: SPLIT_Y, line: { color: 'rgba(203,213,225,0.55)', width: 1.5, dash: 'dot' }, layer: 'above' });
     return shapes;
+  }
+
+  function hoverText(state) {
+    var total = Math.max(state.passes, 1);
+    var values = stateValues(state);
+    var out = [];
+    for (var r = 0; r < ROWS; r++) {
+      var row = [];
+      for (var c = 0; c < COLS; c++) {
+        var i = r * COLS + c;
+        var origin = DATA.origins[i];
+        var originLine;
+        if (i === activeCell) {
+          originLine = '<i>origem atual · ' + fmtInt(state.passes) + ' passes saem daqui</i>';
+        } else if (origin) {
+          originLine = '<i>' + fmtInt(origin.passes) + ' passes saem daqui — passe o mouse</i>';
+        } else {
+          originLine = '<i>amostra insuficiente como origem</i>';
+        }
+        if (values[i] === null) {
+          row.push('<b>' + DATA.cell_labels[i] + '</b><br>Sem passes chegando aqui<br>' + originLine);
+          continue;
+        }
+        row.push('<b>' + DATA.cell_labels[i] + '</b><br>'
+          + fmtInt(state.counts[i]) + ' passes · ' + fmtPct((state.counts[i] / total) * 100) + '<br>'
+          + 'xP médio ' + fmtXp(state.xp[i] === null ? 0 : state.xp[i]) + '<br>'
+          + originLine);
+      }
+      out.push(row);
+    }
+    return out;
   }
 
   function heatmapTrace(state) {
     var isXp = metric === 'xp';
-    var grid = isXp ? state.xp_grid : volumeGrid(state);
-    var counts = state.count_grid;
-    var text = grid.map(function (row, r) {
-      return row.map(function (v, c) {
-        if (v === null) return 'Sem passes registrados';
-        var x = (c + 0.5) * CELL_W, y = (r + 0.5) * CELL_H;
-        return '<b>' + DATA.zone_labels[r][c] + '</b><br>'
-          + fmtInt(counts[r][c]) + ' passes · ' + fmtPct((counts[r][c] / Math.max(state.passes, 1)) * 100) + '<br>'
-          + 'xP médio ' + fmtXp(state.xp_grid[r][c] === null ? 0 : state.xp_grid[r][c]) + '<br>'
-          + '<i>' + DATA.quadrant_labels[quadrantAt(x, y)] + '</i>';
-      });
-    });
+    var zmax = scaleMax(state);
     return {
       type: 'heatmap',
       x: cellCenters(COLS, CELL_W),
       y: cellCenters(ROWS, CELL_H),
-      z: grid,
-      text: text,
+      z: toGrid(stateValues(state)),
+      text: hoverText(state),
       hoverinfo: 'text',
       colorscale: stopsToScale(isXp ? XP_SCALE : VOL_SCALE),
       zmin: 0,
-      zmax: isXp ? XP_MAX : VOL_MAX,
+      zmax: zmax,
       xgap: 1,
       ygap: 1,
       showscale: true,
@@ -339,53 +464,43 @@ _TEMPLATE = """<!DOCTYPE html>
   }
 
   function extremeMarkersTrace(state) {
+    var tops = topDestinations(state);
     var xs = [], ys = [], syms = [], cols = [], txt = [];
-    QUAD_ORDER.forEach(function (dk) {
-      var d = state.destinations[dk];
-      if (!d || !d.passes) return;
-      [['common', 'circle', 'mais comum'], ['rare', 'diamond', 'mais raro']].forEach(function (spec) {
-        var cell = d[spec[0]];
-        if (!cell) return;
-        xs.push(cell.x); ys.push(cell.y); syms.push(spec[1]);
-        cols.push(xpDot(cell.mean_xp));
-        txt.push('<b>' + d.label + ' · ' + spec[2] + '</b><br>' + cell.label + '<br>'
-          + fmtInt(cell.count) + ' passes · xP médio ' + fmtXp(cell.mean_xp));
-      });
+    var seen = {};
+    tops.common.slice(0, 3).forEach(function (d) {
+      var p = cellCenter(d.index);
+      seen[d.index] = true;
+      xs.push(p[0]); ys.push(p[1]); syms.push('circle'); cols.push(xpDot(d.xp));
+      txt.push('<b>Destino mais comum</b><br>' + DATA.cell_labels[d.index] + '<br>'
+        + fmtInt(d.count) + ' passes · ' + fmtPct(d.share) + ' · xP ' + fmtXp(d.xp));
     });
+    tops.rare.slice(0, 3).forEach(function (d) {
+      if (seen[d.index]) return;
+      var p = cellCenter(d.index);
+      xs.push(p[0]); ys.push(p[1]); syms.push('diamond'); cols.push(xpDot(d.xp));
+      txt.push('<b>Destino mais raro (xP alto)</b><br>' + DATA.cell_labels[d.index] + '<br>'
+        + fmtInt(d.count) + ' passes · ' + fmtPct(d.share) + ' · xP ' + fmtXp(d.xp));
+    });
+    // Purely decorative: hover must always resolve to the heatmap cell under the
+    // pointer, so the markers never intercept it.
     return {
       type: 'scatter',
       mode: 'markers',
       x: xs, y: ys,
-      marker: { size: 11, symbol: syms, color: cols, line: { color: '#f8fafc', width: 1.4 } },
-      hoverinfo: 'text',
+      marker: { size: 10, symbol: syms, color: cols, line: { color: '#f8fafc', width: 1.4 } },
+      hoverinfo: 'skip',
       text: txt,
       showlegend: false
     };
   }
 
-  function layout(state) {
-    var annotations = QUAD_ORDER.map(function (key) {
-      var b = DATA.origins[key].bounds;
-      var pad = (b[3] - b[1]) * 0.075;
-      return {
-        x: (b[0] + b[2]) / 2,
-        y: key.indexOf('left') >= 0 ? b[1] + pad : b[3] - pad,
-        xref: 'x', yref: 'y',
-        text: DATA.quadrant_labels[key].toUpperCase(),
-        showarrow: false,
-        font: { size: 9, color: activeQuad === key ? '#bae6fd' : '#cbd5e1' },
-        bgcolor: 'rgba(15,23,42,0.72)',
-        borderpad: 3,
-        opacity: activeQuad && activeQuad !== key ? 0.5 : 1
-      };
-    });
+  function layout() {
     return {
       height: PLOT_HEIGHT,
       margin: { l: 6, r: 6, t: 6, b: 6 },
       paper_bgcolor: '#0f172a',
       plot_bgcolor: '#0d1526',
       shapes: pitchShapes(),
-      annotations: annotations,
       hovermode: 'closest',
       hoverlabel: { bgcolor: '#111827', bordercolor: '#334155', font: { color: '#f8fafc', size: 11 } },
       dragmode: false,
@@ -396,77 +511,105 @@ _TEMPLATE = """<!DOCTYPE html>
   }
 
   function traces(state) {
-    var out = [heatmapTrace(state)];
-    if (activeQuad) out.push(extremeMarkersTrace(state));
-    return out;
+    return [heatmapTrace(state), extremeMarkersTrace(state)];
   }
 
-  function cellRow(tag, cell, isRare) {
-    if (!cell) return '';
-    return '<div class="qp-cell">'
-      + '<span class="qp-cell-tag">' + tag + '</span>'
-      + '<span class="qp-dot' + (isRare ? ' is-rare' : '') + '" style="background:' + xpDot(cell.mean_xp) + '"></span>'
-      + '<span class="qp-cell-name" title="' + cell.label + '">' + cell.label + '</span>'
-      + '<span class="qp-cell-val">' + fmtInt(cell.count) + ' · xP <b>' + fmtXp(cell.mean_xp) + '</b></span>'
-      + '</div>';
+  function destRow(d, isRare, state) {
+    var isSelf = activeCell !== null && d.index === activeCell;
+    return '<div class="qp-row' + (isRare ? ' is-rare' : '') + (isSelf ? ' is-self' : '') + '">'
+      + '<div class="qp-row-bar" style="width:' + Math.max(Math.min(d.share, 100), 1.5) + '%"></div>'
+      + '<div class="qp-row-inner">'
+      + '<span class="qp-dot' + (isRare ? ' is-rare' : '') + '" style="background:' + xpDot(d.xp) + '"></span>'
+      + '<span class="qp-row-name" title="' + DATA.cell_labels[d.index] + '">' + DATA.cell_labels[d.index]
+      + (isSelf ? ' · mesma célula' : '') + '</span>'
+      + '<span class="qp-row-val">' + fmtPct(d.share) + ' · ' + fmtInt(d.count)
+      + ' · xP <b>' + fmtXp(d.xp) + '</b></span>'
+      + '</div></div>';
   }
 
-  function destBlocks(state) {
-    var items = QUAD_ORDER.map(function (k) { return state.destinations[k]; })
-      .filter(function (d) { return d && d.passes > 0; })
-      .sort(function (a, b) { return b.share_pct - a.share_pct; });
-    if (!items.length) return '<p class="qp-hint">Sem passes registrados.</p>';
-    return items.map(function (d) {
-      return '<div class="qp-dest' + (d.is_same ? ' is-same' : '') + '">'
-        + '<div class="qp-dest-bar" style="width:' + Math.max(d.share_pct, 1.5) + '%"></div>'
-        + '<div class="qp-dest-inner">'
-        + '<div class="qp-dest-head"><span class="qp-dest-name">' + d.label
-        + (d.is_same ? ' · mesmo quadrante' : '') + '</span>'
-        + '<span class="qp-dest-share">' + fmtPct(d.share_pct) + '</span></div>'
-        + '<div class="qp-dest-meta">' + fmtInt(d.passes) + ' passes · xP médio ' + fmtXp(d.mean_xp) + '</div>'
-        + cellRow('comum', d.common, false)
-        + cellRow('raro', d.rare, true)
-        + '</div></div>';
-    }).join('');
+  function quadBlocks(state) {
+    return '<div class="qp-quads">' + quadrantSplit(state).map(function (q) {
+      return '<div class="qp-quad">'
+        + '<span class="qp-quad-name" title="' + q.label + '">' + q.label.replace(' · ', '<br>') + '</span>'
+        + '<span class="qp-quad-val">' + fmtPct(q.share) + '</span>'
+        + '</div>';
+    }).join('') + '</div>';
   }
 
   function renderPanel(state) {
-    var head, sub, label;
-    if (activeQuad) {
+    var tops = topDestinations(state);
+    var head, sub, warn = '';
+    if (activeCell !== null) {
       head = state.label;
       sub = fmtInt(state.passes) + ' passes saindo daqui · ' + fmtPct(state.share_pct)
         + ' do total · xP médio ' + fmtXp(state.mean_xp);
-      label = 'Para onde vão esses passes';
+      if (pinnedCell !== null) head += '<span class="qp-pin">fixado</span>';
+      if (state.passes < 150) {
+        warn = '<span class="qp-warn">Amostra pequena para esta célula — leia os destinos com cautela.</span>';
+      }
     } else {
       head = 'Visão geral';
-      sub = fmtInt(state.passes) + ' passes de meio-campistas. Passe o mouse por um quadrante '
-        + 'para comparar para onde saem os passes dele.';
-      label = 'Destino de todos os passes';
+      sub = fmtInt(state.passes) + ' passes de meio-campistas. Passe o mouse por qualquer célula '
+        + 'do grid ' + COLS + '×' + ROWS + ' para ver para onde vão os passes que saem dela. '
+        + 'Clique para fixar.';
     }
     panelEl.innerHTML = '<span class="qp-title">' + head + '</span>'
       + '<span class="qp-sub">' + sub + '</span>'
-      + '<span class="qp-section-label">' + label + '</span>'
-      + destBlocks(state)
+      + warn
+      + '<span class="qp-section-label">Distribuição por quadrante</span>'
+      + quadBlocks(state)
+      + '<span class="qp-section-label">Destinos mais comuns</span>'
+      + (tops.common.length
+        ? tops.common.map(function (d) { return destRow(d, false, state); }).join('')
+        : '<p class="qp-hint">Sem passes registrados.</p>')
+      + '<span class="qp-section-label">Destinos mais raros (xP alto)</span>'
+      + (tops.rare.length
+        ? tops.rare.map(function (d) { return destRow(d, true, state); }).join('')
+        : '<p class="qp-hint">Amostra insuficiente.</p>')
       + '<div class="qp-legend"><span class="qp-dot"></span><span>comum (volume)</span>'
-      + '<span class="qp-dot is-rare"></span><span>raro (xP alto)</span></div>';
+      + '<span class="qp-dot is-rare"></span><span>raro (xP alto, mín. '
+      + fmtInt(tops.floor) + ' passes) · os 3 primeiros de cada lista aparecem no mapa</span></div>';
   }
 
   function draw() {
     var state = currentState();
-    Plotly.react(plotEl, traces(state), layout(state), { displayModeBar: false, responsive: true });
+    Plotly.react(plotEl, traces(state), layout(), { displayModeBar: false, responsive: true });
     renderPanel(state);
   }
 
-  Plotly.newPlot(plotEl, traces(currentState()), layout(currentState()),
+  // Hover fires for every cell crossed by the pointer; coalescing into one frame
+  // keeps the 96-cell grid responsive instead of queueing a redraw per event.
+  function scheduleDraw() {
+    if (pendingFrame) return;
+    pendingFrame = requestAnimationFrame(function () {
+      pendingFrame = null;
+      draw();
+    });
+  }
+
+  function setActive(idx) {
+    if (idx === activeCell) return;
+    if (idx !== null && !DATA.origins[idx]) return;
+    activeCell = idx;
+    scheduleDraw();
+  }
+
+  Plotly.newPlot(plotEl, traces(currentState()), layout(),
     { displayModeBar: false, responsive: true }).then(function () {
     renderPanel(currentState());
     plotEl.on('plotly_hover', function (ev) {
+      if (pinnedCell !== null) return;
       var pt = ev.points && ev.points[0];
       if (!pt || typeof pt.x !== 'number' || typeof pt.y !== 'number') return;
-      var key = quadrantAt(pt.x, pt.y);
-      // Geometry never moves, so re-hovering the same quadrant cannot loop.
-      if (key === activeQuad || !DATA.origins[key] || !DATA.origins[key].passes) return;
-      activeQuad = key;
+      setActive(cellIndexAt(pt.x, pt.y));
+    });
+    plotEl.on('plotly_click', function (ev) {
+      var pt = ev.points && ev.points[0];
+      if (!pt || typeof pt.x !== 'number' || typeof pt.y !== 'number') return;
+      var idx = cellIndexAt(pt.x, pt.y);
+      if (!DATA.origins[idx]) return;
+      pinnedCell = pinnedCell === idx ? null : idx;
+      activeCell = idx;
       draw();
     });
   });
@@ -480,8 +623,18 @@ _TEMPLATE = """<!DOCTYPE html>
     });
   });
 
+  document.querySelectorAll('.qmap-btn[data-scale]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.qmap-btn[data-scale]').forEach(function (b) { b.classList.remove('is-active'); });
+      btn.classList.add('is-active');
+      scaleMode = btn.getAttribute('data-scale');
+      draw();
+    });
+  });
+
   document.getElementById('qmap-reset').addEventListener('click', function () {
-    activeQuad = null;
+    activeCell = null;
+    pinnedCell = null;
     draw();
   });
 })();
@@ -491,26 +644,26 @@ _TEMPLATE = """<!DOCTYPE html>
 """
 
 
-def build_quadrant_map_html(
+def build_cell_map_html(
     analysis: dict,
     *,
-    quadrant_labels: dict[str, str],
-    zone_labels: list[list[str]],
-    plot_height: int = 470,
+    plot_height: int = 500,
 ) -> str:
-    """Self-contained Plotly page: hover a quadrant to compare where its passes go."""
-    origins = analysis.get("origins") or {}
+    """Self-contained Plotly page: hover a 12x8 cell to see where its passes go."""
     payload = {
-        "origins": origins,
+        "origins": analysis.get("origins") or {},
         "overall": analysis.get("overall"),
         "total_passes": analysis.get("total_passes", 0),
-        "dest_cols": analysis.get("dest_cols", 12),
-        "dest_rows": analysis.get("dest_rows", 8),
+        "cols": analysis.get("cols", 12),
+        "rows": analysis.get("rows", 8),
         "field_x": analysis.get("field_x", 120.0),
         "field_y": analysis.get("field_y", 80.0),
-        "xp_max": analysis.get("xp_max", 1.0),
-        "quadrant_labels": quadrant_labels,
-        "zone_labels": zone_labels,
+        "min_cell_passes": analysis.get("min_cell_passes", 20),
+        "min_origin_passes": analysis.get("min_origin_passes", 25),
+        "xp_scale_max": analysis.get("xp_scale_max", 1.0),
+        "volume_scale_max": analysis.get("volume_scale_max", 1.0),
+        "cell_labels": analysis.get("cell_labels") or [],
+        "quadrant_labels": analysis.get("quadrant_labels") or {},
     }
     return (
         _TEMPLATE
@@ -518,6 +671,5 @@ def build_quadrant_map_html(
         .replace("__DATA__", json.dumps(payload))
         .replace("__XP_SCALE__", json.dumps([[s, c] for s, c in XP_COLORSCALE]))
         .replace("__VOL_SCALE__", json.dumps([[s, c] for s, c in VOLUME_COLORSCALE]))
-        .replace("__QUAD_ORDER__", json.dumps(list(origins.keys())))
         .replace("__PLOT_HEIGHT__", str(int(plot_height)))
     )
