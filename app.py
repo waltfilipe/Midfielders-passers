@@ -7155,8 +7155,9 @@ XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
     "passes_to_box": "Passes completed into the box per 90 minutes.",
     "key_passes": "Passes leading to a shot per 90 minutes.",
     "special_line_break_p90": (
-        "Line-breaking passes per game — central corridor, forward angle, "
-        "breaking the midfield line."
+        "Line-breaking passes per game — origin outside the outer 10% lateral bands, "
+        "destination outside the outer 15%, forward angle ≤ 50°, distance 20–30 m "
+        "(midfield) or 10–30 m (attack), breaking the midfield line."
     ),
     "impact_passes_p90": (
         f"Impact passes per game — composite xP score (45% destination value + 35% residual "
