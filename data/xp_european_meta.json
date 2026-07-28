@@ -1,10 +1,12 @@
 {
-  "version": "m4_od_12x8_b4_a2_pr0_global_ita_laliga_dist30_access_ridge_v7",
-  "passes": 368778,
-  "completed": 308469,
-  "threats": 28692,
-  "players": 535,
-  "matches": 1446,
+  "version": "m4_od_12x8_b4_a2_pr0_global_ita_laliga_ligue1_blend65_35_dist30_access_ridge_v8",
   "impact_pass_rule_version": "composite_v1_hybrid_p90_prog60",
-  "impact_pass_rule": "composite score (45% destination xP + 35% residual + 20% progress) \u2265 P90 per distance band and progress_ratio \u2265 P60 per band"
+  "impact_pass_rule": "composite score (45% destination xP + 35% residual + 20% progress) \u2265 P90 per distance band and progress_ratio \u2265 P60 per band",
+  "reference_global_weight": 0.65,
+  "reference_league_weight": 0.35,
+  "passes": 445226,
+  "completed": 373404,
+  "threats": 34713,
+  "players": 665,
+  "matches": 1754
 }

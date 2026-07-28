@@ -536,6 +536,7 @@ def _build_season_passes_from_frame(
     *,
     force_artifacts: bool = False,
     blend_league_reference: bool = False,
+    refit_artifacts: bool | None = None,
 ) -> pd.DataFrame:
     grid_dims = (
         GRID.dest_cols, GRID.dest_rows,
@@ -547,6 +548,7 @@ def _build_season_passes_from_frame(
         return pd.DataFrame()
 
     team_season_od, team_n_matches = _build_team_season_od_maps(frame)
+    league_ref_cache: dict[str, dict] = {}
 
     chunks: list[pd.DataFrame] = []
     for eid in frame["event_id"].astype(int).unique():
@@ -555,10 +557,13 @@ def _build_season_passes_from_frame(
         if blend_league_reference and "league_source" in mf.columns:
             league_values = mf["league_source"].dropna().astype(str)
             if not league_values.empty:
-                league_ref = xse.reference_surfaces_for_league_source(
-                    str(league_values.iloc[0]),
-                    *grid_dims,
-                )
+                league_source = str(league_values.iloc[0])
+                if league_source not in league_ref_cache:
+                    league_ref_cache[league_source] = xse.reference_surfaces_for_league_source(
+                        league_source,
+                        *grid_dims,
+                    )
+                league_ref = league_ref_cache[league_source]
         scored = score_match_passes_m4(
             mf,
             league_ref,
@@ -573,15 +578,15 @@ def _build_season_passes_from_frame(
         return pd.DataFrame()
     season_raw = pd.concat(chunks, ignore_index=True)
 
-    need_fit = force_artifacts
-    if not need_fit and THREAT_THRESHOLDS_PATH.exists():
+    should_refit = force_artifacts if refit_artifacts is None else refit_artifacts
+    if not should_refit and THREAT_THRESHOLDS_PATH.exists():
         with open(THREAT_THRESHOLDS_PATH, encoding="utf-8") as fh:
             meta = json.load(fh)
-        need_fit = str(meta.get("version", "")) != XP_MODEL_VERSION
-    else:
-        need_fit = True
+        should_refit = str(meta.get("version", "")) != XP_MODEL_VERSION
+    elif not should_refit and not THREAT_THRESHOLDS_PATH.exists():
+        should_refit = True
 
-    if need_fit:
+    if should_refit:
         MODELS_DIR.mkdir(parents=True, exist_ok=True)
         global_passes = _load_global_scored_completed_passes()
         _fit_artifacts_on_passes(global_passes)
@@ -589,12 +594,17 @@ def _build_season_passes_from_frame(
     return apply_expected_and_threat(season_raw)
 
 
-def build_european_league_season_passes(*, force_artifacts: bool = False) -> pd.DataFrame:
+def build_european_league_season_passes(
+    *,
+    force_artifacts: bool = False,
+    refit_artifacts: bool | None = None,
+) -> pd.DataFrame:
     frame = pe._filter_pass_frame_to_midfielders(pe._load_european_league_pass_frame())
     season = _build_season_passes_from_frame(
         frame,
         force_artifacts=force_artifacts,
         blend_league_reference=True,
+        refit_artifacts=refit_artifacts,
     )
     if season.empty:
         return season
@@ -627,12 +637,13 @@ def load_european_season_passes(*, rebuild: bool = False) -> pd.DataFrame:
         or "xp_progress_mult" not in df.columns
         or XP_ACCESSIBILITY_MULT_COL not in df.columns
     ):
-        return build_european_league_season_passes(force_artifacts=True)
+        return build_european_league_season_passes(refit_artifacts=False)
     if XP_EUROPEAN_META_PATH.exists():
         with open(XP_EUROPEAN_META_PATH, encoding="utf-8") as fh:
             meta = json.load(fh)
         if str(meta.get("version", "")) != XP_MODEL_VERSION:
-            return build_european_league_season_passes(force_artifacts=True)
+            # Rescore European parquet only — never refit global Ridge on user load.
+            return build_european_league_season_passes(refit_artifacts=False)
         if str(meta.get("impact_pass_rule_version", "")) != IMPACT_PASS_RULE_VERSION:
             return _refresh_threat_flags_if_needed(
                 df,
