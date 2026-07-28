@@ -1407,17 +1407,17 @@ PASS_SCORE_LETTER_KEYS: dict[str, str] = {
     "pass_buildup_display": "pass_buildup_letter",
     "pass_chance_creation_display": "pass_chance_creation_letter",
 }
-# Letter grades on the 3.0–9.0 display-score scale (same axis as rank_to_display_score).
+# Letter grades on the 3.0–9.0 display-score scale (strict: median ≈ C at 6.0).
 DISPLAY_SCORE_LETTER_TIERS: tuple[tuple[float, str], ...] = (
-    (8.4, "A+"),
-    (7.8, "A"),
-    (7.2, "A-"),
-    (6.6, "B+"),
-    (6.0, "B"),
-    (5.4, "B-"),
-    (4.8, "C+"),
-    (4.2, "C"),
-    (3.6, "C-"),
+    (8.6, "A+"),
+    (8.2, "A"),
+    (7.8, "A-"),
+    (7.4, "B+"),
+    (7.0, "B"),
+    (6.6, "B-"),
+    (6.3, "C+"),
+    (6.0, "C"),
+    (5.6, "C-"),
     (0.0, "D"),
 )
 

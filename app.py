@@ -5372,11 +5372,6 @@ st.markdown(
         letter-spacing: 0.01em;
         text-transform: none;
     }
-    .pa-xp-section-body .pa-regular-score-accordion .grade-card-rank {
-        margin-top: 0.18rem;
-        font-size: 0.68rem;
-        color: #94a3b8;
-    }
     .pa-xp-section-body .pa-regular-score-accordion .grade-accordion-body {
         padding: 0 0.55rem 0.2rem;
         border-top: 1px solid rgba(59, 130, 246, 0.12);
@@ -8581,7 +8576,6 @@ def _pa_display_score_pill_html(display_score: float | None) -> str:
 def _pa_regular_score_summary_html(
     title: str,
     display_key: str,
-    index_key: str,
     letter_key: str,
     source: dict,
 ) -> str:
@@ -8590,15 +8584,6 @@ def _pa_regular_score_summary_html(
         score_val = float(score) if score is not None else None
     except (TypeError, ValueError):
         score_val = None
-    rank = source.get(f"{index_key}_rank_in_group")
-    total = source.get(f"{index_key}_rank_pool_in_group")
-    rank_html = ""
-    if rank and total:
-        group = _pa_field_group_label(source)
-        rank_html = (
-            f'<div class="grade-card-rank">#{int(rank)} of {int(total)} · '
-            f"{html.escape(group)}</div>"
-        )
     tooltip = XP_PA_REGULAR_SCORE_TOOLTIPS.get(display_key, "")
     if score_val is not None:
         letter = source.get(letter_key) or xstats.display_score_letter_grade(score_val)
@@ -8613,7 +8598,6 @@ def _pa_regular_score_summary_html(
         f'<div class="grade-card-title">{html.escape(title)}</div>'
         f"{_pa_letter_grade_pill_html(score_val, str(letter) if letter else None)}"
         f"</div>"
-        f"{rank_html}"
         f"</div>"
         f"</div>"
     )
@@ -8636,7 +8620,7 @@ def _pa_regular_score_accordion_html(
         '<details class="grade-accordion pa-regular-score-accordion" name="pa-regular-scores">'
         "<summary>"
         '<i class="fa-solid fa-chevron-right grade-arrow" aria-hidden="true"></i>'
-        f"{_pa_regular_score_summary_html(title, display_key, index_key, letter_key, source)}"
+        f"{_pa_regular_score_summary_html(title, display_key, letter_key, source)}"
         "</summary>"
         f'<div class="grade-accordion-body">{lines}</div>'
         "</details>"
