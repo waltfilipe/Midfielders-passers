@@ -1541,8 +1541,28 @@ def _compare_column_metric_html(
     )
 
 
-def _compare_pass_mix_compact_html(xp_profile: dict | None) -> str:
-    """Compact pass-length mix for the Compare column."""
+def _compare_insight_row_html(
+    label: str,
+    value: str,
+    *,
+    icon: str = "fa-circle",
+    value_class: str = "",
+) -> str:
+    val_cls = "pa-compare-profile-row-val"
+    if value_class:
+        val_cls = f"{val_cls} {value_class}"
+    return (
+        '<li class="pa-compare-profile-row">'
+        f'<span class="pa-compare-profile-row-label">'
+        f'<i class="fa-solid {html.escape(icon)}" aria-hidden="true"></i>'
+        f"{html.escape(label)}</span>"
+        f'<span class="{html.escape(val_cls)}">{value}</span>'
+        "</li>"
+    )
+
+
+def _compare_pass_mix_list_html(xp_profile: dict | None) -> str:
+    """Pass-length mix as a stacked list row with inline track."""
     if not xp_profile:
         return ""
     share = xp_profile.get("long_pass_share_pct")
@@ -1553,10 +1573,14 @@ def _compare_pass_mix_compact_html(xp_profile: dict | None) -> str:
     player_marker = (
         f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%"></span>'
     )
-    meta = f"<strong>{share:.1f}%</strong> long"
     return (
-        '<div class="pa-compare-compact-block">'
-        '<span class="pa-compare-compact-label">Pass length mix</span>'
+        '<li class="pa-compare-profile-row pa-compare-profile-row-passmix">'
+        '<div class="pa-compare-passmix-head">'
+        '<span class="pa-compare-profile-row-label">'
+        '<i class="fa-solid fa-arrows-left-right" aria-hidden="true"></i>'
+        "Pass length mix</span>"
+        f'<span class="pa-compare-profile-row-val">{share:.1f}% long</span>'
+        "</div>"
         '<div class="pa-pass-mix-track pa-pass-mix-track-compact">'
         f"{player_marker}"
         "</div>"
@@ -1564,16 +1588,15 @@ def _compare_pass_mix_compact_html(xp_profile: dict | None) -> str:
         '<span class="pa-pass-mix-axis-short">Short</span>'
         '<span class="pa-pass-mix-axis-long">Long</span>'
         "</div>"
-        f'<span class="pa-compare-compact-meta">{meta}</span>'
-        "</div>"
+        "</li>"
     )
 
 
-def _compare_xp_indices_compact_html(xp_profile: dict | None) -> str:
-    """Compact Consistency + Impact tier chips for the Compare column."""
+def _compare_xp_indices_list_html(xp_profile: dict | None) -> str:
+    """Consistency + Impact tiers as list rows."""
     if not xp_profile or not xp_profile.get("xp_profile_bars_eligible", True):
         return ""
-    chips: list[str] = []
+    rows: list[str] = []
     for label, tier_key in (
         ("Consistency", "xp_idx_consistency_tier"),
         ("Impact", "xp_idx_impact_tier"),
@@ -1581,22 +1604,17 @@ def _compare_xp_indices_compact_html(xp_profile: dict | None) -> str:
         tier = xp_profile.get(tier_key)
         if not tier:
             continue
-        tier_label = xstats.XP_INDEX_TIER_LABELS.get(tier, "—")
-        chips.append(
-            f'<span class="pa-compare-compact-chip pa-compare-compact-chip-tier-{html.escape(tier)}">'
-            f'<span class="pa-compare-compact-chip-label">{html.escape(label)}</span>'
-            f'<span class="pa-compare-compact-chip-val pa-compare-compact-tier-{html.escape(tier)}">'
-            f"{html.escape(tier_label)}</span>"
-            "</span>"
+        icon = xstats.XP_INDEX_ICONS.get(tier_key, "fa-circle")
+        tier_label = html.escape(xstats.XP_INDEX_TIER_LABELS.get(tier, "—"))
+        rows.append(
+            _compare_insight_row_html(
+                label,
+                tier_label,
+                icon=icon,
+                value_class=f"pa-compare-tier-{tier}",
+            )
         )
-    if not chips:
-        return ""
-    return (
-        '<div class="pa-compare-compact-block">'
-        '<span class="pa-compare-compact-label">xP indices</span>'
-        f'<div class="pa-compare-compact-chips">{"".join(chips)}</div>'
-        "</div>"
-    )
+    return "".join(rows)
 
 
 def _compare_component_stat_value(source: dict, key: str) -> str:
@@ -1682,15 +1700,15 @@ def _compare_column_xp_metrics_html(
 
 
 def _compare_column_insights_html(xp_profile: dict | None) -> str:
-    indices_html = _compare_xp_indices_compact_html(xp_profile)
-    mix_html = _compare_pass_mix_compact_html(xp_profile)
+    indices_html = _compare_xp_indices_list_html(xp_profile)
+    mix_html = _compare_pass_mix_list_html(xp_profile)
     if not indices_html and not mix_html:
         return ""
     return (
-        '<div class="pa-compare-col-insights">'
+        '<ul class="pa-compare-profile-list pa-compare-insight-list">'
         f"{indices_html}"
         f"{mix_html}"
-        "</div>"
+        "</ul>"
     )
 
 
@@ -3168,18 +3186,25 @@ st.markdown(
         flex-direction: column;
         gap: 0.75rem;
         width: 100%;
+        align-items: center;
     }
     .pa-compare-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 1rem;
+        grid-template-columns: repeat(2, minmax(0, 330px));
+        justify-content: center;
+        gap: 1.15rem;
         align-items: start;
         width: 100%;
+        max-width: 700px;
+        margin: 0 auto;
     }
     .pa-compare-player-card {
         display: flex;
         flex-direction: column;
         min-width: 0;
+        width: 100%;
+        max-width: 330px;
+        justify-self: center;
         padding: 0;
         border-radius: 14px;
         border: 1px solid #2a3550;
@@ -3195,8 +3220,8 @@ st.markdown(
     .pa-compare-col-head {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 1rem 1rem 0.85rem;
+        gap: 0.65rem;
+        padding: 0.85rem 0.9rem 0.75rem;
         border-bottom: 1px solid #243049;
         background: rgba(9, 14, 27, 0.35);
     }
@@ -3204,7 +3229,7 @@ st.markdown(
     .pa-compare-profile-list {
         list-style: none;
         margin: 0;
-        padding: 0.35rem 1rem 0.85rem;
+        padding: 0.3rem 0.9rem 0.75rem;
         border-bottom: 1px solid #1a2236;
         display: flex;
         flex-direction: column;
@@ -3248,7 +3273,7 @@ st.markdown(
         flex-shrink: 0;
     }
     .pa-compare-col-section {
-        padding: 0.7rem 1rem 0.35rem;
+        padding: 0.65rem 0.9rem 0.3rem;
         color: #93c5fd;
         font-size: 0.64rem;
         font-weight: 800;
@@ -3258,8 +3283,8 @@ st.markdown(
     .pa-compare-col-visual {
         display: flex;
         flex-direction: column;
-        gap: 0.65rem;
-        padding: 0.75rem 0 0.85rem;
+        gap: 0;
+        padding: 0.65rem 0 0;
         border-bottom: 1px solid #1a2236;
         background: rgba(9, 14, 27, 0.22);
     }
@@ -3267,88 +3292,40 @@ st.markdown(
         display: flex;
         align-items: center;
         justify-content: center;
-        width: calc(100% - 2rem);
-        margin: 0 auto;
-        aspect-ratio: 1.2;
-        min-height: 200px;
-        max-height: 280px;
-        padding: 0.5rem;
+        width: calc(100% - 1.4rem);
+        margin: 0 auto 0.55rem;
+        aspect-ratio: 1.15;
+        min-height: 190px;
+        max-height: 255px;
+        padding: 0.45rem;
         border-radius: 12px;
         background: rgba(9, 14, 27, 0.72);
         border: 1px solid rgba(51, 65, 85, 0.6);
         overflow: hidden;
         box-sizing: border-box;
     }
-    .pa-compare-col-insights {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.55rem;
-        padding: 0 1rem;
+    .pa-compare-insight-list {
+        padding-top: 0;
+        padding-bottom: 0.65rem;
+        border-bottom: none;
+        background: transparent;
     }
-    .pa-compare-compact-block {
-        display: flex;
+    .pa-compare-profile-row-passmix {
         flex-direction: column;
-        gap: 0.32rem;
-        min-width: 0;
-        height: 100%;
-        padding: 0.55rem 0.6rem;
-        border-radius: 10px;
-        background: rgba(9, 14, 27, 0.55);
-        border: 1px solid rgba(51, 65, 85, 0.55);
+        align-items: stretch;
+        gap: 0.38rem;
+        padding: 0.55rem 0 0.62rem;
     }
-    .pa-compare-compact-label {
-        color: #64748b;
-        font-size: 0.58rem;
-        font-weight: 800;
-        letter-spacing: 0.07em;
-        text-transform: uppercase;
-    }
-    .pa-compare-compact-chips {
+    .pa-compare-passmix-head {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.35rem;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.65rem;
     }
-    .pa-compare-compact-chip {
-        display: inline-flex;
-        flex-direction: column;
-        gap: 0.08rem;
-        min-width: 0;
-        padding: 0.28rem 0.45rem;
-        border-radius: 8px;
-        background: rgba(15, 23, 42, 0.72);
-        border: 1px solid rgba(51, 65, 85, 0.55);
-    }
-    .pa-compare-compact-chip-tier-elite {
-        border-color: rgba(56, 189, 248, 0.45);
-        background: linear-gradient(90deg, rgba(56, 189, 248, 0.12) 0%, rgba(15, 23, 42, 0.72) 100%);
-    }
-    .pa-compare-compact-chip-label {
-        color: #64748b;
-        font-size: 0.56rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-    }
-    .pa-compare-compact-chip-val {
-        color: #e2e8f0;
-        font-size: 0.74rem;
-        font-weight: 700;
-        line-height: 1.2;
-    }
-    .pa-compare-compact-tier-elite {
-        color: #38bdf8;
-        font-weight: 800;
-    }
-    .pa-compare-compact-tier-above { color: #4ade80; }
-    .pa-compare-compact-tier-mid { color: #fbbf24; }
-    .pa-compare-compact-tier-below { color: #f87171; }
-    .pa-compare-compact-meta {
-        color: #94a3b8;
-        font-size: 0.64rem;
-        font-weight: 600;
-        line-height: 1.3;
-    }
-    .pa-compare-compact-meta strong { color: #e2e8f0; }
+    .pa-compare-tier-elite { color: #38bdf8; font-weight: 800; }
+    .pa-compare-tier-above { color: #4ade80; font-weight: 800; }
+    .pa-compare-tier-mid { color: #fbbf24; font-weight: 700; }
+    .pa-compare-tier-below { color: #f87171; font-weight: 700; }
     .pa-pass-mix-track-compact {
         height: 0.52rem;
         margin-top: 0.05rem;
@@ -3361,14 +3338,14 @@ st.markdown(
         display: flex;
         flex-direction: column;
         gap: 0;
-        padding: 0.15rem 1rem 0.75rem;
+        padding: 0.1rem 0.9rem 0.7rem;
         border-bottom: 1px solid #1a2236;
     }
     .pa-compare-col-scores {
         display: flex;
         flex-direction: column;
         gap: 0.45rem;
-        padding: 0 1rem 1rem;
+        padding: 0 0.9rem 0.9rem;
     }
     .pa-compare-score-accordion {
         border: 1px solid rgba(59, 130, 246, 0.16);
@@ -3512,12 +3489,10 @@ st.markdown(
         font-size: 0.72rem;
         font-style: italic;
     }
-    @media (max-width: 960px) {
+    @media (max-width: 760px) {
         .pa-compare-grid {
-            grid-template-columns: 1fr;
-        }
-        .pa-compare-col-insights {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 330px);
+            max-width: 330px;
         }
     }
     .pa-xp-compare-card {
