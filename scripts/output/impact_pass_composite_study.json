@@ -1,0 +1,403 @@
+{
+  "feature_summary": {
+    "n_passes": 308469,
+    "xp": {
+      "mean": 0.3502,
+      "p50": 0.3288,
+      "p90": 0.6917,
+      "p95": 0.7865
+    },
+    "residual": {
+      "mean": 0.0066,
+      "p50": -0.0047,
+      "p90": 0.1511
+    },
+    "progress_ratio": {
+      "mean": 0.0584,
+      "p50": 0.0971,
+      "share_forward": 0.5215,
+      "share_backward": 0.4283
+    },
+    "correlations": {
+      "xp_vs_residual": 0.5267,
+      "xp_vs_progress": 0.6445,
+      "residual_vs_progress": 0.2223
+    }
+  },
+  "pca_weights_band": {
+    "xp": 0.3144173059677571,
+    "residual": 0.5129297294870805,
+    "progress": 0.1726529645451624
+  },
+  "invvar_weights_band": {
+    "xp": 0.3389726952281373,
+    "residual": 0.1757274604134725,
+    "progress": 0.48529984435839013
+  },
+  "n_variants_tested": 160,
+  "top_10_variants": [
+    {
+      "label": "global_z · Value+surprise (45/45/10) · P97 global",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 2.39,
+      "long_rate_pct": 7.974,
+      "jaccard_vs_threat_m4": 0.3561,
+      "player_rate_spearman": 0.6498,
+      "mean_xp_flagged": 0.8044,
+      "mean_xp_other": 0.3361,
+      "mean_res_flagged": 0.308,
+      "mean_prog_flagged": 0.8674,
+      "cohens_d_xp": 2.822,
+      "cohens_d_res": 3.993,
+      "cohens_d_prog": 1.784,
+      "score": 2.7728499999999996
+    },
+    {
+      "label": "global_z · PCA band (0.31/0.51/0.17) · P97 global",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 2.476,
+      "long_rate_pct": 7.277,
+      "jaccard_vs_threat_m4": 0.3683,
+      "player_rate_spearman": 0.6459,
+      "mean_xp_flagged": 0.794,
+      "mean_xp_other": 0.3365,
+      "mean_res_flagged": 0.3108,
+      "mean_prog_flagged": 0.8647,
+      "cohens_d_xp": 2.726,
+      "cohens_d_res": 4.09,
+      "cohens_d_prog": 1.775,
+      "score": 2.7718499999999997
+    },
+    {
+      "label": "global_z · Residual-heavy (30/50/20) · P97 global",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 2.479,
+      "long_rate_pct": 7.253,
+      "jaccard_vs_threat_m4": 0.3686,
+      "player_rate_spearman": 0.6391,
+      "mean_xp_flagged": 0.7941,
+      "mean_xp_other": 0.3365,
+      "mean_res_flagged": 0.3107,
+      "mean_prog_flagged": 0.8674,
+      "cohens_d_xp": 2.726,
+      "cohens_d_res": 4.085,
+      "cohens_d_prog": 1.783,
+      "score": 2.7713
+    },
+    {
+      "label": "global_z · xP+residual only (50/50/0) · P97 global",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 2.387,
+      "long_rate_pct": 8.004,
+      "jaccard_vs_threat_m4": 0.3552,
+      "player_rate_spearman": 0.6549,
+      "mean_xp_flagged": 0.8028,
+      "mean_xp_other": 0.3362,
+      "mean_res_flagged": 0.3086,
+      "mean_prog_flagged": 0.8572,
+      "cohens_d_xp": 2.808,
+      "cohens_d_res": 4.014,
+      "cohens_d_prog": 1.754,
+      "score": 2.7708
+    },
+    {
+      "label": "global_z · Progress-heavy (35/35/30) · P97 global",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 2.392,
+      "long_rate_pct": 7.959,
+      "jaccard_vs_threat_m4": 0.3558,
+      "player_rate_spearman": 0.6299,
+      "mean_xp_flagged": 0.8072,
+      "mean_xp_other": 0.3361,
+      "mean_res_flagged": 0.3059,
+      "mean_prog_flagged": 0.8893,
+      "cohens_d_xp": 2.844,
+      "cohens_d_res": 3.925,
+      "cohens_d_prog": 1.85,
+      "score": 2.7666499999999994
+    },
+    {
+      "label": "global_z · Equal (⅓ each) · P97 global",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 2.39,
+      "long_rate_pct": 7.974,
+      "jaccard_vs_threat_m4": 0.3551,
+      "player_rate_spearman": 0.6224,
+      "mean_xp_flagged": 0.8077,
+      "mean_xp_other": 0.336,
+      "mean_res_flagged": 0.3054,
+      "mean_prog_flagged": 0.8928,
+      "cohens_d_xp": 2.848,
+      "cohens_d_res": 3.91,
+      "cohens_d_prog": 1.86,
+      "score": 2.7643
+    },
+    {
+      "label": "global_z · Balanced (45/35/20) · P97 global",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 2.319,
+      "long_rate_pct": 8.553,
+      "jaccard_vs_threat_m4": 0.3449,
+      "player_rate_spearman": 0.6355,
+      "mean_xp_flagged": 0.8132,
+      "mean_xp_other": 0.3359,
+      "mean_res_flagged": 0.304,
+      "mean_prog_flagged": 0.8836,
+      "cohens_d_xp": 2.901,
+      "cohens_d_res": 3.865,
+      "cohens_d_prog": 1.833,
+      "score": 2.7630500000000002
+    },
+    {
+      "label": "global_z · xP-heavy (50/35/15) · P97 global",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 2.284,
+      "long_rate_pct": 8.838,
+      "jaccard_vs_threat_m4": 0.3396,
+      "player_rate_spearman": 0.6384,
+      "mean_xp_flagged": 0.8162,
+      "mean_xp_other": 0.3358,
+      "mean_res_flagged": 0.3027,
+      "mean_prog_flagged": 0.881,
+      "cohens_d_xp": 2.931,
+      "cohens_d_res": 3.828,
+      "cohens_d_prog": 1.826,
+      "score": 2.7595499999999995
+    },
+    {
+      "label": "band_z · Value+surprise (45/45/10) · P97 per-band",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 3.0,
+      "long_rate_pct": 3.0,
+      "jaccard_vs_threat_m4": 0.4067,
+      "player_rate_spearman": 0.6719,
+      "mean_xp_flagged": 0.7875,
+      "mean_xp_other": 0.3367,
+      "mean_res_flagged": 0.3052,
+      "mean_prog_flagged": 0.8654,
+      "cohens_d_xp": 2.702,
+      "cohens_d_res": 3.912,
+      "cohens_d_prog": 1.776,
+      "score": 2.7013
+    },
+    {
+      "label": "global_z · Value+surprise (45/45/10) · P97 per-band",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 3.0,
+      "long_rate_pct": 3.0,
+      "jaccard_vs_threat_m4": 0.4048,
+      "player_rate_spearman": 0.6689,
+      "mean_xp_flagged": 0.7869,
+      "mean_xp_other": 0.3367,
+      "mean_res_flagged": 0.3054,
+      "mean_prog_flagged": 0.865,
+      "cohens_d_xp": 2.699,
+      "cohens_d_res": 3.915,
+      "cohens_d_prog": 1.775,
+      "score": 2.7011499999999997
+    }
+  ],
+  "best_per_norm": [
+    {
+      "label": "global_z · Value+surprise (45/45/10) · P97 global",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 2.39,
+      "long_rate_pct": 7.974,
+      "jaccard_vs_threat_m4": 0.3561,
+      "player_rate_spearman": 0.6498,
+      "mean_xp_flagged": 0.8044,
+      "mean_xp_other": 0.3361,
+      "mean_res_flagged": 0.308,
+      "mean_prog_flagged": 0.8674,
+      "cohens_d_xp": 2.822,
+      "cohens_d_res": 3.993,
+      "cohens_d_prog": 1.784,
+      "score": 2.7728499999999996
+    },
+    {
+      "label": "band_z · Value+surprise (45/45/10) · P97 per-band",
+      "flag_rate_pct": 3.0,
+      "short_rate_pct": 3.0,
+      "long_rate_pct": 3.0,
+      "jaccard_vs_threat_m4": 0.4067,
+      "player_rate_spearman": 0.6719,
+      "mean_xp_flagged": 0.7875,
+      "mean_xp_other": 0.3367,
+      "mean_res_flagged": 0.3052,
+      "mean_prog_flagged": 0.8654,
+      "cohens_d_xp": 2.702,
+      "cohens_d_res": 3.912,
+      "cohens_d_prog": 1.776,
+      "score": 2.7013
+    }
+  ],
+  "ablation": [
+    {
+      "label": "ablation · Equal (⅓ each) · P90 band",
+      "flag_rate_pct": 10.0,
+      "short_rate_pct": 10.0,
+      "long_rate_pct": 10.001,
+      "jaccard_vs_threat_m4": 0.6913,
+      "player_rate_spearman": 0.9013,
+      "mean_xp_flagged": 0.7161,
+      "mean_xp_other": 0.3095,
+      "mean_res_flagged": 0.2172,
+      "mean_prog_flagged": 0.8082,
+      "cohens_d_xp": 2.384,
+      "cohens_d_res": 2.891,
+      "cohens_d_prog": 1.762
+    },
+    {
+      "label": "ablation · Balanced (45/35/20) · P90 band",
+      "flag_rate_pct": 10.0,
+      "short_rate_pct": 10.0,
+      "long_rate_pct": 10.001,
+      "jaccard_vs_threat_m4": 0.7031,
+      "player_rate_spearman": 0.9073,
+      "mean_xp_flagged": 0.7211,
+      "mean_xp_other": 0.309,
+      "mean_res_flagged": 0.2171,
+      "mean_prog_flagged": 0.7852,
+      "cohens_d_xp": 2.473,
+      "cohens_d_res": 2.887,
+      "cohens_d_prog": 1.679
+    },
+    {
+      "label": "ablation · xP+residual only (50/50/0) · P90 band",
+      "flag_rate_pct": 10.0,
+      "short_rate_pct": 10.0,
+      "long_rate_pct": 10.001,
+      "jaccard_vs_threat_m4": 0.7112,
+      "player_rate_spearman": 0.9194,
+      "mean_xp_flagged": 0.7135,
+      "mean_xp_other": 0.3098,
+      "mean_res_flagged": 0.2214,
+      "mean_prog_flagged": 0.7401,
+      "cohens_d_xp": 2.371,
+      "cohens_d_res": 3.029,
+      "cohens_d_prog": 1.52
+    }
+  ],
+  "player_leaders_recommended": [
+    {
+      "player_id": "948261",
+      "player_name": "Morgan Rogers",
+      "passes": 730,
+      "threat_rate": 0.14931506849315068,
+      "composite_rate": 0.18904109589041096,
+      "xp_per_pass": 0.3899699985757781
+    },
+    {
+      "player_id": "907072",
+      "player_name": "Mikkel Damsgaard",
+      "passes": 707,
+      "threat_rate": 0.1272984441301273,
+      "composite_rate": 0.18104667609618105,
+      "xp_per_pass": 0.4078050577097384
+    },
+    {
+      "player_id": "327755",
+      "player_name": "Nadiem Amiri",
+      "passes": 863,
+      "threat_rate": 0.11703360370799537,
+      "composite_rate": 0.1761297798377752,
+      "xp_per_pass": 0.4090936316409309
+    },
+    {
+      "player_id": "1109771",
+      "player_name": "Adam Wharton",
+      "passes": 978,
+      "threat_rate": 0.10940695296523517,
+      "composite_rate": 0.16359918200409,
+      "xp_per_pass": 0.4193084676526356
+    },
+    {
+      "player_id": "363860",
+      "player_name": "Manuel Locatelli",
+      "passes": 2410,
+      "threat_rate": 0.11535269709543569,
+      "composite_rate": 0.16307053941908714,
+      "xp_per_pass": 0.43488489742157765
+    },
+    {
+      "player_id": "877262",
+      "player_name": "Edu Expósito",
+      "passes": 773,
+      "threat_rate": 0.11384217335058215,
+      "composite_rate": 0.15653298835705046,
+      "xp_per_pass": 0.42701222532921407
+    },
+    {
+      "player_id": "994556",
+      "player_name": "Carney Chukwuemeka",
+      "passes": 321,
+      "threat_rate": 0.13707165109034267,
+      "composite_rate": 0.1557632398753894,
+      "xp_per_pass": 0.3830003629036703
+    },
+    {
+      "player_id": "851222",
+      "player_name": "Mehdi Léris",
+      "passes": 410,
+      "threat_rate": 0.10975609756097561,
+      "composite_rate": 0.15365853658536585,
+      "xp_per_pass": 0.3522888793051796
+    },
+    {
+      "player_id": "879694",
+      "player_name": "Pape Gueye",
+      "passes": 867,
+      "threat_rate": 0.09803921568627451,
+      "composite_rate": 0.14878892733564014,
+      "xp_per_pass": 0.3906330177129649
+    },
+    {
+      "player_id": "1142248",
+      "player_name": "Arijon Ibrahimović",
+      "passes": 559,
+      "threat_rate": 0.11091234347048301,
+      "composite_rate": 0.148479427549195,
+      "xp_per_pass": 0.3790373080441508
+    },
+    {
+      "player_id": "866469",
+      "player_name": "Bruno Guimarães",
+      "passes": 1220,
+      "threat_rate": 0.10737704918032787,
+      "composite_rate": 0.14508196721311475,
+      "xp_per_pass": 0.3992141094009397
+    },
+    {
+      "player_id": "801263",
+      "player_name": "Jakub Kamiński",
+      "passes": 801,
+      "threat_rate": 0.11485642946317104,
+      "composite_rate": 0.14481897627965043,
+      "xp_per_pass": 0.3634881299462983
+    },
+    {
+      "player_id": "1048650",
+      "player_name": "Rocco Reitz",
+      "passes": 948,
+      "threat_rate": 0.10337552742616034,
+      "composite_rate": 0.14451476793248946,
+      "xp_per_pass": 0.3627982125614848
+    },
+    {
+      "player_id": "288205",
+      "player_name": "Bruno Fernandes",
+      "passes": 1614,
+      "threat_rate": 0.09727385377942999,
+      "composite_rate": 0.14374225526641884,
+      "xp_per_pass": 0.4127045975917598
+    },
+    {
+      "player_id": "837080",
+      "player_name": "Antoine Bernede",
+      "passes": 675,
+      "threat_rate": 0.10518518518518519,
+      "composite_rate": 0.1437037037037037,
+      "xp_per_pass": 0.3662616364723057
+    }
+  ]
+}

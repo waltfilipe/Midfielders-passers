@@ -435,6 +435,62 @@ def _sum_xp(mask: np.ndarray, xp: np.ndarray) -> float:
     return float(xp[mask].sum())
 
 
+XP_ROUND_SERIES_KEY = "xp_round_series"
+
+
+def _opponent_array(scored: pd.DataFrame) -> np.ndarray:
+    needed = {"home_team", "away_team", "team"}
+    if not needed.issubset(scored.columns):
+        return np.full(len(scored), "", dtype=object)
+    team = scored["team"].astype(str).to_numpy()
+    home = scored["home_team"].astype(str).to_numpy()
+    away = scored["away_team"].astype(str).to_numpy()
+    return np.where(team == home, away, home)
+
+
+def round_production_series(scored: pd.DataFrame) -> tuple[dict[str, float | int | str], ...]:
+    """Per-match xP and I.P. production ordered by match date, for the profile chart."""
+    if scored is None or scored.empty or "event_id" not in scored.columns:
+        return ()
+    work = pd.DataFrame({
+        "event_id": scored["event_id"].astype(str).to_numpy(),
+        "xp": scored[XP_COL].to_numpy(dtype=float),
+        "impact": (
+            scored[THREAT_COL].to_numpy(dtype=bool)
+            if THREAT_COL in scored.columns
+            else np.zeros(len(scored), dtype=bool)
+        ),
+        "date": (
+            scored["match_date"].astype(str).to_numpy()
+            if "match_date" in scored.columns
+            else np.full(len(scored), "", dtype=object)
+        ),
+        "opponent": _opponent_array(scored),
+    })
+    grouped = (
+        work.groupby("event_id", sort=False)
+        .agg(
+            xp=("xp", "sum"),
+            impact=("impact", "sum"),
+            passes=("xp", "size"),
+            date=("date", "first"),
+            opponent=("opponent", "first"),
+        )
+        .sort_values(["date", "event_id"], kind="stable")
+    )
+    return tuple(
+        {
+            "round": index,
+            "date": str(row.date),
+            "opponent": str(row.opponent),
+            "xp": round(float(row.xp), 3),
+            "impact": int(row.impact),
+            "passes": int(row.passes),
+        }
+        for index, row in enumerate(grouped.itertuples(), start=1)
+    )
+
+
 def compute_extended_xp_stats(grp: pd.DataFrame) -> dict[str, float | int]:
     """Compute full xP stat bundle for one player's season passes."""
     import xp_engine as xe
@@ -523,10 +579,12 @@ def compute_extended_xp_stats(grp: pd.DataFrame) -> dict[str, float | int]:
         out["xp_game_std"] = float(game_xp.std()) if len(game_xp) > 1 else 0.0
         med = float(game_xp.median()) if len(game_xp) else 0.0
         out["xp_games_above_median_pct"] = float((game_xp > med).mean()) if len(game_xp) else 0.0
+        out[XP_ROUND_SERIES_KEY] = round_production_series(scored)
     else:
         out["xp_game_mean"] = 0.0
         out["xp_game_std"] = 0.0
         out["xp_games_above_median_pct"] = 0.0
+        out[XP_ROUND_SERIES_KEY] = ()
 
     return out
 
@@ -758,14 +816,10 @@ XP_INDEX_ICONS: dict[str, str] = {
 # composite of the badge metrics. (badge_key, label, metrics, icon)
 XP_BADGE_TOP_SIZE = 25
 XP_BADGE_SPECS: tuple[tuple[str, str, tuple[str, ...], str], ...] = (
-    ("xp_badge_impact", "Impact", ("xp_per_90", "xp_m4_per_pass"), "fa-bolt"),
     ("xp_badge_threat", IMPACT_PASS_ABBR, ("threat_passes_p90", "xp_m4_per_threat_pass"), "fa-crosshairs"),
 )
 
 XP_BADGE_TOOLTIPS: dict[str, str] = {
-    "xp_badge_impact": (
-        "Top 25 in campo ofensivo or campo defensivo in xP per game and xP per pass."
-    ),
     "xp_badge_threat": (
         f"Top 25 in campo ofensivo or campo defensivo in {IMPACT_PASS_ABBR} per game "
         f"and xP per {IMPACT_PASS_ABBR}."
@@ -1007,6 +1061,7 @@ XP_STATS_LABELS: dict[str, str] = {
     "xp_per_90": "xP (Per game)",
     "threat_passes_p90": f"{IMPACT_PASS_ABBR} (Per game)",
     "xp_m4_total": "xP Total",
+    "xp_m4_threat_passes": f"{IMPACT_PASS_ABBR} Total",
     "xp_m4_threat_passes_p90": f"xP {IMPACT_PASS_ABBR} (Per game)",
     "xp_m4_per_pass": "xP/Pass",
     "xp_m4_per_threat_pass": f"xP/{IMPACT_PASS_ABBR}",
@@ -1087,7 +1142,7 @@ XP_PA_TOOLTIPS: dict[str, str] = {
     "xp_per_90": "xP volume from passing, normalized per 90 minutes.",
     "threat_passes_p90": (
         f"{IMPACT_PASS_ABBR} per game — composite score (45% xP + 35% residual + 20% progress) "
-        "in the top 10% for distance band, with forward progress ≥ P60."
+        "in the top 7.5% for distance band, with forward progress ≥ P65."
     ),
     "xp_m4_per_pass": "Average xP per pass — measures the efficiency of each delivery.",
     "xp_m4_per_threat_pass": f"Average xP on {IMPACT_PASS_ABBR} (surprise + high value for distance).",
@@ -1838,12 +1893,11 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
             row["metric_ranks"] = metric_ranks
 
 
-PASS_LENGTH_BADGE_PERCENTILE = 67.0
-PASS_LENGTH_BADGE_MIN_SHARE = 0.38
+PASS_LENGTH_MIN_PEERS = 5
 
 
-def attach_pass_length_share_badges(players: list[dict]) -> None:
-    """Flag players in the top third of short/long pass share within profile peers."""
+def attach_pass_length_profile(players: list[dict]) -> None:
+    """Long/short pass share per player plus the peer average inside the same rank pool."""
     if not players:
         return
 
@@ -1852,43 +1906,38 @@ def attach_pass_length_share_badges(players: list[dict]) -> None:
         pools.setdefault(_metric_rank_pool_key(player), []).append(player)
 
     for rows in pools.values():
+        shares: list[float] = []
         for row in rows:
-            row.pop("pass_length_badge_long", None)
-            row.pop("pass_length_badge_short", None)
             short = float(row.get("passes_short") or 0.0)
             long_ = float(row.get("passes_long") or 0.0)
             band_total = short + long_
             if band_total > 0:
-                row["long_pass_share_pct"] = round(long_ / band_total * 100.0, 1)
-                row["short_pass_share_pct"] = round(short / band_total * 100.0, 1)
+                long_share = long_ / band_total * 100.0
+                row["long_pass_share_pct"] = round(long_share, 1)
+                row["short_pass_share_pct"] = round(100.0 - long_share, 1)
+                shares.append(long_share)
             else:
-                row["long_pass_share_pct"] = 0.0
-                row["short_pass_share_pct"] = 0.0
+                row["long_pass_share_pct"] = None
+                row["short_pass_share_pct"] = None
 
-        long_entries: list[tuple[dict, float]] = []
-        short_entries: list[tuple[dict, float]] = []
-        for row in rows:
-            try:
-                long_share = float(row.get("long_pass_share_pct") or 0.0) / 100.0
-                short_share = float(row.get("short_pass_share_pct") or 0.0) / 100.0
-            except (TypeError, ValueError):
-                continue
-            if long_share > 0:
-                long_entries.append((row, long_share))
-            if short_share > 0:
-                short_entries.append((row, short_share))
-
-        if len(long_entries) < 3 or len(short_entries) < 3:
+        if len(shares) < PASS_LENGTH_MIN_PEERS:
+            for row in rows:
+                row["long_pass_share_peer_avg_pct"] = None
+                row["long_pass_share_peer_count"] = len(shares)
+                row["long_pass_share_pctile"] = None
             continue
 
-        long_cut = float(np.percentile([share for _, share in long_entries], PASS_LENGTH_BADGE_PERCENTILE))
-        short_cut = float(np.percentile([share for _, share in short_entries], PASS_LENGTH_BADGE_PERCENTILE))
-        for row, share in long_entries:
-            if share >= long_cut and share >= PASS_LENGTH_BADGE_MIN_SHARE:
-                row["pass_length_badge_long"] = True
-        for row, share in short_entries:
-            if share >= short_cut and share >= PASS_LENGTH_BADGE_MIN_SHARE:
-                row["pass_length_badge_short"] = True
+        sorted_shares = np.sort(np.asarray(shares, dtype=float))
+        peer_avg = round(float(sorted_shares.mean()), 1)
+        for row in rows:
+            row["long_pass_share_peer_avg_pct"] = peer_avg
+            row["long_pass_share_peer_count"] = len(shares)
+            share = row.get("long_pass_share_pct")
+            if share is None:
+                row["long_pass_share_pctile"] = None
+                continue
+            rank = float(np.searchsorted(sorted_shares, float(share), side="right"))
+            row["long_pass_share_pctile"] = round(rank / len(sorted_shares) * 100.0, 1)
 
 
 def attach_distance_indices(players: list[dict]) -> None:
@@ -2127,6 +2176,8 @@ def format_stats_value(key: str, value: float | int | None) -> str:
         return f"{val:.2f}"
     if key.startswith("xp_m4_threat_rate"):
         return f"{100 * val:.1f}%"
+    if key == "xp_m4_threat_passes":
+        return f"{int(val):,}"
     if key.endswith("_rate") or key.endswith("_share") or key.endswith("_pct") or key == "xp_surprise_rate" or key == "xp_threat_conversion":
         return f"{100 * val:.1f}%"
     if key.startswith("xp_m4_per_pass_") or key == "xp_m4_per_pass_final_third":

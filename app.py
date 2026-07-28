@@ -491,34 +491,15 @@ def _rating_badges_html(player: dict) -> str:
 # xP profile achievement badges shown on the player identity card.
 # (key, icon, css_class)
 _XP_IDENTITY_BADGES: tuple[tuple[str, str, str], ...] = (
-    ("impact", "fa-bolt", "impact"),
     ("threat", "fa-crosshairs", "threat"),
     ("consistency", "fa-wave-square", "consistency"),
 )
-
-
-def _pa_pass_length_badges_html(xp_profile: dict | None) -> str:
-    if not xp_profile:
-        return ""
-    badges: list[str] = []
-    if xp_profile.get("pass_length_badge_long"):
-        badges.append(
-            '<span class="pa-pass-length-badge pa-pass-length-badge-long" title="Alta % de passes longos">Longo</span>'
-        )
-    if xp_profile.get("pass_length_badge_short"):
-        badges.append(
-            '<span class="pa-pass-length-badge pa-pass-length-badge-short" title="Alta % de passes curtos">Curto</span>'
-        )
-    if not badges:
-        return ""
-    return f'<div class="pa-pass-length-badges">{"".join(badges)}</div>'
 
 
 def _xp_identity_badges_html(xp_profile: dict | None) -> str:
     if not xp_profile or not xp_profile.get("xp_profile_bars_eligible", True):
         return ""
     earned_flags = {
-        "impact": bool(xp_profile.get("xp_badge_impact_earned")),
         "threat": bool(xp_profile.get("xp_badge_threat_earned")),
         "consistency": xp_profile.get("xp_idx_consistency_tier") == "above",
     }
@@ -3728,93 +3709,175 @@ st.markdown(
         gap: 0.35rem;
     }
     .pa-pass-grade-card {
-        padding: 0.8rem 0.85rem 0.95rem;
+        padding: 0.7rem 0.75rem 0.75rem;
         margin-bottom: 0;
         flex-shrink: 0;
         display: flex;
         flex-direction: column;
-        gap: 0.55rem;
+        gap: 0.5rem;
         overflow: visible;
     }
-    .pa-pass-grade-title {
-        margin: 0;
-        color: #cbd5e1;
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
+    .pa-pass-grade-head {
+        display: flex;
+        align-items: center;
+        gap: 0.42rem;
     }
-    .pa-pass-grade-shell {
-        position: relative;
-        padding: 0.2rem 1.15rem 2.15rem;
-        overflow: visible;
-    }
-    .pa-pass-grade-track {
-        position: relative;
-        height: 0.72rem;
-        border-radius: 999px;
-        overflow: hidden;
-        background: linear-gradient(90deg, #7f1d1d 0%, #b45309 24%, #ca8a04 42%, #65a30d 68%, #16a34a 100%);
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    }
-    .pa-pass-grade-track::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(15,23,42,0.18));
-        pointer-events: none;
-    }
-    .pa-pass-grade-glow {
-        position: absolute;
-        top: 50%;
-        width: 2.4rem;
-        height: 2.4rem;
-        transform: translate(-50%, -50%);
-        border-radius: 999px;
-        background: radial-gradient(circle, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.0) 72%);
-        pointer-events: none;
-        z-index: 1;
-    }
-    .pa-pass-grade-tier-warm .pa-pass-grade-glow {
-        background: radial-gradient(circle, rgba(250,204,21,0.45) 0%, rgba(250,204,21,0.0) 72%);
-    }
-    .pa-pass-grade-tier-hot .pa-pass-grade-glow {
-        background: radial-gradient(circle, rgba(74,222,128,0.5) 0%, rgba(74,222,128,0.0) 72%);
-    }
-    .pa-pass-grade-chip-wrap {
-        position: absolute;
-        top: 1.1rem;
-        transform: translateX(-50%);
-        z-index: 2;
-        max-width: calc(100% - 0.5rem);
-    }
-    .pa-pass-grade-chip {
+    .pa-pass-grade-icon {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 3rem;
-        padding: 0.36rem 0.68rem;
-        border-radius: 10px;
-        font-size: 1.22rem;
-        font-weight: 800;
-        letter-spacing: 0.01em;
-        color: #f8fafc;
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-        background: linear-gradient(160deg, rgba(30, 41, 59, 0.92) 0%, rgba(15, 23, 42, 0.96) 100%);
+        width: 1.4rem;
+        height: 1.4rem;
+        border-radius: 7px;
+        font-size: 0.66rem;
+        color: #93c5fd;
+        background: rgba(59, 130, 246, 0.16);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .pa-pass-grade-title {
+        margin: 0;
+        color: #93c5fd;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+    .pa-pass-grade-tier {
+        margin-left: auto;
+        padding: 0.16rem 0.46rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
         white-space: nowrap;
     }
-    .pa-pass-grade-chip.pa-pass-grade-low-sample {
-        opacity: 0.82;
+    .pa-pass-grade-body {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.7rem;
     }
-    .pa-pass-grade-meta {
-        margin: 0.42rem 0 0;
-        text-align: center;
-        color: #94a3b8;
+    .pa-pass-grade-value {
+        display: flex;
+        align-items: baseline;
+        gap: 0.18rem;
+        flex: 0 0 auto;
+    }
+    .pa-pass-grade-score {
+        font-size: 1.9rem;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        text-shadow: 0 2px 10px rgba(2, 6, 23, 0.45);
+    }
+    .pa-pass-grade-score.pa-pass-grade-low-sample { opacity: 0.72; }
+    .pa-pass-grade-scale {
+        color: #64748b;
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+    .pa-pass-grade-meter {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding-bottom: 0.1rem;
+    }
+    .pa-pass-grade-track {
+        position: relative;
+        height: 0.45rem;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #7f1d1d 0%, #b45309 24%, #ca8a04 42%, #65a30d 68%, #16a34a 100%);
+        box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.42);
+    }
+    /* Clips the dimming overlay to the rounded track; the marker stays outside it. */
+    .pa-pass-grade-shade {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        overflow: hidden;
+    }
+    /* Dims the portion of the scale the player has not reached. */
+    .pa-pass-grade-rest {
+        position: absolute;
+        top: 0;
+        right: 0;
+        height: 100%;
+        background: rgba(11, 17, 32, 0.78);
+    }
+    .pa-pass-grade-elite { border-color: rgba(74, 222, 128, 0.35); }
+    .pa-pass-grade-low { border-color: rgba(248, 113, 113, 0.3); }
+    .pa-pass-grade-marker {
+        position: absolute;
+        top: 50%;
+        width: 0.62rem;
+        height: 0.62rem;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        background: #f8fafc;
+        border: 2px solid #f8fafc;
+        box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.9), 0 2px 6px rgba(2, 6, 23, 0.5);
+    }
+    .pa-pass-grade-axis {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.28rem;
+        color: #64748b;
+        font-size: 0.58rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+    }
+    .pa-pass-grade-foot {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 0.9rem;
+    }
+    .pa-pass-grade-rank {
+        color: #7dd3fc;
+        font-size: 0.64rem;
+        font-weight: 600;
+    }
+    .pa-pass-grade-flag {
+        margin-left: auto;
+        color: #fbbf24;
+        font-size: 0.6rem;
+        font-weight: 600;
+        cursor: help;
+    }
+    .pa-pass-grade-drivers {
+        display: flex;
+        flex-direction: column;
+        gap: 0.22rem;
+        padding-top: 0.45rem;
+        border-top: 1px solid rgba(51, 65, 85, 0.55);
+    }
+    .pa-pass-grade-driver {
+        display: flex;
+        align-items: baseline;
+        gap: 0.4rem;
+    }
+    .pa-pass-grade-driver-name {
+        color: #cbd5e1;
         font-size: 0.66rem;
         font-weight: 600;
-        letter-spacing: 0.03em;
+        white-space: nowrap;
+    }
+    .pa-pass-grade-driver-dots {
+        flex: 1;
+        height: 1px;
+        min-width: 0.6rem;
+        background: linear-gradient(90deg, rgba(100, 116, 139, 0.4), rgba(100, 116, 139, 0.1));
+    }
+    .pa-pass-grade-driver-val {
+        color: #e2e8f0;
+        font-size: 0.68rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    .pa-pass-grade-driver-rank {
+        color: #7dd3fc;
+        font-size: 0.6rem;
+        font-weight: 600;
+        white-space: nowrap;
     }
     .pa-rating-panel {
         padding: 0.65rem 0.8rem;
@@ -4201,6 +4264,253 @@ st.markdown(
     }
     .pa-xp-index-row-locked .pa-xp-index-row-val { color: #64748b; }
     .pa-xp-index-row-locked { opacity: 0.75; }
+    .pa-xp-index-row-hastip { position: relative; }
+    .pa-xp-index-tipbox {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 8px);
+        transform: translateX(-50%);
+        min-width: 13rem;
+        max-width: 17rem;
+        padding: 0.5rem 0.6rem;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: rgba(15, 23, 42, 0.97);
+        color: #e2e8f0;
+        font-size: 0.72rem;
+        line-height: 1.35;
+        text-align: left;
+        white-space: normal;
+        box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.14s ease, visibility 0.14s ease;
+        z-index: 30;
+    }
+    .pa-xp-index-row-hastip:hover .pa-xp-index-tipbox,
+    .pa-xp-index-row-hastip:focus-within .pa-xp-index-tipbox {
+        opacity: 1;
+        visibility: visible;
+    }
+    .pa-xp-index-tip-title {
+        display: block;
+        margin-bottom: 0.28rem;
+        color: #93c5fd;
+        font-size: 0.64rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+    .pa-xp-index-tip-summary {
+        display: block;
+        margin-bottom: 0.4rem;
+        color: #94a3b8;
+        font-size: 0.68rem;
+        font-weight: 500;
+        line-height: 1.3;
+    }
+    .pa-xp-index-tip-line {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-top: 0.22rem;
+    }
+    .pa-xp-index-tip-metric {
+        color: #e2e8f0;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .pa-xp-index-tip-rank {
+        color: #7dd3fc;
+        font-size: 0.64rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .pa-xp-index-details {
+        border-radius: 9px;
+    }
+    .pa-xp-index-details > summary {
+        list-style: none;
+        cursor: pointer;
+    }
+    .pa-xp-index-details > summary::-webkit-details-marker { display: none; }
+    .pa-xp-index-details > summary::marker { content: ""; }
+    .pa-xp-index-arrow {
+        margin-left: 0.4rem;
+        color: #94a3b8;
+        font-size: 0.6rem;
+        transition: transform 0.18s ease;
+    }
+    .pa-xp-index-details[open] .pa-xp-index-arrow { transform: rotate(90deg); }
+    .pa-xp-index-details-body {
+        margin-top: 0.32rem;
+        padding: 0.5rem 0.55rem 0.55rem;
+        border-radius: 9px;
+        border: 1px solid rgba(51, 65, 85, 0.5);
+        background: rgba(9, 14, 27, 0.6);
+    }
+    .pa-round-chart-title {
+        margin: 0 0 0.35rem;
+        color: #93c5fd;
+        font-size: 0.6rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+    .pa-round-chart-wrap { width: 100%; }
+    .pa-round-chart {
+        display: block;
+        width: 100%;
+        height: 74px;
+        overflow: visible;
+    }
+    .pa-round-chart-area {
+        fill: rgba(56, 189, 248, 0.16);
+        stroke: none;
+    }
+    .pa-round-chart-line {
+        fill: none;
+        stroke: #38bdf8;
+        stroke-width: 1.6;
+        stroke-linejoin: round;
+        stroke-linecap: round;
+        vector-effect: non-scaling-stroke;
+    }
+    .pa-round-chart-mean {
+        stroke: rgba(148, 163, 184, 0.6);
+        stroke-width: 1;
+        stroke-dasharray: 3 3;
+        vector-effect: non-scaling-stroke;
+    }
+    .pa-round-chart-dot {
+        fill: #0f172a;
+        stroke: #38bdf8;
+        stroke-width: 1.2;
+        vector-effect: non-scaling-stroke;
+        cursor: help;
+    }
+    .pa-round-chart-dot-peak {
+        fill: #4ade80;
+        stroke: #4ade80;
+    }
+    .pa-round-chart-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin-top: 0.3rem;
+        color: #94a3b8;
+        font-size: 0.6rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+    .pa-round-chart-legend-mean { color: #cbd5e1; }
+    .pa-round-chart-empty {
+        margin: 0;
+        color: #64748b;
+        font-size: 0.66rem;
+        font-style: italic;
+    }
+    .pa-pass-mix-card {
+        padding: 0.65rem 0.7rem 0.7rem;
+        margin-bottom: 0;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        overflow: visible;
+    }
+    .pa-pass-mix-head {
+        display: flex;
+        align-items: center;
+        gap: 0.42rem;
+    }
+    .pa-pass-mix-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.4rem;
+        height: 1.4rem;
+        border-radius: 7px;
+        font-size: 0.66rem;
+        color: #93c5fd;
+        background: rgba(59, 130, 246, 0.16);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .pa-pass-mix-title {
+        color: #93c5fd;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+    .pa-pass-mix-delta {
+        margin-left: auto;
+        padding: 0.14rem 0.44rem;
+        border-radius: 999px;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+        cursor: help;
+    }
+    .pa-pass-mix-delta-up {
+        color: #fcd34d;
+        background: rgba(250, 204, 21, 0.14);
+        border: 1px solid rgba(250, 204, 21, 0.4);
+    }
+    .pa-pass-mix-delta-down {
+        color: #7dd3fc;
+        background: rgba(56, 189, 248, 0.14);
+        border: 1px solid rgba(56, 189, 248, 0.38);
+    }
+    .pa-pass-mix-track {
+        position: relative;
+        height: 0.62rem;
+        border-radius: 999px;
+        overflow: visible;
+        background: linear-gradient(90deg, rgba(56, 189, 248, 0.28) 0%, rgba(56, 189, 248, 0.12) 100%);
+        border: 1px solid rgba(51, 65, 85, 0.7);
+        box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.4);
+    }
+    .pa-pass-mix-fill {
+        position: absolute;
+        top: 0;
+        right: 0;
+        height: 100%;
+        border-radius: 0 999px 999px 0;
+        background: linear-gradient(90deg, rgba(251, 191, 36, 0.55) 0%, #fbbf24 100%);
+        box-shadow: inset 1px 0 0 rgba(15, 23, 42, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+    .pa-pass-mix-avg {
+        position: absolute;
+        top: -0.16rem;
+        bottom: -0.16rem;
+        width: 2px;
+        border-radius: 999px;
+        background: #f8fafc;
+        box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
+        cursor: help;
+    }
+    .pa-pass-mix-legend {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        color: #94a3b8;
+        font-size: 0.62rem;
+        font-weight: 600;
+    }
+    .pa-pass-mix-legend-item strong { color: #e2e8f0; }
+    .pa-pass-mix-legend-short { color: #7dd3fc; }
+    .pa-pass-mix-legend-long { color: #fcd34d; }
+    .pa-pass-mix-foot {
+        margin: 0;
+        color: #64748b;
+        font-size: 0.6rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
     .pa-xp-gradient-bar-shell {
         position: relative;
         padding: 0.36rem 0.45rem 0.4rem;
@@ -4454,33 +4764,6 @@ st.markdown(
         background: linear-gradient(135deg, #fed7aa 0%, #c2410c 100%);
         border: 1px solid rgba(234, 88, 12, 0.55);
         box-shadow: 0 1px 6px rgba(234, 88, 12, 0.28);
-    }
-    .pa-pass-length-badges {
-        display: inline-flex;
-        flex-wrap: wrap;
-        gap: 0.28rem;
-        margin-top: 0.28rem;
-    }
-    .pa-pass-length-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.08rem 0.38rem;
-        border-radius: 999px;
-        font-size: 0.56rem;
-        font-weight: 800;
-        letter-spacing: 0.03em;
-        line-height: 1;
-        white-space: nowrap;
-    }
-    .pa-pass-length-badge-long {
-        color: #78350f;
-        background: rgba(251, 191, 36, 0.2);
-        border: 1px solid rgba(245, 158, 11, 0.45);
-    }
-    .pa-pass-length-badge-short {
-        color: #0c4a6e;
-        background: rgba(56, 189, 248, 0.16);
-        border: 1px solid rgba(56, 189, 248, 0.4);
     }
     .pa-regular-stat-tip {
         position: relative;
@@ -6101,14 +6384,68 @@ def _pass_grade_gradient_color(pct: float) -> str:
     return "#16a34a"
 
 
+_PASS_GRADE_TIERS: tuple[tuple[float, str, str], ...] = (
+    (8.0, "elite", "Elite"),
+    (7.0, "strong", "Very good"),
+    (6.0, "solid", "Good"),
+    (5.0, "average", "Average"),
+    (0.0, "low", "Below average"),
+)
+
+
+def _pass_grade_tier(display_score: float) -> tuple[str, str]:
+    for floor, key, label in _PASS_GRADE_TIERS:
+        if display_score >= floor:
+            return key, label
+    return "low", "Below average"
+
+
+def _pass_grade_driver_lines_html(xp_profile: dict) -> str:
+    """One compact line per grade driver: label, value and rank inside the group."""
+    lines: list[str] = []
+    for display_key in XP_PROFILE_BAR_KEYS_RENDER:
+        label = xstats.XP_PROFILE_BAR_LABELS.get(display_key, display_key)
+        weight = XP_PROFILE_BAR_WEIGHTS.get(display_key)
+        metric_keys = xstats.XP_PROFILE_BAR_METRICS.get(display_key, ())
+        if not metric_keys:
+            continue
+        metric_key = metric_keys[0]
+        value = xstats.format_pa_stats_value(metric_key, xp_profile.get(metric_key))
+        rank = xp_profile.get(f"{metric_key}_rank_in_group")
+        total = xp_profile.get(f"{metric_key}_rank_pool_in_group")
+        rank_html = (
+            f'<span class="pa-pass-grade-driver-rank">#{int(rank)} of {int(total)}</span>'
+            if rank and total
+            else ""
+        )
+        weight_txt = f" · {float(weight) * 100:.0f}%" if weight else ""
+        lines.append(
+            '<div class="pa-pass-grade-driver">'
+            f'<span class="pa-pass-grade-driver-name">{html.escape(str(label))}'
+            f"{html.escape(weight_txt)}</span>"
+            '<span class="pa-pass-grade-driver-dots" aria-hidden="true"></span>'
+            f'<span class="pa-pass-grade-driver-val">{html.escape(value)}</span>'
+            f"{rank_html}"
+            "</div>"
+        )
+    if not lines:
+        return ""
+    return f'<div class="pa-pass-grade-drivers">{"".join(lines)}</div>'
+
+
 def _player_analysis_pass_grade_panel_html(
     player: dict,
     xp_profile: dict | None,
 ) -> str:
+    head = (
+        '<div class="pa-pass-grade-head">'
+        '<span class="pa-pass-grade-icon"><i class="fa-solid fa-award" aria-hidden="true"></i></span>'
+        '<span class="pa-pass-grade-title">Overall Pass Grade</span>'
+    )
     if not xp_profile or xp_profile.get("xp_pass_rating") is None:
         return (
             '<div class="player-card pa-pass-grade-card">'
-            '<p class="pa-pass-grade-title">Overall Pass Grade</p>'
+            f"{head}</div>"
             '<p class="pa-placeholder-note">Grade unavailable</p>'
             "</div>"
         )
@@ -6117,28 +6454,51 @@ def _player_analysis_pass_grade_panel_html(
     rating_val = float(xp_profile["xp_pass_rating"])
     display_score = rating_val * 10.0
     pct = _xp_pass_grade_pct(display_score)
-    tier = _xp_gradient_bar_tier(pct)
+    marker_pct = max(1.5, min(98.5, pct))
+    tier_key, tier_label = _pass_grade_tier(display_score)
     score_txt = html.escape(fmt_rating_score(rating_val))
-    low_cls = (
-        " pa-pass-grade-low-sample"
-        if _is_low_sample_rating(merged, rating_key="xp_pass_rating")
+    accent = _pass_grade_gradient_color(pct)
+    low_sample = _is_low_sample_rating(merged, rating_key="xp_pass_rating")
+    low_cls = " pa-pass-grade-low-sample" if low_sample else ""
+    rank = xp_profile.get("xp_pass_rating_rank_in_group")
+    total = xp_profile.get("xp_pass_rating_rank_pool_in_group")
+    rank_html = (
+        '<span class="pa-pass-grade-rank">'
+        f"#{int(rank)} of {int(total)} · {html.escape(_pa_field_group_label(xp_profile))}"
+        "</span>"
+        if rank and total
         else ""
     )
-    chip_bg = _pass_grade_gradient_color(pct)
-    chip_txt = _badge_text_color(chip_bg)
-    chip_pct = max(14.0, min(86.0, pct))
+    low_note = (
+        '<span class="pa-pass-grade-flag" title="Small sample — grade shrunk toward the mean">'
+        '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> low sample'
+        "</span>"
+        if low_sample
+        else ""
+    )
     return (
-        '<div class="player-card pa-pass-grade-card">'
-        '<p class="pa-pass-grade-title">Overall Pass Grade</p>'
-        f'<div class="pa-pass-grade-shell pa-pass-grade-tier-{tier}">'
+        f'<div class="player-card pa-pass-grade-card pa-pass-grade-{tier_key}">'
+        f"{head}"
+        f'<span class="pa-pass-grade-tier" style="color:{accent};'
+        f'border-color:{accent}55;background:{accent}1f">{html.escape(tier_label)}</span>'
+        "</div>"
+        '<div class="pa-pass-grade-body">'
+        '<div class="pa-pass-grade-value">'
+        f'<span class="pa-pass-grade-score{low_cls}" style="color:{accent}">{score_txt}</span>'
+        '<span class="pa-pass-grade-scale">/ 10</span>'
+        "</div>"
+        '<div class="pa-pass-grade-meter">'
         '<div class="pa-pass-grade-track">'
-        f'<span class="pa-pass-grade-glow" style="left:{pct:.1f}%"></span>'
+        '<span class="pa-pass-grade-shade">'
+        f'<span class="pa-pass-grade-rest" style="left:{pct:.1f}%"></span>'
+        "</span>"
+        f'<span class="pa-pass-grade-marker" style="left:{marker_pct:.1f}%"></span>'
         "</div>"
-        f'<div class="pa-pass-grade-chip-wrap" style="left:{chip_pct:.1f}%">'
-        f'<span class="pa-pass-grade-chip{low_cls}" '
-        f'style="background:{chip_bg};color:{chip_txt}">{score_txt}</span>'
+        '<div class="pa-pass-grade-axis"><span>4.5</span><span>9.0</span></div>'
         "</div>"
         "</div>"
+        f'<div class="pa-pass-grade-foot">{rank_html}{low_note}</div>'
+        f"{_pass_grade_driver_lines_html(xp_profile)}"
         "</div>"
     )
 
@@ -6440,7 +6800,6 @@ def _build_player_analysis_left_card_html(
     search_pos = sim.player_search_position(player)
     group_label = sim.similarity_position_label(search_pos) if search_pos else "—"
     badges = _xp_identity_badges_html(xp_profile)
-    length_badges = _pa_pass_length_badges_html(xp_profile)
     badges_block = (
         f'<div class="pa-identity-badges">{badges}</div>' if badges else ""
     )
@@ -6478,7 +6837,6 @@ def _build_player_analysis_left_card_html(
         f'<div class="pa-identity-photo-wrap">{_player_photo_html(player)}</div>'
         '<div class="pa-identity-head-text">'
         f'<h2 class="pa-identity-title">{html.escape(str(player.get("player_name", "—")))}</h2>'
-        f"{length_badges}"
         f'<p class="pa-identity-meta">{html.escape(str(player.get("team", "—")))} · '
         f'{html.escape(str(player.get("position", "—")))} · '
         f'{html.escape(group_label)}</p>'
@@ -6820,6 +7178,27 @@ def _xp_profile_bars_html(xp_profile: dict | None) -> str:
     return f'<div class="pa-xp-profile-bars">{rows}</div>'
 
 
+def _xp_index_row_inner_html(
+    name: str,
+    value: str,
+    *,
+    icon: str = "",
+    trailing: str = "",
+) -> str:
+    icon_html = (
+        f'<span class="pa-xp-index-row-icon"><i class="fa-solid {html.escape(icon)}"></i></span>'
+        if icon
+        else ""
+    )
+    return (
+        f"{icon_html}"
+        f'<span class="pa-xp-index-row-name">{html.escape(name)}</span>'
+        '<span class="pa-xp-index-row-sep" aria-hidden="true"></span>'
+        f'<span class="pa-xp-index-row-val">{html.escape(value)}</span>'
+        f"{trailing}"
+    )
+
+
 def _xp_index_row_html(
     name: str,
     value: str,
@@ -6827,70 +7206,294 @@ def _xp_index_row_html(
     row_class: str,
     tip: str = "",
     icon: str = "",
+    tipbox: str = "",
+    trailing: str = "",
 ) -> str:
     title = f' title="{html.escape(tip, quote=True)}"' if tip else ""
-    icon_html = (
-        f'<span class="pa-xp-index-row-icon"><i class="fa-solid {html.escape(icon)}"></i></span>'
-        if icon
-        else ""
+    tip_cls = " pa-xp-index-row-hastip" if tipbox else ""
+    tipbox_html = (
+        f'<span class="pa-xp-index-tipbox">{tipbox}</span>' if tipbox else ""
     )
     return (
-        f'<div class="pa-xp-index-row {row_class}"{title}>'
-        f"{icon_html}"
-        f'<span class="pa-xp-index-row-name">{html.escape(name)}</span>'
-        '<span class="pa-xp-index-row-sep" aria-hidden="true"></span>'
-        f'<span class="pa-xp-index-row-val">{html.escape(value)}</span>'
+        f'<div class="pa-xp-index-row {row_class}{tip_cls}"{title}>'
+        f"{_xp_index_row_inner_html(name, value, icon=icon, trailing=trailing)}"
+        f"{tipbox_html}"
         "</div>"
     )
 
 
-def _xp_badge_row_html(xp_profile: dict, badge_spec: tuple) -> str:
-    badge_key, label, _metrics, icon = badge_spec
-    earned = bool(xp_profile.get(f"{badge_key}_earned"))
-    tip = xstats.XP_BADGE_TOOLTIPS.get(badge_key, "")
-    if earned:
-        value = "Featured"
-        row_class = "pa-xp-index-row-badge pa-xp-index-row-earned"
-    else:
-        value = "—"
-        row_class = "pa-xp-index-row-badge pa-xp-index-row-locked"
-    return _xp_index_row_html(label, value, row_class=row_class, tip=tip, icon=icon)
+def _xp_index_tip_lines_html(xp_profile: dict, keys: tuple[str, ...]) -> str:
+    """Metric lines (label, value, rank) for a rich index tooltip."""
+    lines: list[str] = []
+    for key in keys:
+        value = xp_profile.get(key)
+        if value is None:
+            continue
+        rank = xp_profile.get(f"{key}_rank_in_group")
+        total = xp_profile.get(f"{key}_rank_pool_in_group")
+        rank_html = (
+            f'<span class="pa-xp-index-tip-rank">#{int(rank)} of {int(total)}</span>'
+            if rank and total
+            else ""
+        )
+        lines.append(
+            '<span class="pa-xp-index-tip-line">'
+            '<span class="pa-xp-index-tip-metric">'
+            f"{html.escape(xstats.pa_stats_metric_label(key))}: "
+            f"{html.escape(xstats.format_pa_stats_value(key, value))}"
+            "</span>"
+            f"{rank_html}"
+            "</span>"
+        )
+    return "".join(lines)
+
+
+_IMPACT_PASS_TIP_KEYS: tuple[str, ...] = (
+    "threat_passes_p90",
+    "xp_m4_threat_passes_p90",
+    "xp_m4_per_threat_pass",
+    "xp_m4_threat_rate",
+    "xp_m4_threat_passes",
+)
+
+
+def _rank_tier_class(xp_profile: dict, key: str) -> str:
+    """Map a metric's rank inside the position group to the index-row tier colours."""
+    rank = xp_profile.get(f"{key}_rank_in_group")
+    total = xp_profile.get(f"{key}_rank_pool_in_group")
+    if not rank or not total:
+        return "pa-xp-index-row-mid"
+    share = float(rank) / float(total)
+    if share <= 0.25:
+        return "pa-xp-index-row-earned"
+    if share >= 0.67:
+        return "pa-xp-index-row-below"
+    return "pa-xp-index-row-mid"
+
+
+def _xp_impact_pass_row_html(xp_profile: dict) -> str:
+    """I.P. row: volume per game plus a tooltip with the underlying Impact Pass numbers."""
+    per_game = xp_profile.get("threat_passes_p90")
+    value = f"{float(per_game):.1f} / game" if per_game is not None else "—"
+    row_class = f"pa-xp-index-row-badge {_rank_tier_class(xp_profile, 'threat_passes_p90')}"
+    summary = xstats.pa_stats_metric_tooltip("threat_passes_p90")
+    summary_html = (
+        f'<span class="pa-xp-index-tip-summary">{html.escape(summary)}</span>'
+        if summary
+        else ""
+    )
+    tipbox = (
+        f'<span class="pa-xp-index-tip-title">{html.escape(IMPACT_PASS_ABBR)} · Impact Passes</span>'
+        f"{summary_html}"
+        f"{_xp_index_tip_lines_html(xp_profile, _IMPACT_PASS_TIP_KEYS)}"
+    )
+    return _xp_index_row_html(
+        IMPACT_PASS_ABBR,
+        value,
+        row_class=row_class,
+        icon="fa-crosshairs",
+        tipbox=tipbox,
+    )
+
+
+_ROUND_CHART_W = 252.0
+_ROUND_CHART_H = 74.0
+_ROUND_CHART_PAD_X = 7.0
+_ROUND_CHART_PAD_Y = 9.0
+
+
+def _round_production_series(xp_profile: dict) -> list[dict]:
+    series = xp_profile.get(xstats.XP_ROUND_SERIES_KEY) or ()
+    return [dict(point) for point in series]
+
+
+def _round_point_title(point: dict) -> str:
+    parts = [f"Round {int(point.get('round') or 0)}"]
+    opponent = str(point.get("opponent") or "").strip()
+    if opponent:
+        parts.append(f"vs {opponent}")
+    date = str(point.get("date") or "").strip()
+    if date:
+        parts.append(date)
+    parts.append(f"xP {float(point.get('xp') or 0.0):.2f}")
+    parts.append(f"{int(point.get('impact') or 0)} {IMPACT_PASS_ABBR}")
+    parts.append(f"{int(point.get('passes') or 0)} passes")
+    return " · ".join(parts)
+
+
+def _round_production_chart_html(xp_profile: dict) -> str:
+    """Inline SVG line chart of xP produced per round, with the season mean as reference."""
+    series = _round_production_series(xp_profile)
+    if len(series) < 3:
+        return (
+            '<p class="pa-round-chart-empty">'
+            "Not enough matches to plot round-by-round production."
+            "</p>"
+        )
+    values = [float(point.get("xp") or 0.0) for point in series]
+    count = len(values)
+    hi = max(values)
+    lo = min(values)
+    span = (hi - lo) if hi > lo else max(hi, 1.0)
+    mean = sum(values) / count
+    inner_w = _ROUND_CHART_W - 2 * _ROUND_CHART_PAD_X
+    inner_h = _ROUND_CHART_H - 2 * _ROUND_CHART_PAD_Y
+    baseline = _ROUND_CHART_H - _ROUND_CHART_PAD_Y
+
+    def pos_x(index: int) -> float:
+        return _ROUND_CHART_PAD_X + inner_w * index / (count - 1)
+
+    def pos_y(value: float) -> float:
+        return _ROUND_CHART_PAD_Y + inner_h * (1.0 - (value - lo) / span)
+
+    points = " ".join(f"{pos_x(i):.1f},{pos_y(v):.1f}" for i, v in enumerate(values))
+    area = (
+        f"{_ROUND_CHART_PAD_X:.1f},{baseline:.1f} "
+        f"{points} "
+        f"{pos_x(count - 1):.1f},{baseline:.1f}"
+    )
+    mean_y = pos_y(mean)
+    peak_index = values.index(hi)
+    dots = "".join(
+        f'<circle class="pa-round-chart-dot'
+        f'{" pa-round-chart-dot-peak" if i == peak_index else ""}" '
+        f'cx="{pos_x(i):.1f}" cy="{pos_y(v):.1f}" r="{2.6 if i == peak_index else 1.9}">'
+        f"<title>{html.escape(_round_point_title(series[i]))}</title>"
+        "</circle>"
+        for i, v in enumerate(values)
+    )
+    return (
+        '<div class="pa-round-chart-wrap">'
+        f'<svg class="pa-round-chart" viewBox="0 0 {_ROUND_CHART_W:.0f} {_ROUND_CHART_H:.0f}" '
+        'role="img" preserveAspectRatio="none" '
+        f'aria-label="xP per round across {count} matches">'
+        f'<polygon class="pa-round-chart-area" points="{area}"></polygon>'
+        f'<line class="pa-round-chart-mean" x1="{_ROUND_CHART_PAD_X:.1f}" y1="{mean_y:.1f}" '
+        f'x2="{_ROUND_CHART_W - _ROUND_CHART_PAD_X:.1f}" y2="{mean_y:.1f}"></line>'
+        f'<polyline class="pa-round-chart-line" points="{points}"></polyline>'
+        f"{dots}"
+        "</svg>"
+        '<div class="pa-round-chart-legend">'
+        f'<span class="pa-round-chart-legend-item">{count} matches</span>'
+        f'<span class="pa-round-chart-legend-item pa-round-chart-legend-mean">avg {mean:.2f} xP</span>'
+        f'<span class="pa-round-chart-legend-item">peak {hi:.2f} xP</span>'
+        "</div>"
+        "</div>"
+    )
+
+
+def _xp_consistency_details_html(xp_profile: dict) -> str:
+    """Consistency row that expands into the round-by-round production chart."""
+    tier = xp_profile.get("xp_idx_consistency_tier")
+    if not tier:
+        return ""
+    tier_label = xstats.XP_INDEX_TIER_LABELS.get(tier, "—")
+    tip = xstats.XP_INDEX_TOOLTIPS.get("xp_idx_consistency", "")
+    icon = xstats.XP_INDEX_ICONS.get("xp_idx_consistency", "fa-wave-square")
+    row_class = (
+        "pa-xp-index-row-badge pa-xp-index-row-earned"
+        if tier == "above"
+        else f"pa-xp-index-row-{tier}"
+    )
+    arrow = (
+        '<i class="fa-solid fa-chevron-right pa-xp-index-arrow" aria-hidden="true"></i>'
+    )
+    title = f' title="{html.escape(tip, quote=True)}"' if tip else ""
+    return (
+        '<details class="pa-xp-index-details">'
+        f'<summary class="pa-xp-index-row {row_class}"{title}>'
+        f"{_xp_index_row_inner_html('Consistency', tier_label, icon=icon, trailing=arrow)}"
+        "</summary>"
+        '<div class="pa-xp-index-details-body">'
+        '<p class="pa-round-chart-title">xP per round</p>'
+        f"{_round_production_chart_html(xp_profile)}"
+        f"{_xp_index_tip_lines_html(xp_profile, ('xp_game_mean', 'xp_games_above_median_pct'))}"
+        "</div>"
+        "</details>"
+    )
 
 
 def _xp_index_boxes_html(xp_profile: dict | None) -> str:
     if not xp_profile or not xp_profile.get("xp_profile_bars_eligible", True):
         return ""
-    rows: list[str] = []
-    for idx_key, label, _metrics, _invert in xstats.XP_INDEX_SPECS:
-        tier = xp_profile.get(f"{idx_key}_tier")
-        if not tier:
-            continue
-        tier_label = xstats.XP_INDEX_TIER_LABELS.get(tier, "—")
-        tip = xstats.XP_INDEX_TOOLTIPS.get(idx_key, "")
-        icon = xstats.XP_INDEX_ICONS.get(idx_key, "")
-        row_class = (
-            "pa-xp-index-row-badge pa-xp-index-row-earned"
-            if tier == "above"
-            else f"pa-xp-index-row-{tier}"
-        )
-        rows.append(
-            _xp_index_row_html(
-                label,
-                tier_label,
-                row_class=row_class,
-                tip=tip,
-                icon=icon,
-            )
-        )
-    for spec in xstats.XP_BADGE_SPECS:
-        if xp_profile.get(f"{spec[0]}_earned") is not None:
-            rows.append(_xp_badge_row_html(xp_profile, spec))
+    rows: list[str] = [
+        _xp_consistency_details_html(xp_profile),
+        _xp_impact_pass_row_html(xp_profile),
+    ]
+    rows = [row for row in rows if row]
     if not rows:
         return ""
     return (
         '<div class="pa-xp-index-wrap">'
         '<div class="pa-xp-index-title">xP Indices</div>'
         f'<div class="pa-xp-index-list">{"".join(rows)}</div>'
+        "</div>"
+    )
+
+
+def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
+    """Bar comparing the player's long-pass share with the peer average."""
+    if not xp_profile:
+        return ""
+    share = xp_profile.get("long_pass_share_pct")
+    if share is None:
+        return ""
+    share = float(share)
+    short_share = 100.0 - share
+    peer_avg = xp_profile.get("long_pass_share_peer_avg_pct")
+    peer_count = int(xp_profile.get("long_pass_share_peer_count") or 0)
+    short_label = xstats.DISTANCE_BAND_LABELS.get("short", "≤30m")
+    long_label = xstats.DISTANCE_BAND_LABELS.get("long", ">30m")
+
+    delta_html = ""
+    peer_marker = ""
+    foot = (
+        '<p class="pa-pass-mix-foot">Peer average unavailable for this position.</p>'
+    )
+    if peer_avg is not None:
+        peer_avg = float(peer_avg)
+        delta = share - peer_avg
+        delta_cls = "up" if delta >= 0 else "down"
+        sign = "+" if delta >= 0 else "−"
+        delta_html = (
+            f'<span class="pa-pass-mix-delta pa-pass-mix-delta-{delta_cls}" '
+            f'title="Difference against the position peer average">'
+            f"{sign}{abs(delta):.1f} pp</span>"
+        )
+        # The long slice grows from the right edge, so the peer boundary sits at 100 - avg.
+        peer_marker = (
+            f'<span class="pa-pass-mix-avg" style="left:{max(0.0, min(100.0, 100.0 - peer_avg)):.1f}%" '
+            f'title="Peer average long share: {peer_avg:.1f}%"></span>'
+        )
+        pctile = xp_profile.get("long_pass_share_pctile")
+        pctile_txt = f" · P{float(pctile):.0f}" if pctile is not None else ""
+        foot = (
+            '<p class="pa-pass-mix-foot">'
+            f"Tick = position average ({peer_avg:.1f}% long, {peer_count} players)"
+            f"{html.escape(pctile_txt)}"
+            "</p>"
+        )
+
+    return (
+        '<div class="player-card pa-pass-mix-card">'
+        '<div class="pa-pass-mix-head">'
+        '<span class="pa-pass-mix-icon">'
+        '<i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i>'
+        "</span>"
+        '<span class="pa-pass-mix-title">Pass Length Mix</span>'
+        f"{delta_html}"
+        "</div>"
+        '<div class="pa-pass-mix-track">'
+        f'<span class="pa-pass-mix-fill" style="width:{max(0.0, min(100.0, share)):.1f}%"></span>'
+        f"{peer_marker}"
+        "</div>"
+        '<div class="pa-pass-mix-legend">'
+        '<span class="pa-pass-mix-legend-item pa-pass-mix-legend-short">'
+        f"Short {html.escape(short_label)} · <strong>{short_share:.1f}%</strong></span>"
+        '<span class="pa-pass-mix-legend-item pa-pass-mix-legend-long">'
+        f"Long {html.escape(long_label)} · <strong>{share:.1f}%</strong></span>"
+        "</div>"
+        f"{foot}"
         "</div>"
     )
 
@@ -6949,10 +7552,12 @@ def _player_analysis_score_stack_html(
 ) -> str:
     rating_panel = _player_analysis_rating_panel_html(player, metric_ranks, xp_profile)
     profile_html = _xp_profile_score_column_html(xp_profile)
+    pass_mix_html = _pa_pass_length_card_html(xp_profile)
     return (
         '<div class="pa-score-stack">'
         f"{rating_panel}"
         f"{profile_html}"
+        f"{pass_mix_html}"
         "</div>"
     )
 
@@ -7162,7 +7767,7 @@ XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
     ),
     "impact_passes_p90": (
         f"Impact passes per game — composite xP score (45% destination value + 35% residual "
-        "+ 20% progress) in the top 10% for distance band, with forward progress ≥ P60."
+        "+ 20% progress) in the top 7.5% for distance band, with forward progress ≥ P65."
     ),
 }
 
