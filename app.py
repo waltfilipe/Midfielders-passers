@@ -5347,6 +5347,44 @@ st.markdown(
     .pa-xp-section-body .metric-line:last-child {
         border-bottom: none;
     }
+    .pa-xp-section-body .pa-regular-score-accordion {
+        margin-top: 0.35rem;
+        border: 1px solid rgba(59, 130, 246, 0.16);
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.35);
+        overflow: hidden;
+    }
+    .pa-xp-section-body .pa-regular-score-accordion summary {
+        padding: 0.55rem 0.6rem;
+        cursor: pointer;
+        list-style: none;
+    }
+    .pa-xp-section-body .pa-regular-score-accordion .grade-card-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.65rem;
+    }
+    .pa-xp-section-body .pa-regular-score-accordion .grade-card-title {
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: #e2e8f0;
+        letter-spacing: 0.01em;
+        text-transform: none;
+    }
+    .pa-xp-section-body .pa-regular-score-accordion .grade-card-rank {
+        margin-top: 0.18rem;
+        font-size: 0.68rem;
+        color: #94a3b8;
+    }
+    .pa-xp-section-body .pa-regular-score-accordion .grade-accordion-body {
+        padding: 0 0.55rem 0.2rem;
+        border-top: 1px solid rgba(59, 130, 246, 0.12);
+    }
+    .pa-xp-section-body .pa-regular-score-accordion .grade-accordion-body .metric-line {
+        padding: 0.42rem 0;
+        font-size: 0.82rem;
+    }
     .pa-top-badge {
         display: inline-flex;
         align-items: center;
@@ -8371,36 +8409,44 @@ XP_PA_REGULAR_STAT_KEYS: tuple[str, ...] = (
     "passes_total",
     "pass_completion_pct",
     "long_balls",
-    "long_pass_share_pct",
     "long_ball_completion_pct",
-    "progressive_passes",
-    "final_third_passes",
-    "passes_to_box",
-    "key_passes",
-    "special_line_break_p90",
-    "impact_passes_p90",
 )
 
-XP_PA_REGULAR_STAT_LABELS: dict[str, str] = {
-    "passes_total": "Passes / game",
-    "pass_completion_pct": "% Passes certos",
-    "long_balls": "Long passes / game",
-    "long_pass_share_pct": "% Long passes",
-    "long_ball_completion_pct": "% Completed long passes",
+XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+    (
+        "pass_buildup_display",
+        "pass_buildup_index",
+        "Build-up",
+        (
+            "progressive_passes",
+            "final_third_passes",
+            "special_line_break_p90",
+            "ip_dest_first_two_thirds_p90",
+        ),
+    ),
+    (
+        "pass_chance_creation_display",
+        "pass_chance_creation_index",
+        "Chance creation",
+        (
+            "key_passes",
+            "passes_to_box",
+            "ip_dest_final_third_p90",
+        ),
+    ),
+)
+
+XP_PA_REGULAR_COMPONENT_LABELS: dict[str, str] = {
     "progressive_passes": "Progressive passes / game",
     "final_third_passes": "Passes into final third / game",
     "passes_to_box": "Passes into box / game",
     "key_passes": "Key passes / game",
-    "special_line_break_p90": "Line Breaking Passes / game",
-    "impact_passes_p90": "Impact passes / game",
+    "special_line_break_p90": "Line breaking passes / game",
+    "ip_dest_first_two_thirds_p90": "Impact passes in first 2/3 / game",
+    "ip_dest_final_third_p90": "Impact passes in final third / game",
 }
 
-XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
-    "passes_total": "Passes attempted per 90 minutes.",
-    "pass_completion_pct": "Completed pass percentage.",
-    "long_balls": "Long passes (≥30 m) per 90 minutes.",
-    "long_pass_share_pct": "Share of completed passes that are long (distance band >30 m).",
-    "long_ball_completion_pct": "Completed long-pass percentage.",
+XP_PA_REGULAR_COMPONENT_TOOLTIPS: dict[str, str] = {
     "progressive_passes": (
         "Progressive passes completed per game (p90) — Wyscout criterion: "
         "advance ≥ 10 m toward goal, or ≥ 5 m inside the final third."
@@ -8415,24 +8461,56 @@ XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
         "destination outside the outer 15%, forward angle ≤ 50°, distance 20–30 m "
         "(origin 30–60 m), 15–30 m (60–80 m), or 10–30 m (80–120 m)."
     ),
-    "impact_passes_p90": (
-        f"Impact passes per game — composite xP score (45% destination value + 35% residual "
-        "+ 20% progress) in the top 7.5% for distance band, with forward progress ≥ P65."
+    "ip_dest_first_two_thirds_p90": (
+        "Impact passes per game with destination in the first two thirds of the field."
     ),
+    "ip_dest_final_third_p90": (
+        "Impact passes per game with destination in the final third of the field."
+    ),
+}
+
+XP_PA_REGULAR_COMPONENT_KIND: dict[str, str] = {
+    "progressive_passes": "p90",
+    "final_third_passes": "p90",
+    "passes_to_box": "p90",
+    "key_passes": "p90",
+    "special_line_break_p90": "p90",
+    "ip_dest_first_two_thirds_p90": "p90",
+    "ip_dest_final_third_p90": "p90",
+}
+
+XP_PA_REGULAR_SCORE_TOOLTIPS: dict[str, str] = {
+    "pass_buildup_display": (
+        "Within-position composite of progressive passes, final-third entries, "
+        "line-breaking passes and impact passes with destination in the first two thirds. "
+        "Component z-scores are winsorized at P5–P95 before averaging."
+    ),
+    "pass_chance_creation_display": (
+        "Within-position composite of key passes, passes into the box and "
+        "impact passes with destination in the final third. "
+        "Component z-scores are winsorized at P5–P95 before averaging."
+    ),
+}
+
+XP_PA_REGULAR_STAT_LABELS: dict[str, str] = {
+    "passes_total": "Passes / game",
+    "pass_completion_pct": "% Passes certos",
+    "long_balls": "Long passes / game",
+    "long_ball_completion_pct": "% Completed long passes",
+}
+
+XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
+    "passes_total": "Passes attempted per 90 minutes.",
+    "pass_completion_pct": "Completed pass percentage.",
+    "long_balls": "Long passes (≥30 m) per 90 minutes.",
+    "long_ball_completion_pct": "Completed long-pass percentage.",
 }
 
 XP_PA_REGULAR_STAT_KIND: dict[str, str] = {
     "passes_total": "p90",
     "pass_completion_pct": "pct",
     "long_balls": "p90",
-    "long_pass_share_pct": "pct",
     "long_ball_completion_pct": "pct",
-    "progressive_passes": "p90",
-    "final_third_passes": "p90",
-    "passes_to_box": "p90",
-    "key_passes": "p90",
-    "special_line_break_p90": "p90",
-    "impact_passes_p90": "p90",
 }
 
 
@@ -8453,7 +8531,94 @@ def _pa_simple_stat_value(value: float | int | None, kind: str) -> str:
 
 
 def _pa_regular_stat_value(source: dict, key: str) -> str:
-    return _pa_simple_stat_value(source.get(key), XP_PA_REGULAR_STAT_KIND.get(key, "p90"))
+    kind = XP_PA_REGULAR_STAT_KIND.get(key) or XP_PA_REGULAR_COMPONENT_KIND.get(key, "p90")
+    return _pa_simple_stat_value(source.get(key), kind)
+
+
+def _pa_regular_stat_label(key: str) -> str:
+    return (
+        XP_PA_REGULAR_STAT_LABELS.get(key)
+        or XP_PA_REGULAR_COMPONENT_LABELS.get(key)
+        or key
+    )
+
+
+def _pa_regular_stat_tooltip(key: str) -> str:
+    return (
+        XP_PA_REGULAR_STAT_TOOLTIPS.get(key)
+        or XP_PA_REGULAR_COMPONENT_TOOLTIPS.get(key)
+        or ""
+    )
+
+
+def _pa_display_score_pill_html(display_score: float | None) -> str:
+    if display_score is None:
+        return '<span class="section-rating-pill" style="background:#334155;color:#f8fafc">—</span>'
+    score = float(display_score)
+    bg = score_display_color(score)
+    txt = _badge_text_color(bg)
+    return (
+        f'<span class="section-rating-pill" style="background:{bg};color:{txt}">'
+        f"{html.escape(f'{score:.1f}')}</span>"
+    )
+
+
+def _pa_regular_score_summary_html(
+    title: str,
+    display_key: str,
+    index_key: str,
+    source: dict,
+) -> str:
+    score = source.get(display_key)
+    try:
+        score_val = float(score) if score is not None else None
+    except (TypeError, ValueError):
+        score_val = None
+    rank = source.get(f"{index_key}_rank_in_group")
+    total = source.get(f"{index_key}_rank_pool_in_group")
+    rank_html = ""
+    if rank and total:
+        group = _pa_field_group_label(source)
+        rank_html = (
+            f'<div class="grade-card-rank">#{int(rank)} of {int(total)} · '
+            f"{html.escape(group)}</div>"
+        )
+    tooltip = XP_PA_REGULAR_SCORE_TOOLTIPS.get(display_key, "")
+    title_attr = f' title="{html.escape(tooltip, quote=True)}"' if tooltip else ""
+    return (
+        f'<div class="grade-summary-main"{title_attr}>'
+        f'<div class="grade-summary-top">'
+        f'<div class="grade-card-title-row">'
+        f'<div class="grade-card-title">{html.escape(title)}</div>'
+        f"{_pa_display_score_pill_html(score_val)}"
+        f"</div>"
+        f"{rank_html}"
+        f"</div>"
+        f"</div>"
+    )
+
+
+def _pa_regular_score_accordion_html(
+    source: dict,
+    metric_ranks: dict,
+    display_key: str,
+    index_key: str,
+    title: str,
+    component_keys: tuple[str, ...],
+) -> str:
+    lines = "".join(
+        _pa_regular_stat_line_html(source, metric_ranks, key)
+        for key in component_keys
+    )
+    return (
+        '<details class="grade-accordion pa-regular-score-accordion" name="pa-regular-scores">'
+        "<summary>"
+        '<i class="fa-solid fa-chevron-right grade-arrow" aria-hidden="true"></i>'
+        f"{_pa_regular_score_summary_html(title, display_key, index_key, source)}"
+        "</summary>"
+        f'<div class="grade-accordion-body">{lines}</div>'
+        "</details>"
+    )
 
 
 PA_MEDAL_GOLD_TOP = 10
@@ -8538,7 +8703,7 @@ def _pa_regular_stat_value_tip_html(
 
 
 def _pa_regular_stat_line_html(source: dict, metric_ranks: dict, key: str) -> str:
-    label = XP_PA_REGULAR_STAT_LABELS.get(key, key)
+    label = _pa_regular_stat_label(key)
     label_html = html.escape(label)
     value = _pa_regular_stat_value(source, key)
     rank_info = _pa_regular_stat_rank_info(source, metric_ranks, key)
@@ -8578,10 +8743,21 @@ def _pa_regular_stats_panel_html(
         _pa_regular_stat_line_html(source, metric_ranks, key)
         for key in XP_PA_REGULAR_STAT_KEYS
     )
+    score_blocks = "".join(
+        _pa_regular_score_accordion_html(
+            source,
+            metric_ranks,
+            display_key,
+            index_key,
+            title,
+            component_keys,
+        )
+        for display_key, index_key, title, component_keys in XP_PA_REGULAR_SCORE_SPECS
+    )
     return (
         '<div class="pa-xp-section-panel">'
         '<div class="pa-xp-section-title">Regular Stats</div>'
-        f'<div class="pa-xp-section-body">{lines}</div>'
+        f'<div class="pa-xp-section-body">{lines}{score_blocks}</div>'
         "</div>"
     )
 

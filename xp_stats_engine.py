@@ -540,6 +540,14 @@ def compute_extended_xp_stats(grp: pd.DataFrame) -> dict[str, float | int]:
     for zone_key in THREAT_ZONE_FILTER_KEYS:
         out[threat_zone_count_key(zone_key)] = int((masks[zone_key] & threat).sum())
 
+    if threat.any() and "x_end" in scored.columns:
+        threat_x_end = scored.loc[threat, "x_end"].to_numpy(dtype=float)
+        out["ip_dest_first_two_thirds_count"] = int((threat_x_end <= FINAL_X_MIN).sum())
+        out["ip_dest_final_third_count"] = int((threat_x_end > FINAL_X_MIN).sum())
+    else:
+        out["ip_dest_first_two_thirds_count"] = 0
+        out["ip_dest_final_third_count"] = 0
+
     if RESIDUAL_COL in scored.columns:
         residual = scored[RESIDUAL_COL].to_numpy(dtype=float)
         n = len(residual)
@@ -652,6 +660,8 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
         metrics["xp_per_90"] = 0.0
         metrics["threat_passes_p90"] = 0.0
         metrics["impact_passes_p90"] = 0.0
+        metrics["ip_dest_first_two_thirds_p90"] = 0.0
+        metrics["ip_dest_final_third_p90"] = 0.0
         for sp_key in SPECIAL_PASS_COUNT_KEYS:
             metrics[special_pass_per_game_key(sp_key)] = 0.0
         for zone_key in THREAT_ZONE_FILTER_KEYS:
@@ -663,6 +673,12 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
     threat_count = int(metrics.get("xp_m4_threat_passes", 0))
     metrics["threat_passes_p90"] = float(threat_count) * factor
     metrics["impact_passes_p90"] = metrics["threat_passes_p90"]
+    metrics["ip_dest_first_two_thirds_p90"] = float(
+        int(metrics.get("ip_dest_first_two_thirds_count", 0))
+    ) * factor
+    metrics["ip_dest_final_third_p90"] = float(
+        int(metrics.get("ip_dest_final_third_count", 0))
+    ) * factor
     metrics["xp_m4_threat_passes_p90"] = float(metrics.get("xp_m4_threat_xp_total", 0.0)) * factor
     for band in BANDS:
         band_threats = int(metrics.get(f"xp_m4_threat_{band}", 0))
@@ -1339,7 +1355,54 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
     "long_pass_share_pct",
     "special_line_break_p90",
     "impact_passes_p90",
+    "ip_dest_first_two_thirds_p90",
+    "ip_dest_final_third_p90",
+    "pass_buildup_index",
+    "pass_chance_creation_index",
 )
+
+# Regular-stats composite scores (winsorized within-position z-means).
+PASS_SCORE_WINSOR_LOWER_Q = 0.05
+PASS_SCORE_WINSOR_UPPER_Q = 0.95
+PASS_BUILDUP_METRICS: tuple[str, ...] = (
+    "progressive_passes",
+    "final_third_passes",
+    "special_line_break_p90",
+    "ip_dest_first_two_thirds_p90",
+)
+PASS_CHANCE_CREATION_METRICS: tuple[str, ...] = (
+    "key_passes",
+    "passes_to_box",
+    "ip_dest_final_third_p90",
+)
+PASS_SCORE_SPECS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("pass_buildup_index", "pass_buildup_display", PASS_BUILDUP_METRICS),
+    ("pass_chance_creation_index", "pass_chance_creation_display", PASS_CHANCE_CREATION_METRICS),
+)
+PASS_SCORE_LABELS: dict[str, str] = {
+    "pass_buildup_index": "Build-up",
+    "pass_buildup_display": "Build-up",
+    "pass_chance_creation_index": "Chance creation",
+    "pass_chance_creation_display": "Chance creation",
+    "ip_dest_first_two_thirds_p90": f"{IMPACT_PASS_ABBR} in first 2/3 / game",
+    "ip_dest_final_third_p90": f"{IMPACT_PASS_ABBR} in final third / game",
+}
+PASS_SCORE_TOOLTIPS: dict[str, str] = {
+    "pass_buildup_index": (
+        "Within-position composite of progressive passes, final-third entries, "
+        "line-breaking passes and impact passes with destination in the first two thirds."
+    ),
+    "pass_chance_creation_index": (
+        "Within-position composite of key passes, passes into the box and "
+        f"impact passes with destination in the final third."
+    ),
+    "ip_dest_first_two_thirds_p90": (
+        f"{IMPACT_PASS_ABBR} per game with pass destination in the first two thirds of the field."
+    ),
+    "ip_dest_final_third_p90": (
+        f"{IMPACT_PASS_ABBR} per game with pass destination in the final third of the field."
+    ),
+}
 
 
 def _zscore(series: pd.Series) -> pd.Series:
@@ -1347,6 +1410,38 @@ def _zscore(series: pd.Series) -> pd.Series:
     if std <= 1e-12:
         return pd.Series(0.0, index=series.index)
     return (series - series.mean()) / std
+
+
+def _winsorize_series(
+    series: pd.Series,
+    *,
+    lower_q: float = PASS_SCORE_WINSOR_LOWER_Q,
+    upper_q: float = PASS_SCORE_WINSOR_UPPER_Q,
+) -> pd.Series:
+    if series.empty:
+        return series
+    lo = float(series.quantile(lower_q))
+    hi = float(series.quantile(upper_q))
+    if lo > hi:
+        lo, hi = hi, lo
+    return series.clip(lower=lo, upper=hi)
+
+
+def _mean_winsorized_z_columns(
+    df: pd.DataFrame,
+    cols: tuple[str, ...],
+    *,
+    invert: tuple[str, ...] = (),
+) -> pd.Series:
+    if not cols:
+        return pd.Series(0.0, index=df.index)
+    parts: list[pd.Series] = []
+    for col in cols:
+        z = _zscore(_winsorize_series(_series_or_zero(df, col)))
+        if col in invert:
+            z = -z
+        parts.append(z)
+    return sum(parts) / len(parts)
 
 
 def _rank_descending(values: pd.Series) -> pd.Series:
@@ -1656,6 +1751,22 @@ def attach_xp_profile_bar_eligibility(players: list[dict]) -> None:
 
     for rows in pools.values():
         _attach_xp_profile_bar_eligibility_for_pool(rows)
+
+
+def attach_regular_pass_scores(players: list[dict]) -> None:
+    """Attach build-up and chance-creation scores from winsorized within-position z-means."""
+    if not players:
+        return
+    pools: dict[str, list[dict]] = {}
+    for player in players:
+        group = _metric_rank_pool_key(player)
+        pools.setdefault(group, []).append(player)
+
+    for rows in pools.values():
+        df = pd.DataFrame(rows)
+        for raw_key, display_key, metric_cols in PASS_SCORE_SPECS:
+            composite = _mean_winsorized_z_columns(df, metric_cols)
+            _attach_index_display_scores(rows, raw_key, display_key, composite)
 
 
 def attach_composite_indices(players: list[dict]) -> None:
@@ -2189,11 +2300,11 @@ def stats_metric_label(key: str) -> str:
 
 
 def pa_stats_metric_label(key: str) -> str:
-    return XP_PA_LABELS.get(key, stats_metric_label(key))
+    return PASS_SCORE_LABELS.get(key, XP_PA_LABELS.get(key, stats_metric_label(key)))
 
 
 def pa_stats_metric_tooltip(key: str) -> str:
-    return XP_PA_TOOLTIPS.get(key, "")
+    return PASS_SCORE_TOOLTIPS.get(key, XP_PA_TOOLTIPS.get(key, ""))
 
 
 def _format_residual_display(value: float) -> str:
@@ -2263,5 +2374,7 @@ def format_stats_value(key: str, value: float | int | None) -> str:
     if key in XP_COMPOSITE_INDEX_KEYS:
         return f"{val:+.2f}"
     if key in XP_ARCHETYPE_RADAR_KEYS or key in XP_PROFILE_BAR_KEYS:
+        return f"{val:.1f}"
+    if key in {"pass_buildup_display", "pass_chance_creation_display"}:
         return f"{val:.1f}"
     return f"{val:.1f}"

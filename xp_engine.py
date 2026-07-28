@@ -791,6 +791,7 @@ def build_xp_analytics(
         p["xp_m4_rank"] = i
     xstats.attach_distance_indices(players)
     xstats.attach_pass_length_profile(players)
+    xstats.attach_regular_pass_scores(players)
     xstats.attach_composite_indices(players)
     xstats.attach_xp_pass_ratings(players)
     xstats.attach_all_stats_ranks(players)
@@ -861,6 +862,7 @@ def build_european_league_xp_analytics(
         p["xp_m4_rank"] = i
     xstats.attach_distance_indices(players)
     xstats.attach_pass_length_profile(players)
+    xstats.attach_regular_pass_scores(players)
     xstats.attach_composite_indices(players)
     xstats.attach_xp_pass_ratings(players)
     xstats.attach_all_stats_ranks(players)
@@ -885,6 +887,7 @@ def refresh_xp_midfield_origin_rankings(players: list[dict]) -> None:
 
     xstats.attach_distance_indices(players)
     xstats.attach_pass_length_profile(players)
+    xstats.attach_regular_pass_scores(players)
     xstats.attach_composite_indices(players)
     xstats.attach_xp_pass_ratings(players)
     xstats.attach_all_stats_ranks(players)
