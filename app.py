@@ -1487,14 +1487,17 @@ def _compare_column_facts_html(player: dict, *, fmt_pct_fn) -> str:
     items: list[str] = []
     for key in _COMPARE_PROFILE_KEYS:
         label = _COMPARE_PROFILE_SHORT_LABELS.get(key, key)
+        icon = _COMPARE_PROFILE_ICONS.get(key, "fa-circle")
         value = html.escape(_compare_profile_plain_value(player, key, fmt_pct_fn=fmt_pct_fn))
         items.append(
-            '<div class="pa-compare-col-fact">'
-            f'<span class="pa-compare-col-fact-label">{html.escape(label)}</span>'
-            f'<span class="pa-compare-col-fact-val">{value}</span>'
-            "</div>"
+            '<li class="pa-compare-profile-row">'
+            f'<span class="pa-compare-profile-row-label">'
+            f'<i class="fa-solid {html.escape(icon)}" aria-hidden="true"></i>'
+            f"{html.escape(label)}</span>"
+            f'<span class="pa-compare-profile-row-val">{value}</span>'
+            "</li>"
         )
-    return f'<div class="pa-compare-col-facts">{"".join(items)}</div>'
+    return f'<ul class="pa-compare-profile-list">{"".join(items)}</ul>'
 
 
 def _compare_column_heatmap_html(heatmap_b64: str | None) -> str:
@@ -1691,6 +1694,24 @@ def _compare_column_insights_html(xp_profile: dict | None) -> str:
     )
 
 
+def _compare_column_visual_html(
+    xp_profile: dict | None,
+    *,
+    heatmap_b64: str | None,
+) -> str:
+    """Heatmap plus xP indices and pass-length mix directly under profile facts."""
+    heatmap_html = _compare_column_heatmap_html(heatmap_b64)
+    insights_html = _compare_column_insights_html(xp_profile)
+    if not heatmap_html and not insights_html:
+        return ""
+    return (
+        '<div class="pa-compare-col-visual">'
+        f"{heatmap_html}"
+        f"{insights_html}"
+        "</div>"
+    )
+
+
 def _compare_column_html(
     player: dict,
     source: dict,
@@ -1703,12 +1724,9 @@ def _compare_column_html(
     return (
         f'<div class="player-card pa-compare-player-card pa-compare-player-card-{html.escape(variant)}">'
         f"{_compare_column_head_html(player, variant=variant)}"
-        '<div class="pa-compare-col-section">Player</div>'
         f"{_compare_column_facts_html(player, fmt_pct_fn=fmt_pct_fn)}"
+        f"{_compare_column_visual_html(source, heatmap_b64=heatmap_b64)}"
         f"{_compare_column_xp_metrics_html(source, other_source=other_source)}"
-        '<div class="pa-compare-col-section">Pass origin</div>'
-        f"{_compare_column_heatmap_html(heatmap_b64)}"
-        f"{_compare_column_insights_html(source)}"
         f"{_compare_column_scores_html(source, variant=variant)}"
         "</div>"
     )
@@ -3183,6 +3201,52 @@ st.markdown(
         background: rgba(9, 14, 27, 0.35);
     }
     .pa-compare-col-head-text { min-width: 0; flex: 1; }
+    .pa-compare-profile-list {
+        list-style: none;
+        margin: 0;
+        padding: 0.35rem 1rem 0.85rem;
+        border-bottom: 1px solid #1a2236;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+    .pa-compare-profile-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.48rem 0;
+        border-bottom: 1px solid rgba(36, 48, 73, 0.55);
+    }
+    .pa-compare-profile-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0.1rem;
+    }
+    .pa-compare-profile-row-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.42rem;
+        color: #94a3b8;
+        font-size: 0.72rem;
+        font-weight: 600;
+        line-height: 1.2;
+        min-width: 0;
+    }
+    .pa-compare-profile-row-label i {
+        width: 0.85rem;
+        color: #64748b;
+        font-size: 0.68rem;
+        text-align: center;
+        flex-shrink: 0;
+    }
+    .pa-compare-profile-row-val {
+        color: #f1f5f9;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-align: right;
+        line-height: 1.2;
+        flex-shrink: 0;
+    }
     .pa-compare-col-section {
         padding: 0.7rem 1rem 0.35rem;
         color: #93c5fd;
@@ -3191,45 +3255,24 @@ st.markdown(
         letter-spacing: 0.08em;
         text-transform: uppercase;
     }
-    .pa-compare-col-facts {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.35rem 0.75rem;
-        padding: 0 1rem 0.75rem;
-        border-bottom: 1px solid #1a2236;
-    }
-    .pa-compare-col-fact {
+    .pa-compare-col-visual {
         display: flex;
         flex-direction: column;
-        gap: 0.12rem;
-        padding: 0.42rem 0.5rem;
-        border-radius: 8px;
-        background: rgba(9, 14, 27, 0.45);
-        border: 1px solid rgba(36, 48, 73, 0.8);
-    }
-    .pa-compare-col-fact-label {
-        color: #64748b;
-        font-size: 0.58rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-    }
-    .pa-compare-col-fact-val {
-        color: #f1f5f9;
-        font-size: 0.82rem;
-        font-weight: 700;
-        line-height: 1.2;
+        gap: 0.65rem;
+        padding: 0.75rem 0 0.85rem;
+        border-bottom: 1px solid #1a2236;
+        background: rgba(9, 14, 27, 0.22);
     }
     .pa-compare-col-heatmap {
         display: flex;
         align-items: center;
         justify-content: center;
         width: calc(100% - 2rem);
-        margin: 0.15rem 1rem 0.75rem;
-        aspect-ratio: 1.15;
-        min-height: 210px;
-        max-height: 300px;
-        padding: 0.55rem;
+        margin: 0 auto;
+        aspect-ratio: 1.2;
+        min-height: 200px;
+        max-height: 280px;
+        padding: 0.5rem;
         border-radius: 12px;
         background: rgba(9, 14, 27, 0.72);
         border: 1px solid rgba(51, 65, 85, 0.6);
@@ -3237,17 +3280,18 @@ st.markdown(
         box-sizing: border-box;
     }
     .pa-compare-col-insights {
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.55rem;
-        padding: 0 1rem 0.75rem;
-        border-bottom: 1px solid #1a2236;
+        padding: 0 1rem;
     }
     .pa-compare-compact-block {
         display: flex;
         flex-direction: column;
         gap: 0.32rem;
-        padding: 0.5rem 0.55rem;
+        min-width: 0;
+        height: 100%;
+        padding: 0.55rem 0.6rem;
         border-radius: 10px;
         background: rgba(9, 14, 27, 0.55);
         border: 1px solid rgba(51, 65, 85, 0.55);
@@ -3317,7 +3361,7 @@ st.markdown(
         display: flex;
         flex-direction: column;
         gap: 0;
-        padding: 0 1rem 0.75rem;
+        padding: 0.15rem 1rem 0.75rem;
         border-bottom: 1px solid #1a2236;
     }
     .pa-compare-col-scores {
@@ -3472,8 +3516,8 @@ st.markdown(
         .pa-compare-grid {
             grid-template-columns: 1fr;
         }
-        .pa-compare-col-facts {
-            grid-template-columns: 1fr 1fr;
+        .pa-compare-col-insights {
+            grid-template-columns: 1fr;
         }
     }
     .pa-xp-compare-card {
