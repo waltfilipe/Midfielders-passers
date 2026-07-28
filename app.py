@@ -8556,11 +8556,14 @@ def _pa_regular_stat_tooltip(key: str) -> str:
 
 
 def _pa_letter_grade_pill_html(display_score: float | None, letter: str | None = None) -> str:
-    if display_score is None:
+    if display_score is None and not letter:
         return '<span class="section-rating-pill pa-letter-grade-pill" style="background:#334155;color:#f8fafc">—</span>'
-    score = float(display_score)
-    grade = letter or xstats.display_score_letter_grade(score)
-    pct = xstats.display_score_pass_grade_pct(score)
+    grade = letter
+    if not grade or grade == "—":
+        grade = xstats.display_score_letter_grade(display_score)
+    pct = xstats.letter_grade_pass_grade_pct(grade)
+    if pct <= 0.0 and display_score is not None:
+        pct = xstats.display_score_pass_grade_pct(float(display_score))
     bg = _pass_grade_gradient_color(pct)
     txt = _badge_text_color(bg)
     return (
@@ -8587,7 +8590,14 @@ def _pa_regular_score_summary_html(
     tooltip = XP_PA_REGULAR_SCORE_TOOLTIPS.get(display_key, "")
     if score_val is not None:
         letter = source.get(letter_key) or xstats.display_score_letter_grade(score_val)
-        score_note = f"Grade {letter} · score {score_val:.1f}/9"
+        index_key = {
+            "pass_buildup_display": "pass_buildup_index",
+            "pass_chance_creation_display": "pass_chance_creation_index",
+        }.get(display_key, "")
+        rank = source.get(f"{index_key}_rank_in_group") if index_key else None
+        total = source.get(f"{index_key}_rank_pool_in_group") if index_key else None
+        rank_note = f" · #{int(rank)} of {int(total)}" if rank and total else ""
+        score_note = f"Grade {letter} · score {score_val:.1f}/9{rank_note}"
         tooltip = f"{tooltip} {score_note}".strip() if tooltip else score_note
     title_attr = f' title="{html.escape(tooltip, quote=True)}"' if tooltip else ""
     letter = source.get(letter_key) if letter_key else None

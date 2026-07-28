@@ -1407,30 +1407,89 @@ PASS_SCORE_LETTER_KEYS: dict[str, str] = {
     "pass_buildup_display": "pass_buildup_letter",
     "pass_chance_creation_display": "pass_chance_creation_letter",
 }
-# Letter grades on the 3.0–9.0 display-score scale (strict: median ≈ C at 6.0).
-DISPLAY_SCORE_LETTER_TIERS: tuple[tuple[float, str], ...] = (
-    (8.6, "A+"),
-    (8.2, "A"),
-    (7.8, "A-"),
-    (7.4, "B+"),
-    (7.0, "B"),
-    (6.6, "B-"),
-    (6.3, "C+"),
-    (6.0, "C"),
-    (5.6, "C-"),
-    (0.0, "D"),
+PASS_SCORE_INDEX_KEYS: dict[str, str] = {
+    "pass_buildup_display": "pass_buildup_index",
+    "pass_chance_creation_display": "pass_chance_creation_index",
+}
+# Letter grades from within-pool rank percentile (strict: ~top 22% → B).
+RANK_PERCENTILE_LETTER_TIERS: tuple[tuple[float, str], ...] = (
+    (0.020, "A+"),
+    (0.045, "A"),
+    (0.080, "A-"),
+    (0.130, "B+"),
+    (0.220, "B"),
+    (0.340, "B-"),
+    (0.460, "C+"),
+    (0.580, "C"),
+    (0.720, "C-"),
+    (1.010, "D"),
 )
+# Anchor each letter to a display score for the pass-grade color gradient.
+LETTER_GRADE_COLOR_SCORES: dict[str, float] = {
+    "A+": 8.9,
+    "A": 8.4,
+    "A-": 7.9,
+    "B+": 7.4,
+    "B": 6.9,
+    "B-": 6.4,
+    "C+": 5.9,
+    "C": 5.4,
+    "C-": 4.9,
+    "D": 4.2,
+}
+
+
+def rank_percentile_letter_grade(
+    rank: float | int | None,
+    pool_size: float | int | None,
+) -> str:
+    """Map peer rank (1 = best) to a letter grade via pool percentile."""
+    if rank is None or pool_size is None:
+        return "—"
+    try:
+        rank_i = int(rank)
+        pool_i = int(pool_size)
+    except (TypeError, ValueError):
+        return "—"
+    if rank_i <= 0 or pool_i <= 0:
+        return "—"
+    pct = float(rank_i) / float(pool_i)
+    for ceiling, letter in RANK_PERCENTILE_LETTER_TIERS:
+        if pct <= ceiling:
+            return letter
+    return "D"
+
+
+def letter_grade_pass_grade_pct(letter: str | None) -> float:
+    """Color axis for a letter grade on the Overall Pass Grade gradient."""
+    if not letter or letter == "—":
+        return 0.0
+    score = LETTER_GRADE_COLOR_SCORES.get(str(letter), 4.5)
+    return display_score_pass_grade_pct(score)
 
 
 def display_score_letter_grade(display_score: float | int | None) -> str:
-    """Map a 3.0–9.0 display score to a letter grade (A+ … D)."""
+    """Fallback: map a 3.0–9.0 display score to a letter grade (A+ … D)."""
     if display_score is None:
         return "—"
     try:
         score = float(display_score)
     except (TypeError, ValueError):
         return "—"
-    for floor, letter in DISPLAY_SCORE_LETTER_TIERS:
+    # Legacy score floors — kept only as fallback when rank is unavailable.
+    score_tiers: tuple[tuple[float, str], ...] = (
+        (8.6, "A+"),
+        (8.2, "A"),
+        (7.8, "A-"),
+        (7.4, "B+"),
+        (7.0, "B"),
+        (6.6, "B-"),
+        (6.3, "C+"),
+        (6.0, "C"),
+        (5.6, "C-"),
+        (0.0, "D"),
+    )
+    for floor, letter in score_tiers:
         if score >= floor:
             return letter
     return "D"
@@ -1807,7 +1866,11 @@ def attach_regular_pass_scores(players: list[dict]) -> None:
             _attach_index_display_scores(rows, raw_key, display_key, composite)
         for row in rows:
             for display_key, letter_key in PASS_SCORE_LETTER_KEYS.items():
-                row[letter_key] = display_score_letter_grade(row.get(display_key))
+                index_key = PASS_SCORE_INDEX_KEYS.get(display_key, "")
+                row[letter_key] = rank_percentile_letter_grade(
+                    row.get(f"{index_key}_rank_in_group"),
+                    row.get(f"{index_key}_rank_pool_in_group"),
+                )
 
 
 def attach_composite_indices(players: list[dict]) -> None:
