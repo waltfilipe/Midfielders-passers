@@ -21,6 +21,37 @@ if str(ROOT) not in sys.path:
 import passes_engine as pe
 import player_profiles as pp
 
+LIGUE1_TEAM_TOKENS: frozenset[str] = frozenset({
+    "paris saint-germain",
+    "olympique de marseille",
+    "olympique lyonnais",
+    "as monaco",
+    "lille",
+    "nice",
+    "ogc nice",
+    "rc lens",
+    "stade rennais",
+    "stade brestois",
+    "toulouse",
+    "nantes",
+    "fc nantes",
+    "rc strasbourg",
+    "angers",
+    "auxerre",
+    "le havre",
+    "lorient",
+    "metz",
+    "paris fc",
+    "red star",
+    "saint-etienne",
+    "saint-étienne",
+})
+
+
+def _is_ligue1_player(player: dict) -> bool:
+    team = str(player.get("team") or "").strip().lower()
+    return any(token in team for token in LIGUE1_TEAM_TOKENS)
+
 
 def _needs_fetch(player: dict, *, only_missing: bool, force: bool) -> bool:
     if force:
@@ -48,9 +79,16 @@ def main() -> None:
         default=0.12,
         help="Delay between network requests in seconds (default: 0.12).",
     )
+    parser.add_argument(
+        "--ligue1-only",
+        action="store_true",
+        help="Restrict prefetch to Ligue 1 midfielders (by team name).",
+    )
     args = parser.parse_args()
 
     players = pe.build_european_league_midfielders()
+    if args.ligue1_only:
+        players = [player for player in players if _is_ligue1_player(player)]
     targets = [
         player
         for player in players

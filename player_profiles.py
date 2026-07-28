@@ -86,6 +86,22 @@ TEAM_ALIASES: dict[str, str] = {
     "borussia dortmund": "dortmund",
     "borussia monchengladbach": "monchengladbach",
     "eintracht frankfurt": "frankfurt",
+    "paris saint germain": "paris saint germain",
+    "olympique lyonnais": "lyon",
+    "olympique de marseille": "marseille",
+    "as monaco": "monaco",
+    "ogc nice": "nice",
+    "rc lens": "lens",
+    "stade rennais": "rennes",
+    "stade brestois": "brest",
+    "fc nantes": "nantes",
+    "rc strasbourg": "strasbourg",
+    "saint etienne": "saint etienne",
+    "le havre ac": "le havre",
+    "paris fc": "paris fc",
+    "red star fc": "red star",
+    "stade de reims": "reims",
+    "montpellier hsc": "montpellier",
 }
 
 

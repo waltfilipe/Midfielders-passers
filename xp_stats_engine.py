@@ -1929,9 +1929,13 @@ def attach_pass_length_profile(players: list[dict]) -> None:
 
         sorted_shares = np.sort(np.asarray(shares, dtype=float))
         peer_avg = round(float(sorted_shares.mean()), 1)
+        p10, p90 = np.percentile(sorted_shares, [10, 90])
+        peer_span = max(5.0, float(p90 - p10) / 2.0)
+        peer_span = min(peer_span, 11.0)
         for row in rows:
             row["long_pass_share_peer_avg_pct"] = peer_avg
             row["long_pass_share_peer_count"] = len(shares)
+            row["long_pass_share_peer_span_pp"] = round(peer_span, 2)
             share = row.get("long_pass_share_pct")
             if share is None:
                 row["long_pass_share_pctile"] = None
