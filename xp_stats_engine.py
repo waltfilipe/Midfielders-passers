@@ -1403,6 +1403,44 @@ PASS_SCORE_TOOLTIPS: dict[str, str] = {
         f"{IMPACT_PASS_ABBR} per game with pass destination in the final third of the field."
     ),
 }
+PASS_SCORE_LETTER_KEYS: dict[str, str] = {
+    "pass_buildup_display": "pass_buildup_letter",
+    "pass_chance_creation_display": "pass_chance_creation_letter",
+}
+# Letter grades on the 3.0–9.0 display-score scale (same axis as rank_to_display_score).
+DISPLAY_SCORE_LETTER_TIERS: tuple[tuple[float, str], ...] = (
+    (8.4, "A+"),
+    (7.8, "A"),
+    (7.2, "A-"),
+    (6.6, "B+"),
+    (6.0, "B"),
+    (5.4, "B-"),
+    (4.8, "C+"),
+    (4.2, "C"),
+    (3.6, "C-"),
+    (0.0, "D"),
+)
+
+
+def display_score_letter_grade(display_score: float | int | None) -> str:
+    """Map a 3.0–9.0 display score to a letter grade (A+ … D)."""
+    if display_score is None:
+        return "—"
+    try:
+        score = float(display_score)
+    except (TypeError, ValueError):
+        return "—"
+    for floor, letter in DISPLAY_SCORE_LETTER_TIERS:
+        if score >= floor:
+            return letter
+    return "D"
+
+
+def display_score_pass_grade_pct(display_score: float | int | None) -> float:
+    """Map display score onto the Overall Pass Grade gradient (4.5→0%, 9.0→100%)."""
+    if display_score is None:
+        return 0.0
+    return max(0.0, min(100.0, (float(display_score) - 4.5) / 4.5 * 100.0))
 
 
 def _zscore(series: pd.Series) -> pd.Series:
@@ -1767,6 +1805,9 @@ def attach_regular_pass_scores(players: list[dict]) -> None:
         for raw_key, display_key, metric_cols in PASS_SCORE_SPECS:
             composite = _mean_winsorized_z_columns(df, metric_cols)
             _attach_index_display_scores(rows, raw_key, display_key, composite)
+        for row in rows:
+            for display_key, letter_key in PASS_SCORE_LETTER_KEYS.items():
+                row[letter_key] = display_score_letter_grade(row.get(display_key))
 
 
 def attach_composite_indices(players: list[dict]) -> None:

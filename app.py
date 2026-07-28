@@ -5385,6 +5385,13 @@ st.markdown(
         padding: 0.42rem 0;
         font-size: 0.82rem;
     }
+    .pa-letter-grade-pill {
+        min-width: 2.35rem;
+        padding: 4px 10px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+    }
     .pa-top-badge {
         display: inline-flex;
         align-items: center;
@@ -8416,6 +8423,7 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
     (
         "pass_buildup_display",
         "pass_buildup_index",
+        "pass_buildup_letter",
         "Build-up",
         (
             "progressive_passes",
@@ -8427,6 +8435,7 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
     (
         "pass_chance_creation_display",
         "pass_chance_creation_index",
+        "pass_chance_creation_letter",
         "Chance creation",
         (
             "key_passes",
@@ -8551,22 +8560,29 @@ def _pa_regular_stat_tooltip(key: str) -> str:
     )
 
 
-def _pa_display_score_pill_html(display_score: float | None) -> str:
+def _pa_letter_grade_pill_html(display_score: float | None, letter: str | None = None) -> str:
     if display_score is None:
-        return '<span class="section-rating-pill" style="background:#334155;color:#f8fafc">—</span>'
+        return '<span class="section-rating-pill pa-letter-grade-pill" style="background:#334155;color:#f8fafc">—</span>'
     score = float(display_score)
-    bg = score_display_color(score)
+    grade = letter or xstats.display_score_letter_grade(score)
+    pct = xstats.display_score_pass_grade_pct(score)
+    bg = _pass_grade_gradient_color(pct)
     txt = _badge_text_color(bg)
     return (
-        f'<span class="section-rating-pill" style="background:{bg};color:{txt}">'
-        f"{html.escape(f'{score:.1f}')}</span>"
+        f'<span class="section-rating-pill pa-letter-grade-pill" style="background:{bg};color:{txt}">'
+        f"{html.escape(grade)}</span>"
     )
+
+
+def _pa_display_score_pill_html(display_score: float | None) -> str:
+    return _pa_letter_grade_pill_html(display_score)
 
 
 def _pa_regular_score_summary_html(
     title: str,
     display_key: str,
     index_key: str,
+    letter_key: str,
     source: dict,
 ) -> str:
     score = source.get(display_key)
@@ -8584,13 +8600,18 @@ def _pa_regular_score_summary_html(
             f"{html.escape(group)}</div>"
         )
     tooltip = XP_PA_REGULAR_SCORE_TOOLTIPS.get(display_key, "")
+    if score_val is not None:
+        letter = source.get(letter_key) or xstats.display_score_letter_grade(score_val)
+        score_note = f"Grade {letter} · score {score_val:.1f}/9"
+        tooltip = f"{tooltip} {score_note}".strip() if tooltip else score_note
     title_attr = f' title="{html.escape(tooltip, quote=True)}"' if tooltip else ""
+    letter = source.get(letter_key) if letter_key else None
     return (
         f'<div class="grade-summary-main"{title_attr}>'
         f'<div class="grade-summary-top">'
         f'<div class="grade-card-title-row">'
         f'<div class="grade-card-title">{html.escape(title)}</div>'
-        f"{_pa_display_score_pill_html(score_val)}"
+        f"{_pa_letter_grade_pill_html(score_val, str(letter) if letter else None)}"
         f"</div>"
         f"{rank_html}"
         f"</div>"
@@ -8603,6 +8624,7 @@ def _pa_regular_score_accordion_html(
     metric_ranks: dict,
     display_key: str,
     index_key: str,
+    letter_key: str,
     title: str,
     component_keys: tuple[str, ...],
 ) -> str:
@@ -8614,7 +8636,7 @@ def _pa_regular_score_accordion_html(
         '<details class="grade-accordion pa-regular-score-accordion" name="pa-regular-scores">'
         "<summary>"
         '<i class="fa-solid fa-chevron-right grade-arrow" aria-hidden="true"></i>'
-        f"{_pa_regular_score_summary_html(title, display_key, index_key, source)}"
+        f"{_pa_regular_score_summary_html(title, display_key, index_key, letter_key, source)}"
         "</summary>"
         f'<div class="grade-accordion-body">{lines}</div>'
         "</details>"
@@ -8749,10 +8771,11 @@ def _pa_regular_stats_panel_html(
             metric_ranks,
             display_key,
             index_key,
+            letter_key,
             title,
             component_keys,
         )
-        for display_key, index_key, title, component_keys in XP_PA_REGULAR_SCORE_SPECS
+        for display_key, index_key, letter_key, title, component_keys in XP_PA_REGULAR_SCORE_SPECS
     )
     return (
         '<div class="pa-xp-section-panel">'
