@@ -1464,13 +1464,13 @@ def _compare_profile_plain_value(player: dict, key: str, *, fmt_pct_fn) -> str:
     return str(value)
 
 
-def _compare_sheet_player_head_html(player: dict, *, variant: str) -> str:
+def _compare_column_head_html(player: dict, *, variant: str) -> str:
     search_pos = sim.player_search_position(player)
     group_label = sim.similarity_position_label(search_pos) if search_pos else "—"
     return (
-        f'<div class="pa-compare-sheet-player pa-compare-sheet-player-{html.escape(variant)}">'
+        f'<div class="pa-compare-col-head pa-compare-col-head-{html.escape(variant)}">'
         f'<div class="pa-compare-photo-wrap">{_player_photo_html(player)}</div>'
-        '<div class="pa-compare-sheet-player-text">'
+        '<div class="pa-compare-col-head-text">'
         f'<div class="pa-compare-player-name">{html.escape(str(player.get("player_name", "—")))}</div>'
         '<div class="pa-compare-player-sub">'
         f"{html.escape(str(player.get('team', '—')))} · "
@@ -1482,59 +1482,99 @@ def _compare_sheet_player_head_html(player: dict, *, variant: str) -> str:
     )
 
 
-def _compare_sheet_row_html(
-    label: str,
-    primary_html: str,
-    secondary_html: str,
-    *,
-    row_class: str = "",
-) -> str:
-    return (
-        f'<div class="pa-compare-sheet-row {row_class}">'
-        f'<span class="pa-compare-sheet-label">{html.escape(label)}</span>'
-        f'<span class="pa-compare-sheet-val pa-compare-sheet-val-primary">{primary_html}</span>'
-        f'<span class="pa-compare-sheet-val pa-compare-sheet-val-secondary">{secondary_html}</span>'
-        "</div>"
-    )
+def _compare_column_facts_html(player: dict, *, fmt_pct_fn) -> str:
+    items: list[str] = []
+    for key in _COMPARE_PROFILE_KEYS:
+        label = _COMPARE_PROFILE_SHORT_LABELS.get(key, key)
+        value = html.escape(_compare_profile_plain_value(player, key, fmt_pct_fn=fmt_pct_fn))
+        items.append(
+            '<div class="pa-compare-col-fact">'
+            f'<span class="pa-compare-col-fact-label">{html.escape(label)}</span>'
+            f'<span class="pa-compare-col-fact-val">{value}</span>'
+            "</div>"
+        )
+    return f'<div class="pa-compare-col-facts">{"".join(items)}</div>'
 
 
-def _compare_sheet_heatmap_cell_html(heatmap_b64: str | None) -> str:
+def _compare_column_heatmap_html(heatmap_b64: str | None) -> str:
     if heatmap_b64:
         return (
-            '<div class="pa-compare-heatmap-wrap">'
+            '<div class="pa-compare-col-heatmap">'
             f'<img class="pa-compare-heatmap" src="data:image/png;base64,{heatmap_b64}" '
             'alt="Pass origin heatmap" />'
             "</div>"
         )
-    return '<span class="pa-compare-heatmap-empty">Unavailable</span>'
+    return '<p class="pa-compare-heatmap-empty">Heatmap unavailable</p>'
 
 
-def _xp_compare_sheet_metric_row_html(
+def _compare_column_metric_html(
     label: str,
-    primary: dict,
-    secondary: dict,
+    source: dict,
     key: str,
     *,
+    other_source: dict | None = None,
     highlight: bool = False,
 ) -> str:
-    p_val = html.escape(_xp_compare_metric_display(primary, key))
-    s_val = html.escape(_xp_compare_metric_display(secondary, key))
-    p_num = _xp_compare_metric_numeric(primary, key)
-    s_num = _xp_compare_metric_numeric(secondary, key)
-    arrow = _cmp_delta_compare_html(p_num, s_num)
-    p_bar = _xp_compare_mini_bar_html(
-        _xp_compare_metric_numeric(primary, f"{key}_sub_display")
+    value = html.escape(_xp_compare_metric_display(source, key))
+    num = _xp_compare_metric_numeric(source, key)
+    other_num = _xp_compare_metric_numeric(other_source, key) if other_source else None
+    arrow = _cmp_delta_compare_html(num, other_num) if other_source is not None else ""
+    bar = _xp_compare_mini_bar_html(_xp_compare_metric_numeric(source, f"{key}_sub_display"))
+    bar_block = (
+        f'<span class="pa-xp-compare-mini-bar-wrap">{bar}</span>' if bar else ""
     )
-    s_bar = _xp_compare_mini_bar_html(
-        _xp_compare_metric_numeric(secondary, f"{key}_sub_display")
-    )
-    row_cls = "pa-compare-sheet-row-highlight" if highlight else ""
     label_html = _xp_compare_metric_label_html(label, key) if highlight else html.escape(label)
+    item_cls = "pa-compare-col-metric pa-compare-col-metric-highlight" if highlight else "pa-compare-col-metric"
     return (
-        f'<div class="pa-compare-sheet-row {row_cls}">'
-        f'<span class="pa-compare-sheet-label">{label_html}</span>'
-        f"{_xp_compare_value_cell_html(p_val, mini_bar_html=p_bar)}"
-        f"{_xp_compare_value_cell_html(s_val, arrow_html=arrow, mini_bar_html=s_bar)}"
+        f'<div class="{item_cls}">'
+        f'<span class="pa-compare-col-metric-label">{label_html}</span>'
+        '<span class="pa-compare-col-metric-body">'
+        f'<span class="pa-compare-col-metric-value">{value}{arrow}</span>'
+        f"{bar_block}"
+        "</span>"
+        "</div>"
+    )
+
+
+def _compare_column_html(
+    player: dict,
+    source: dict,
+    *,
+    heatmap_b64: str | None,
+    variant: str,
+    fmt_pct_fn,
+    other_source: dict | None = None,
+) -> str:
+    highlight_metrics = "".join(
+        _compare_column_metric_html(
+            xstats.XP_COMPARE_HIGHLIGHT_LABELS.get(key, key),
+            source,
+            key,
+            other_source=other_source,
+            highlight=True,
+        )
+        for key in xstats.XP_COMPARE_HIGHLIGHT_KEYS
+    )
+    key_metrics = "".join(
+        _compare_column_metric_html(
+            xstats.XP_COMPARE_METRIC_LABELS.get(key, key),
+            source,
+            key,
+            other_source=other_source,
+        )
+        for key in xstats.XP_COMPARE_METRIC_KEYS
+    )
+    return (
+        f'<div class="pa-compare-column pa-compare-column-{html.escape(variant)}">'
+        f"{_compare_column_head_html(player, variant=variant)}"
+        '<div class="pa-compare-col-section">Profile</div>'
+        f"{_compare_column_facts_html(player, fmt_pct_fn=fmt_pct_fn)}"
+        '<div class="pa-compare-col-section">Pass origin</div>'
+        f"{_compare_column_heatmap_html(heatmap_b64)}"
+        '<div class="pa-compare-col-section">Highlighted metrics</div>'
+        f'<div class="pa-compare-col-metrics">{highlight_metrics}</div>'
+        '<div class="pa-compare-col-section">Key metrics</div>'
+        f'<div class="pa-compare-col-metrics">{key_metrics}</div>'
         "</div>"
     )
 
@@ -1549,52 +1589,15 @@ def _build_pa_compare_layout_html(
     compare_heatmap_b64: str | None,
     fmt_pct_fn,
 ) -> str:
-    rows: list[str] = [
-        '<div class="player-card pa-compare-sheet-card">',
-        '<div class="pa-compare-sheet">',
-        '<div class="pa-compare-sheet-row pa-compare-sheet-head">',
-        '<span class="pa-compare-sheet-label">Player</span>',
-        _compare_sheet_player_head_html(primary_player, variant="primary"),
-        _compare_sheet_player_head_html(compare_player, variant="secondary"),
-        "</div>",
-        '<div class="pa-compare-sheet-section">Profile</div>',
-    ]
-    for key in _COMPARE_PROFILE_KEYS:
-        label = _COMPARE_PROFILE_SHORT_LABELS.get(key, key)
-        p_val = html.escape(_compare_profile_plain_value(primary_player, key, fmt_pct_fn=fmt_pct_fn))
-        s_val = html.escape(_compare_profile_plain_value(compare_player, key, fmt_pct_fn=fmt_pct_fn))
-        rows.append(_compare_sheet_row_html(label, p_val, s_val))
-    rows.append(
-        _compare_sheet_row_html(
-            "Pass origin",
-            _compare_sheet_heatmap_cell_html(primary_heatmap_b64),
-            _compare_sheet_heatmap_cell_html(compare_heatmap_b64),
-            row_class="pa-compare-sheet-row-heatmap",
-        )
+    return (
+        '<div class="player-card pa-compare-columns-card">'
+        '<div class="pa-compare-columns">'
+        f"{_compare_column_html(primary_player, primary_source, heatmap_b64=primary_heatmap_b64, variant='primary', fmt_pct_fn=fmt_pct_fn, other_source=secondary_source)}"
+        '<div class="pa-compare-columns-divider" aria-hidden="true"></div>'
+        f"{_compare_column_html(compare_player, secondary_source, heatmap_b64=compare_heatmap_b64, variant='secondary', fmt_pct_fn=fmt_pct_fn, other_source=primary_source)}"
+        "</div>"
+        "</div>"
     )
-    rows.append('<div class="pa-compare-sheet-section">Highlighted metrics</div>')
-    for key in xstats.XP_COMPARE_HIGHLIGHT_KEYS:
-        rows.append(
-            _xp_compare_sheet_metric_row_html(
-                xstats.XP_COMPARE_HIGHLIGHT_LABELS.get(key, key),
-                primary_source,
-                secondary_source,
-                key,
-                highlight=True,
-            )
-        )
-    rows.append('<div class="pa-compare-sheet-section">Key metrics</div>')
-    for key in xstats.XP_COMPARE_METRIC_KEYS:
-        rows.append(
-            _xp_compare_sheet_metric_row_html(
-                xstats.XP_COMPARE_METRIC_LABELS.get(key, key),
-                primary_source,
-                secondary_source,
-                key,
-            )
-        )
-    rows.extend(["</div>", "</div>"])
-    return "".join(rows)
 
 
 def _render_xp_comparison_panel(
@@ -3013,124 +3016,174 @@ st.markdown(
         flex-direction: column;
         gap: 1rem;
     }
-    .pa-compare-sheet-card {
+    .pa-compare-columns-card {
         padding: 0;
         overflow: hidden;
     }
-    .pa-compare-sheet {
+    .pa-compare-columns {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+        gap: 0;
+        align-items: stretch;
+    }
+    .pa-compare-columns-divider {
+        background: linear-gradient(
+            180deg,
+            rgba(167, 139, 250, 0.08),
+            rgba(51, 65, 85, 0.85) 18%,
+            rgba(51, 65, 85, 0.85) 82%,
+            rgba(134, 239, 172, 0.08)
+        );
+    }
+    .pa-compare-column {
         display: flex;
         flex-direction: column;
+        gap: 0;
+        min-width: 0;
+        padding: 0 0 0.85rem;
     }
-    .pa-compare-sheet-row {
-        display: grid;
-        grid-template-columns: minmax(6.8rem, 0.78fr) minmax(0, 1fr) minmax(0, 1fr);
-        gap: 0.75rem;
+    .pa-compare-column-primary {
+        background: linear-gradient(180deg, rgba(167, 139, 250, 0.06), transparent 120px);
+    }
+    .pa-compare-column-secondary {
+        background: linear-gradient(180deg, rgba(134, 239, 172, 0.05), transparent 120px);
+    }
+    .pa-compare-col-head {
+        display: flex;
         align-items: center;
-        padding: 0.58rem 1rem;
-        border-bottom: 1px solid #1a2236;
-    }
-    .pa-compare-sheet-row:last-child { border-bottom: none; }
-    .pa-compare-sheet-head {
-        align-items: start;
-        padding-top: 0.9rem;
-        padding-bottom: 0.75rem;
-        background: linear-gradient(180deg, rgba(15, 23, 42, 0.55), rgba(15, 23, 42, 0.08));
+        gap: 0.8rem;
+        padding: 0.95rem 1rem 0.8rem;
         border-bottom: 1px solid #243049;
     }
-    .pa-compare-sheet-section {
-        padding: 0.62rem 1rem 0.38rem;
+    .pa-compare-col-head-text { min-width: 0; }
+    .pa-compare-col-section {
+        padding: 0.62rem 1rem 0.35rem;
         color: #93c5fd;
         font-size: 0.66rem;
         font-weight: 800;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        border-bottom: 1px solid #243049;
-        background: rgba(9, 14, 27, 0.5);
     }
-    .pa-compare-sheet-label {
+    .pa-compare-col-facts {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        padding: 0 1rem;
+        border-bottom: 1px solid #1a2236;
+    }
+    .pa-compare-col-fact {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.75rem;
+        padding: 0.48rem 0;
+        border-bottom: 1px solid #18202f;
+    }
+    .pa-compare-col-fact:last-child { border-bottom: none; }
+    .pa-compare-col-fact-label {
         color: #64748b;
         font-size: 0.72rem;
         font-weight: 700;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.03em;
+        flex-shrink: 0;
     }
-    .pa-compare-sheet-val {
-        color: #e2e8f0;
-        font-size: 0.86rem;
+    .pa-compare-col-fact-val {
+        color: #f1f5f9;
+        font-size: 0.84rem;
         font-weight: 700;
-        line-height: 1.35;
+        text-align: right;
         min-width: 0;
     }
-    .pa-compare-sheet-val-primary { color: #f8fafc; }
-    .pa-compare-sheet-val-secondary { color: #e2e8f0; }
-    .pa-compare-sheet-player {
-        display: flex;
-        align-items: center;
-        gap: 0.7rem;
-        min-width: 0;
-    }
-    .pa-compare-sheet-player-text { min-width: 0; }
-    .pa-compare-sheet-row-heatmap {
-        align-items: start;
-        padding-top: 0.7rem;
-        padding-bottom: 0.8rem;
-    }
-    .pa-compare-sheet-row-highlight .pa-compare-sheet-label {
-        color: #cbd5e1;
-        font-weight: 800;
-    }
-    .pa-compare-sheet-row .pa-xp-compare-cell {
-        min-width: 0;
-    }
-    .pa-compare-sheet-row .cmp-cell-value {
-        font-size: 0.92rem;
-        font-weight: 700;
-    }
-    .pa-compare-sheet-row-highlight .cmp-cell-value {
-        font-size: 1rem;
-        color: #f8fafc;
-    }
-    .pa-compare-photo-wrap .pa-identity-photo,
-    .pa-compare-photo-wrap .pa-identity-photo-placeholder {
-        width: 3.1rem;
-        height: 3.1rem;
-        border-radius: 11px;
-        font-size: 0.9rem;
-    }
-    .pa-compare-player-name {
-        color: #f8fafc;
-        font-size: 0.96rem;
-        font-weight: 800;
-        line-height: 1.2;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .pa-compare-player-sub {
-        margin-top: 0.16rem;
-        color: #94a3b8;
-        font-size: 0.72rem;
-        font-weight: 600;
-        line-height: 1.35;
-    }
-    .pa-compare-heatmap-wrap {
+    .pa-compare-col-heatmap {
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 132px;
-        padding: 0.35rem;
-        border-radius: 10px;
-        background: rgba(9, 14, 27, 0.65);
-        border: 1px solid rgba(51, 65, 85, 0.55);
+        min-height: 240px;
+        margin: 0.35rem 1rem 0.55rem;
+        padding: 0.5rem;
+        border-radius: 12px;
+        background: rgba(9, 14, 27, 0.72);
+        border: 1px solid rgba(51, 65, 85, 0.6);
         overflow: hidden;
+    }
+    .pa-compare-col-metrics {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        padding: 0 1rem;
+    }
+    .pa-compare-col-metric {
+        display: flex;
+        flex-direction: column;
+        gap: 0.28rem;
+        padding: 0.52rem 0;
+        border-bottom: 1px solid #18202f;
+    }
+    .pa-compare-col-metric:last-child { border-bottom: none; }
+    .pa-compare-col-metric-highlight .pa-compare-col-metric-label {
+        color: #dbeafe;
+        font-weight: 800;
+    }
+    .pa-compare-col-metric-highlight .pa-compare-col-metric-value {
+        font-size: 1.02rem;
+        color: #f8fafc;
+    }
+    .pa-compare-col-metric-label {
+        color: #94a3b8;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+    .pa-compare-col-metric-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.28rem;
+        min-width: 0;
+    }
+    .pa-compare-col-metric-value {
+        color: #e2e8f0;
+        font-size: 0.92rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .pa-compare-col-metric .pa-xp-compare-mini-bar-wrap {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+    }
+    .pa-compare-photo-wrap .pa-identity-photo,
+    .pa-compare-photo-wrap .pa-identity-photo-placeholder {
+        width: 3.6rem;
+        height: 3.6rem;
+        border-radius: 12px;
+        font-size: 0.95rem;
+    }
+    .pa-compare-player-name {
+        color: #f8fafc;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+    .pa-compare-player-sub {
+        margin-top: 0.18rem;
+        color: #94a3b8;
+        font-size: 0.74rem;
+        font-weight: 600;
+        line-height: 1.35;
     }
     .pa-compare-heatmap {
         width: 100%;
-        max-height: 150px;
+        max-height: 280px;
         object-fit: contain;
         display: block;
-        border-radius: 7px;
+        border-radius: 8px;
     }
     .pa-compare-heatmap-empty {
+        margin: 0.5rem 1rem;
+        padding: 2rem 0.5rem;
+        text-align: center;
         color: #64748b;
         font-size: 0.72rem;
         font-style: italic;
@@ -7826,8 +7879,14 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         return ""
     share = float(share)
     short_share = 100.0 - share
-    peer_avg = xp_profile.get("long_pass_share_peer_avg_pct")
-    peer_count = int(xp_profile.get("long_pass_share_peer_count") or 0)
+    peer_avg = xp_profile.get("long_pass_share_ref_avg_pct")
+    if peer_avg is None:
+        peer_avg = xp_profile.get("long_pass_share_peer_avg_pct")
+    peer_count = int(
+        xp_profile.get("long_pass_share_ref_count")
+        or xp_profile.get("long_pass_share_peer_count")
+        or 0
+    )
     short_label = xstats.DISTANCE_BAND_LABELS.get("short", "≤30m")
     long_label = xstats.DISTANCE_BAND_LABELS.get("long", ">30m")
 
@@ -7844,17 +7903,21 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         sign = "+" if delta >= 0 else "−"
         delta_html = (
             f'<span class="pa-pass-mix-delta pa-pass-mix-delta-{delta_cls}" '
-            f'title="Difference against the midfielder peer average">'
+            f'title="Difference against the top-100 midfielder reference">'
             f"{sign}{abs(delta):.1f} pp</span>"
         )
-        half_span = float(xp_profile.get("long_pass_share_peer_span_pp") or 0.0)
+        half_span = float(
+            xp_profile.get("long_pass_share_ref_span_pp")
+            or xp_profile.get("long_pass_share_peer_span_pp")
+            or 0.0
+        )
         if half_span <= 0:
             half_span = max(3.5, min(peer_avg, 100.0 - peer_avg) * 0.85)
         marker_pos = 50.0 + (share - peer_avg) / half_span * 50.0
         marker_pos = max(3.0, min(97.0, marker_pos))
         center_marker = (
             f'<span class="pa-pass-mix-center" '
-            f'title="Midfielder average long share: {peer_avg:.1f}%"></span>'
+            f'title="Top {peer_count} midfielders by passes — avg long share: {peer_avg:.1f}%"></span>'
         )
         player_marker = (
             f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%" '
@@ -7864,7 +7927,8 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         pctile_txt = f" · P{float(pctile):.0f}" if pctile is not None else ""
         foot = (
             '<p class="pa-pass-mix-foot">'
-            f"Center = midfielder avg ({peer_avg:.1f}% long, {peer_count} players)"
+            f"Center = avg of top {peer_count} midfielders by passes "
+            f"({peer_avg:.1f}% long)"
             f"{html.escape(pctile_txt)}"
             "</p>"
         )

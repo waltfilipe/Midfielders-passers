@@ -1894,12 +1894,75 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
 
 
 PASS_LENGTH_MIN_PEERS = 5
+PASS_LENGTH_REF_TOP_N = 100
+
+
+def _long_pass_share_from_row(row: dict) -> float | None:
+    short = float(row.get("passes_short") or 0.0)
+    long_ = float(row.get("passes_long") or 0.0)
+    band_total = short + long_
+    if band_total <= 0:
+        return None
+    return long_ / band_total * 100.0
+
+
+def _pass_volume_for_length_ref(row: dict) -> int:
+    completed = row.get("passes_completed")
+    if completed is not None:
+        try:
+            return int(completed)
+        except (TypeError, ValueError):
+            pass
+    short = float(row.get("passes_short") or 0.0)
+    long_ = float(row.get("passes_long") or 0.0)
+    return int(short + long_)
 
 
 def attach_pass_length_profile(players: list[dict]) -> None:
-    """Long/short pass share per player plus the peer average inside the same rank pool."""
+    """Long/short pass share per player plus a top-volume midfielder reference for the bar."""
     if not players:
         return
+
+    ref_candidates: list[dict] = []
+    for row in players:
+        long_share = _long_pass_share_from_row(row)
+        if long_share is None:
+            row["long_pass_share_pct"] = None
+            row["short_pass_share_pct"] = None
+            continue
+        row["long_pass_share_pct"] = round(long_share, 1)
+        row["short_pass_share_pct"] = round(100.0 - long_share, 1)
+        ref_candidates.append(row)
+
+    ref_rows = sorted(
+        ref_candidates,
+        key=_pass_volume_for_length_ref,
+        reverse=True,
+    )[:PASS_LENGTH_REF_TOP_N]
+    ref_shares = [float(row["long_pass_share_pct"]) for row in ref_rows]
+    if len(ref_shares) >= PASS_LENGTH_MIN_PEERS:
+        ref_sorted = np.sort(np.asarray(ref_shares, dtype=float))
+        ref_avg = round(float(ref_sorted.mean()), 1)
+        p10, p90 = np.percentile(ref_sorted, [10, 90])
+        ref_span = max(5.0, float(p90 - p10) / 2.0)
+        ref_span = min(ref_span, 11.0)
+        for row in players:
+            row["long_pass_share_ref_avg_pct"] = ref_avg
+            row["long_pass_share_ref_span_pp"] = round(ref_span, 2)
+            row["long_pass_share_ref_count"] = len(ref_shares)
+            # Bar center uses the top-volume reference; keep legacy keys in sync.
+            row["long_pass_share_peer_avg_pct"] = ref_avg
+            row["long_pass_share_peer_span_pp"] = round(ref_span, 2)
+            row["long_pass_share_peer_count"] = len(ref_shares)
+    else:
+        for row in players:
+            row["long_pass_share_ref_avg_pct"] = None
+            row["long_pass_share_ref_span_pp"] = None
+            row["long_pass_share_ref_count"] = len(ref_shares)
+            row["long_pass_share_peer_avg_pct"] = None
+            row["long_pass_share_peer_span_pp"] = None
+            row["long_pass_share_peer_count"] = len(ref_shares)
+            row["long_pass_share_pctile"] = None
 
     pools: dict[str, list[dict]] = {}
     for player in players:
@@ -1908,34 +1971,18 @@ def attach_pass_length_profile(players: list[dict]) -> None:
     for rows in pools.values():
         shares: list[float] = []
         for row in rows:
-            short = float(row.get("passes_short") or 0.0)
-            long_ = float(row.get("passes_long") or 0.0)
-            band_total = short + long_
-            if band_total > 0:
-                long_share = long_ / band_total * 100.0
-                row["long_pass_share_pct"] = round(long_share, 1)
-                row["short_pass_share_pct"] = round(100.0 - long_share, 1)
-                shares.append(long_share)
-            else:
-                row["long_pass_share_pct"] = None
-                row["short_pass_share_pct"] = None
+            share = row.get("long_pass_share_pct")
+            if share is not None:
+                shares.append(float(share))
 
         if len(shares) < PASS_LENGTH_MIN_PEERS:
             for row in rows:
-                row["long_pass_share_peer_avg_pct"] = None
-                row["long_pass_share_peer_count"] = len(shares)
-                row["long_pass_share_pctile"] = None
+                if row.get("long_pass_share_ref_avg_pct") is None:
+                    row["long_pass_share_pctile"] = None
             continue
 
         sorted_shares = np.sort(np.asarray(shares, dtype=float))
-        peer_avg = round(float(sorted_shares.mean()), 1)
-        p10, p90 = np.percentile(sorted_shares, [10, 90])
-        peer_span = max(5.0, float(p90 - p10) / 2.0)
-        peer_span = min(peer_span, 11.0)
         for row in rows:
-            row["long_pass_share_peer_avg_pct"] = peer_avg
-            row["long_pass_share_peer_count"] = len(shares)
-            row["long_pass_share_peer_span_pp"] = round(peer_span, 2)
             share = row.get("long_pass_share_pct")
             if share is None:
                 row["long_pass_share_pctile"] = None
