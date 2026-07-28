@@ -3719,10 +3719,36 @@ st.markdown(
     }
     .pa-filter-count strong { color: #38bdf8; }
     .cmp-shell {
-        max-width: 1480px;
+        max-width: 1060px;
         margin: 0.15rem auto 1.25rem auto;
     }
-    .cmp-compare-hero { margin-bottom: 0.85rem; }
+    .cmp-compare-hero {
+        margin-bottom: 0.75rem;
+        max-width: 1060px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .st-key-cmp_layout_row [data-testid="stHorizontalBlock"] {
+        gap: 0.55rem !important;
+        max-width: 1060px;
+        margin: 0 auto;
+        width: 100%;
+        align-items: flex-start;
+    }
+    .st-key-cmp_layout_row [data-testid="column"]:first-child {
+        flex: 0 0 228px !important;
+        width: 228px !important;
+        min-width: 228px !important;
+        max-width: 228px !important;
+    }
+    .st-key-cmp_layout_row [data-testid="column"]:not(:first-child) {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+    }
+    .st-key-cmp_layout_row [data-testid="column"] {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
     .st-key-cmp_filter_card {
         background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
         border: 1px solid #2a3550;
@@ -11129,77 +11155,78 @@ def render_compare_section(
         unsafe_allow_html=True,
     )
 
-    col_filter, col_a, col_b = st.columns([0.24, 0.38, 0.38], gap="large")
-    with col_filter:
-        player_a_id, player_b_id = _render_compare_filter_card(
-            all_players,
-            progression_by_id,
-            xp_by_id=xp_by_id,
+    with st.container(key="cmp_layout_row"):
+        col_filter, col_a, col_b = st.columns([0.9, 1.3, 1.3], gap="small")
+        with col_filter:
+            player_a_id, player_b_id = _render_compare_filter_card(
+                all_players,
+                progression_by_id,
+                xp_by_id=xp_by_id,
+            )
+
+        if not player_a_id or not player_b_id:
+            st.info("Selecione dois jogadores nos filtros para comparar.")
+            st.markdown("</div>", unsafe_allow_html=True)
+            return
+        if player_a_id == player_b_id:
+            st.warning("Selecione dois jogadores diferentes.")
+            st.markdown("</div>", unsafe_allow_html=True)
+            return
+
+        player_a = progression_by_id.get(player_a_id) or pass_by_id.get(player_a_id, {})
+        player_b = progression_by_id.get(player_b_id) or pass_by_id.get(player_b_id, {})
+        player_a = pp.enrich_player_general_profile(player_a)
+        player_b = pp.enrich_player_general_profile(player_b)
+
+        xp_a = xp_by_id.get(player_a_id)
+        xp_b = xp_by_id.get(player_b_id)
+        if not xp_a or not xp_b:
+            st.warning("xP metrics unavailable for one or both selected players.")
+            st.markdown("</div>", unsafe_allow_html=True)
+            return
+
+        source_a = _xp_compare_player_source(player_a, xp_a, pass_player=pass_by_id.get(player_a_id))
+        source_b = _xp_compare_player_source(player_b, xp_b, pass_player=pass_by_id.get(player_b_id))
+        heatmap_a = _player_origin_heatmap_b64(
+            player_a_id,
+            passes_by_player,
+            str(player_a.get("player_name", "")),
+        )
+        heatmap_b = _player_origin_heatmap_b64(
+            player_b_id,
+            passes_by_player,
+            str(player_b.get("player_name", "")),
         )
 
-    if not player_a_id or not player_b_id:
-        st.info("Selecione dois jogadores nos filtros para comparar.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-    if player_a_id == player_b_id:
-        st.warning("Selecione dois jogadores diferentes.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
+        with col_a:
+            st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
+            st.html(
+                _compare_column_html(
+                    player_a,
+                    source_a,
+                    heatmap_b64=heatmap_a,
+                    variant="primary",
+                    fmt_pct_fn=fmt_pct_fn,
+                    other_source=source_b,
+                ),
+                width="stretch",
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
 
-    player_a = progression_by_id.get(player_a_id) or pass_by_id.get(player_a_id, {})
-    player_b = progression_by_id.get(player_b_id) or pass_by_id.get(player_b_id, {})
-    player_a = pp.enrich_player_general_profile(player_a)
-    player_b = pp.enrich_player_general_profile(player_b)
-
-    xp_a = xp_by_id.get(player_a_id)
-    xp_b = xp_by_id.get(player_b_id)
-    if not xp_a or not xp_b:
-        st.warning("xP metrics unavailable for one or both selected players.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    source_a = _xp_compare_player_source(player_a, xp_a, pass_player=pass_by_id.get(player_a_id))
-    source_b = _xp_compare_player_source(player_b, xp_b, pass_player=pass_by_id.get(player_b_id))
-    heatmap_a = _player_origin_heatmap_b64(
-        player_a_id,
-        passes_by_player,
-        str(player_a.get("player_name", "")),
-    )
-    heatmap_b = _player_origin_heatmap_b64(
-        player_b_id,
-        passes_by_player,
-        str(player_b.get("player_name", "")),
-    )
-
-    with col_a:
-        st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
-        st.html(
-            _compare_column_html(
-                player_a,
-                source_a,
-                heatmap_b64=heatmap_a,
-                variant="primary",
-                fmt_pct_fn=fmt_pct_fn,
-                other_source=source_b,
-            ),
-            width="stretch",
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with col_b:
-        st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
-        st.html(
-            _compare_column_html(
-                player_b,
-                source_b,
-                heatmap_b64=heatmap_b,
-                variant="secondary",
-                fmt_pct_fn=fmt_pct_fn,
-                other_source=source_a,
-            ),
-            width="stretch",
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+        with col_b:
+            st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
+            st.html(
+                _compare_column_html(
+                    player_b,
+                    source_b,
+                    heatmap_b64=heatmap_b,
+                    variant="secondary",
+                    fmt_pct_fn=fmt_pct_fn,
+                    other_source=source_a,
+                ),
+                width="stretch",
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
