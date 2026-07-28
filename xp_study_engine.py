@@ -370,6 +370,11 @@ def _load_combined_league_pass_frame() -> pd.DataFrame:
         ll = laliga.copy()
         ll["league_source"] = "laliga"
         frames.append(ll)
+    bundesliga = pe._load_bundesliga_pass_frame()
+    if not bundesliga.empty:
+        bl = bundesliga.copy()
+        bl["league_source"] = "bundesliga"
+        frames.append(bl)
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
@@ -429,12 +434,14 @@ def _league_reference_surfaces(
         num_matches_premier_league = int(matches_by_league.get("premier_league", 0))
         num_matches_italia_seriea = int(matches_by_league.get("italia_seriea", 0))
         num_matches_laliga = int(matches_by_league.get("laliga", 0))
+        num_matches_bundesliga = int(matches_by_league.get("bundesliga", 0))
         num_matches = max(
             num_matches_world_cup
             + num_matches_serie_a
             + num_matches_premier_league
             + num_matches_italia_seriea
-            + num_matches_laliga,
+            + num_matches_laliga
+            + num_matches_bundesliga,
             1,
         )
     else:
@@ -443,6 +450,7 @@ def _league_reference_surfaces(
         num_matches_premier_league = 0
         num_matches_italia_seriea = 0
         num_matches_laliga = 0
+        num_matches_bundesliga = 0
         num_matches = max(num_matches_world_cup, 1)
     dest_per_match = dest_count / num_matches
     od_per_match = od_count / num_matches
@@ -459,6 +467,7 @@ def _league_reference_surfaces(
         "num_matches_premier_league": num_matches_premier_league,
         "num_matches_italia_seriea": num_matches_italia_seriea,
         "num_matches_laliga": num_matches_laliga,
+        "num_matches_bundesliga": num_matches_bundesliga,
         "league_passes": int(len(completed)),
     }
 
@@ -820,6 +829,7 @@ def load_study_match_bundle(
         "league_matches_premier_league": int(league.get("num_matches_premier_league", 0)),
         "league_matches_italia_seriea": int(league.get("num_matches_italia_seriea", 0)),
         "league_matches_laliga": int(league.get("num_matches_laliga", 0)),
+        "league_matches_bundesliga": int(league.get("num_matches_bundesliga", 0)),
         "league_passes": int(league.get("league_passes", 0)),
         "blend_alpha": XP_BLEND_ALPHA,
         "xp_pass_max": XP_PASS_MAX,
@@ -852,3 +862,439 @@ def load_study_match_bundle(
         "meta": meta,
         "grid": grid,
     }
+
+
+QUADRANT_X_SPLIT = FIELD_X / 2.0
+QUADRANT_Y_SPLIT = FIELD_Y / 2.0
+QUADRANT_LABELS: dict[str, str] = {
+    "def_left": "Defensivo · esquerda",
+    "def_right": "Defensivo · direita",
+    "att_left": "Ofensivo · esquerda",
+    "att_right": "Ofensivo · direita",
+}
+
+
+QUADRANT_ORDER: tuple[str, ...] = ("def_left", "def_right", "att_left", "att_right")
+
+
+def quadrant_key_for_point(x: float, y: float) -> str:
+    """Split the pitch into four quadrants: defensive/attacking half × left/right lane."""
+    if float(x) < QUADRANT_X_SPLIT:
+        return "def_left" if float(y) < QUADRANT_Y_SPLIT else "def_right"
+    return "att_left" if float(y) < QUADRANT_Y_SPLIT else "att_right"
+
+
+def quadrant_bounds(key: str) -> tuple[float, float, float, float]:
+    """Rectangle (x0, y0, x1, y1) covering the quadrant."""
+    x0, x1 = (0.0, QUADRANT_X_SPLIT) if str(key).startswith("def") else (QUADRANT_X_SPLIT, FIELD_X)
+    y0, y1 = (0.0, QUADRANT_Y_SPLIT) if str(key).endswith("left") else (QUADRANT_Y_SPLIT, FIELD_Y)
+    return x0, y0, x1, y1
+
+
+def destination_quadrant_key(x_end: float, y_end: float) -> str:
+    """Split the pitch into four quadrants by destination coordinates."""
+    return quadrant_key_for_point(x_end, y_end)
+
+
+def summarize_destination_quadrants(passes: pd.DataFrame) -> list[dict]:
+    """Pass-volume share by destination quadrant for completed passes."""
+    if passes is None or passes.empty:
+        return []
+    work = passes[passes["is_won"] & passes["has_end"]].dropna(subset=["x_end", "y_end"])
+    if work.empty:
+        return []
+
+    counts: dict[str, int] = {key: 0 for key in QUADRANT_LABELS}
+    for x_end, y_end in zip(
+        work["x_end"].to_numpy(dtype=float),
+        work["y_end"].to_numpy(dtype=float),
+    ):
+        counts[destination_quadrant_key(x_end, y_end)] += 1
+
+    total = max(sum(counts.values()), 1)
+    rows: list[dict] = []
+    for key, label in QUADRANT_LABELS.items():
+        count = int(counts.get(key, 0))
+        rows.append({
+            "quadrant_key": key,
+            "quadrant": label,
+            "passes": count,
+            "share_pct": round(count / total * 100.0, 1),
+        })
+    return rows
+
+
+def aggregate_pass_destination_grids(
+    passes: pd.DataFrame,
+    *,
+    dest_cols: int = 8,
+    dest_rows: int = 6,
+    xp_col: str = "xp_m4",
+) -> dict[str, np.ndarray | int | list[dict]]:
+    """Destination frequency and mean xP grids for a pool of completed passes."""
+    count_grid = np.zeros((dest_rows, dest_cols), dtype=float)
+    xp_sum_grid = np.zeros((dest_rows, dest_cols), dtype=float)
+
+    if passes is None or passes.empty:
+        return {
+            "count_grid": count_grid,
+            "mean_xp_grid": np.zeros_like(count_grid),
+            "total_passes": 0,
+            "quadrant_stats": [],
+        }
+
+    work = passes[passes["is_won"] & passes["has_end"]].dropna(subset=["x_end", "y_end"]).copy()
+    if work.empty:
+        return {
+            "count_grid": count_grid,
+            "mean_xp_grid": np.zeros_like(count_grid),
+            "total_passes": 0,
+            "quadrant_stats": [],
+        }
+
+    x_idx, y_idx = _cell_indices(
+        work["x_end"].to_numpy(dtype=float),
+        work["y_end"].to_numpy(dtype=float),
+        cols=dest_cols,
+        rows=dest_rows,
+    )
+    has_xp = xp_col in work.columns
+    xp_values = work[xp_col].to_numpy(dtype=float) if has_xp else np.zeros(len(work))
+
+    for ix, iy, xp_value in zip(x_idx, y_idx, xp_values):
+        count_grid[iy, ix] += 1.0
+        if has_xp:
+            xp_sum_grid[iy, ix] += float(xp_value)
+
+    mean_xp_grid = np.zeros_like(count_grid)
+    mask = count_grid > 0
+    mean_xp_grid[mask] = xp_sum_grid[mask] / count_grid[mask]
+
+    return {
+        "count_grid": count_grid,
+        "mean_xp_grid": mean_xp_grid,
+        "total_passes": int(len(work)),
+        "quadrant_stats": summarize_destination_quadrants(work),
+    }
+
+
+ZONE_X_LABELS: tuple[str, ...] = ("Defesa", "Meio", "Ataque")
+ZONE_Y_LABELS: tuple[str, ...] = ("esquerda", "centro", "direita")
+
+
+def _zone_label(x: float, y: float) -> str:
+    """Human-readable pitch zone such as 'Meio-centro' or 'Ataque-direita'."""
+    x_idx = min(int(float(x) / (FIELD_X / 3.0)), 2)
+    y_idx = min(int(float(y) / (FIELD_Y / 3.0)), 2)
+    return f"{ZONE_X_LABELS[x_idx]}-{ZONE_Y_LABELS[y_idx]}"
+
+
+def zone_label_grid(cols: int, rows: int) -> list[list[str]]:
+    """Zone name for every cell centre, indexed as grid[row][col]."""
+    cell_w = FIELD_X / cols
+    cell_h = FIELD_Y / rows
+    return [
+        [_zone_label((c + 0.5) * cell_w, (r + 0.5) * cell_h) for c in range(cols)]
+        for r in range(rows)
+    ]
+
+
+CELL_MAP_MIN_ORIGIN_PASSES = 25
+
+
+def cell_index_labels(cols: int, rows: int) -> list[str]:
+    """Flat (row-major) human label per grid cell, e.g. 'Meio-centro · C6/L4'."""
+    cell_w = FIELD_X / cols
+    cell_h = FIELD_Y / rows
+    return [
+        f"{_zone_label((c + 0.5) * cell_w, (r + 0.5) * cell_h)} · C{c + 1}/L{r + 1}"
+        for r in range(rows)
+        for c in range(cols)
+    ]
+
+
+def build_cell_heatmap_analysis(
+    passes: pd.DataFrame,
+    *,
+    cols: int = XP_GRID_COLS,
+    rows: int = XP_GRID_ROWS,
+    xp_col: str = "xp_m4",
+    min_cell_passes: int = 20,
+    min_origin_passes: int = CELL_MAP_MIN_ORIGIN_PASSES,
+) -> dict:
+    """Destination heatmaps (volume and mean xP) for passes leaving each 12x8 cell.
+
+    Every origin cell with enough sample carries a full destination grid, flattened
+    row-major so the browser can swap heatmaps on hover without recomputing anything.
+    """
+    n_cells = cols * rows
+    empty: dict = {
+        "cols": cols,
+        "rows": rows,
+        "field_x": FIELD_X,
+        "field_y": FIELD_Y,
+        "xp_max": XP_PASS_MAX,
+        "min_cell_passes": min_cell_passes,
+        "min_origin_passes": min_origin_passes,
+        "total_passes": 0,
+        "cell_labels": cell_index_labels(cols, rows),
+        "quadrant_labels": dict(QUADRANT_LABELS),
+        "origin_counts": [0] * n_cells,
+        "overall": None,
+        "origins": {},
+        "xp_scale_max": XP_PASS_MAX,
+        "volume_scale_max": 1.0,
+    }
+    if passes is None or passes.empty:
+        return empty
+
+    work = passes[passes["is_won"] & passes["has_end"]].dropna(
+        subset=["x_start", "y_start", "x_end", "y_end"]
+    )
+    if work.empty:
+        return empty
+
+    ox_idx, oy_idx = _cell_indices(
+        work["x_start"].to_numpy(dtype=float),
+        work["y_start"].to_numpy(dtype=float),
+        cols=cols,
+        rows=rows,
+    )
+    dx_idx, dy_idx = _cell_indices(
+        work["x_end"].to_numpy(dtype=float),
+        work["y_end"].to_numpy(dtype=float),
+        cols=cols,
+        rows=rows,
+    )
+    xp_values = (
+        work[xp_col].to_numpy(dtype=float)
+        if xp_col in work.columns
+        else np.zeros(len(work), dtype=float)
+    )
+
+    origin_flat = oy_idx * cols + ox_idx
+    dest_flat = dy_idx * cols + dx_idx
+    pair_flat = origin_flat * n_cells + dest_flat
+    total_passes = int(len(work))
+
+    pair_counts = np.bincount(pair_flat, minlength=n_cells * n_cells).reshape(n_cells, n_cells)
+    pair_xp = np.bincount(
+        pair_flat, weights=xp_values, minlength=n_cells * n_cells
+    ).reshape(n_cells, n_cells)
+
+    origin_counts = pair_counts.sum(axis=1)
+    origin_xp_sum = pair_xp.sum(axis=1)
+
+    def _serialize(counts_row: np.ndarray, xp_row: np.ndarray) -> tuple[list[int], list[float | None]]:
+        filled = counts_row > 0
+        means = np.zeros(n_cells, dtype=float)
+        means[filled] = xp_row[filled] / counts_row[filled]
+        return (
+            [int(v) for v in counts_row],
+            [round(float(means[i]), 3) if filled[i] else None for i in range(n_cells)],
+        )
+
+    overall_counts = pair_counts.sum(axis=0)
+    overall_xp = pair_xp.sum(axis=0)
+    counts_list, xp_list = _serialize(overall_counts, overall_xp)
+    overall = {
+        "index": None,
+        "label": "Todo o campo",
+        "passes": total_passes,
+        "share_pct": 100.0,
+        "mean_xp": round(float(xp_values.mean()), 4),
+        "counts": counts_list,
+        "xp": xp_list,
+    }
+
+    labels = cell_index_labels(cols, rows)
+    origins: dict[str, dict] = {}
+    volume_shares: list[float] = []
+    for idx in range(n_cells):
+        origin_total = int(origin_counts[idx])
+        if origin_total < min_origin_passes:
+            continue
+        counts_list, xp_list = _serialize(pair_counts[idx], pair_xp[idx])
+        origins[str(idx)] = {
+            "index": idx,
+            "row": idx // cols,
+            "col": idx % cols,
+            "label": labels[idx],
+            "passes": origin_total,
+            "share_pct": round(origin_total / max(total_passes, 1) * 100.0, 2),
+            "mean_xp": round(float(origin_xp_sum[idx]) / origin_total, 4),
+            "counts": counts_list,
+            "xp": xp_list,
+        }
+        volume_shares.extend(
+            float(v) / origin_total * 100.0 for v in pair_counts[idx] if v > 0
+        )
+
+    # Fixed colour scales keep hover states comparable; percentiles stop a single
+    # tiny-sample cell from flattening every other map.
+    eligible_pairs = pair_counts >= min_cell_passes
+    if eligible_pairs.any():
+        pair_means = np.zeros_like(pair_xp)
+        pair_means[eligible_pairs] = pair_xp[eligible_pairs] / pair_counts[eligible_pairs]
+        xp_scale_max = float(np.percentile(pair_means[eligible_pairs], 99))
+    else:
+        xp_scale_max = XP_PASS_MAX
+    volume_scale_max = (
+        float(np.percentile(np.asarray(volume_shares, dtype=float), 98))
+        if volume_shares
+        else 1.0
+    )
+
+    return {
+        "cols": cols,
+        "rows": rows,
+        "field_x": FIELD_X,
+        "field_y": FIELD_Y,
+        "xp_max": XP_PASS_MAX,
+        "min_cell_passes": min_cell_passes,
+        "min_origin_passes": min_origin_passes,
+        "total_passes": total_passes,
+        "cell_labels": labels,
+        "quadrant_labels": dict(QUADRANT_LABELS),
+        "origin_counts": [int(v) for v in origin_counts],
+        "overall": overall,
+        "origins": origins,
+        "xp_scale_max": round(max(xp_scale_max, 1e-3), 4),
+        "volume_scale_max": round(max(volume_scale_max, 0.1), 3),
+    }
+
+
+def build_origin_destination_routes(
+    passes: pd.DataFrame,
+    *,
+    cols: int = XP_GRID_COLS,
+    rows: int = XP_GRID_ROWS,
+    xp_col: str = "xp_m4",
+    top_n: int = 5,
+    min_route_passes: int = 3,
+) -> dict[str, list[dict]]:
+    """Top origin→destination cell pairs by volume and by total xP."""
+    empty: dict[str, list[dict]] = {"common": [], "high_xp": []}
+    if passes is None or passes.empty:
+        return empty
+
+    work = passes[passes["is_won"] & passes["has_end"]].dropna(
+        subset=["x_start", "y_start", "x_end", "y_end"]
+    )
+    if work.empty:
+        return empty
+
+    n_cells = cols * rows
+    ox_idx, oy_idx = _cell_indices(
+        work["x_start"].to_numpy(dtype=float),
+        work["y_start"].to_numpy(dtype=float),
+        cols=cols,
+        rows=rows,
+    )
+    dx_idx, dy_idx = _cell_indices(
+        work["x_end"].to_numpy(dtype=float),
+        work["y_end"].to_numpy(dtype=float),
+        cols=cols,
+        rows=rows,
+    )
+    xp_values = (
+        work[xp_col].to_numpy(dtype=float)
+        if xp_col in work.columns
+        else np.zeros(len(work), dtype=float)
+    )
+    origin_flat = oy_idx * cols + ox_idx
+    dest_flat = dy_idx * cols + dx_idx
+    pair_flat = origin_flat * n_cells + dest_flat
+    total_passes = max(len(work), 1)
+
+    pair_counts = np.bincount(pair_flat, minlength=n_cells * n_cells)
+    pair_xp = np.bincount(pair_flat, weights=xp_values, minlength=n_cells * n_cells)
+    labels = cell_index_labels(cols, rows)
+
+    routes: list[dict] = []
+    for pair_idx in np.flatnonzero(pair_counts >= min_route_passes):
+        count = int(pair_counts[pair_idx])
+        origin_idx = int(pair_idx // n_cells)
+        dest_idx = int(pair_idx % n_cells)
+        total_xp = float(pair_xp[pair_idx])
+        routes.append({
+            "origin_index": origin_idx,
+            "dest_index": dest_idx,
+            "origin_label": labels[origin_idx],
+            "dest_label": labels[dest_idx],
+            "route_label": f"{labels[origin_idx]} → {labels[dest_idx]}",
+            "count": count,
+            "share_pct": round(count / total_passes * 100.0, 2),
+            "total_xp": round(total_xp, 2),
+            "mean_xp": round(total_xp / count, 3),
+        })
+
+    if not routes:
+        return empty
+    common = sorted(routes, key=lambda row: row["count"], reverse=True)[:top_n]
+    high_xp = sorted(routes, key=lambda row: row["total_xp"], reverse=True)[:top_n]
+    return {"common": common, "high_xp": high_xp}
+
+
+def build_player_cell_heatmap_bundle(
+    passes: pd.DataFrame,
+    *,
+    min_player_passes: int = 100,
+    **kwargs,
+) -> dict:
+    """Aggregate map plus per-player destination grids for the interactive selector."""
+    aggregate = build_cell_heatmap_analysis(passes, **kwargs)
+    if passes is None or passes.empty:
+        aggregate["players"] = []
+        aggregate["default_player_id"] = None
+        return aggregate
+
+    work = passes[passes["is_won"] & passes["has_end"]].copy()
+    if work.empty:
+        aggregate["players"] = []
+        aggregate["default_player_id"] = None
+        return aggregate
+
+    name_lookup: dict[str, str] = {}
+    team_lookup: dict[str, str] = {}
+    if "player_name" in work.columns:
+        name_lookup = {
+            str(pid): str(val)
+            for pid, val in work.groupby("player_id", sort=False)["player_name"]
+            .agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
+            .astype(str)
+            .items()
+        }
+    if "team" in work.columns:
+        team_lookup = {
+            str(pid): str(val)
+            for pid, val in work.groupby("player_id", sort=False)["team"]
+            .agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
+            .astype(str)
+            .items()
+        }
+
+    players: list[dict] = []
+    for pid, grp in work.groupby("player_id", sort=False):
+        pid_s = str(pid)
+        if len(grp) < min_player_passes:
+            continue
+        player_analysis = build_cell_heatmap_analysis(grp, **kwargs)
+        overall = player_analysis.get("overall")
+        if not overall or int(overall.get("passes") or 0) < min_player_passes:
+            continue
+        players.append({
+            "id": pid_s,
+            "name": str(name_lookup.get(pid_s, pid_s)),
+            "team": str(team_lookup.get(pid_s, "—")),
+            "passes": int(overall.get("passes") or 0),
+            "mean_xp": float(overall.get("mean_xp") or 0.0),
+            "overall": overall,
+            "origins": player_analysis.get("origins") or {},
+            "routes": build_origin_destination_routes(grp, cols=aggregate.get("cols", XP_GRID_COLS), rows=aggregate.get("rows", XP_GRID_ROWS)),
+        })
+
+    players.sort(key=lambda row: (-int(row.get("passes") or 0), str(row.get("name") or "")))
+    aggregate["players"] = players
+    aggregate["default_player_id"] = players[0]["id"] if players else None
+    return aggregate

@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 import passes_engine as pe
 import xp_study_engine as xse
 
-XP_DATA_CACHE_VERSION = 47
+XP_DATA_CACHE_VERSION = 54
 XP_POSITION_RANK_METRICS: tuple[str, ...] = (
     "xp_m4_total",
     "xp_m4_per_pass",
@@ -31,6 +31,17 @@ XP_MODEL_VERSION = "m4_od_12x8_b4_a2_pr0_global_ita_laliga_dist30_access_ridge_v
 THREAT_QUANTILE = 0.10
 THREAT_XP_QUANTILE = 0.75
 THREAT_PROGRESS_MIN = 0.0
+# Composite impact-pass rule (replaces residual∩xP dual threshold on is_threat_m4).
+IMPACT_PASS_RULE_VERSION = "composite_v1_hybrid_p90_prog60"
+IMPACT_SCORE_W_XP = 0.45
+IMPACT_SCORE_W_RESIDUAL = 0.35
+IMPACT_SCORE_W_PROGRESS = 0.20
+IMPACT_SCORE_PERCENTILE = 0.90
+IMPACT_PROGRESS_PERCENTILE = 0.60
+IMPACT_PASS_RULE_LABEL = (
+    "composite score (45% destination xP + 35% residual + 20% progress) ≥ P90 per distance band "
+    "and progress_ratio ≥ P60 per band"
+)
 XP_COL = "xp_m4"
 XP_SPATIAL_COL = "xp_hier_od"
 XP_ACCESSIBILITY_MULT_COL = "xp_accessibility_mult"
@@ -302,7 +313,16 @@ def _fit_artifacts_on_passes(train_passes: pd.DataFrame) -> dict:
 
     meta = {
         "version": XP_MODEL_VERSION,
-        "threat_rule": "residual_top10pct_and_xp_p75_per_band",
+        "threat_rule": IMPACT_PASS_RULE_VERSION,
+        "impact_pass_rule": IMPACT_PASS_RULE_LABEL,
+        "impact_pass_rule_version": IMPACT_PASS_RULE_VERSION,
+        "impact_score_weights": {
+            "xp": IMPACT_SCORE_W_XP,
+            "residual": IMPACT_SCORE_W_RESIDUAL,
+            "progress": IMPACT_SCORE_W_PROGRESS,
+        },
+        "impact_score_percentile": IMPACT_SCORE_PERCENTILE,
+        "impact_progress_percentile": IMPACT_PROGRESS_PERCENTILE,
         "threat_quantile": THREAT_QUANTILE,
         "threat_xp_quantile": THREAT_XP_QUANTILE,
         "threat_progress_min": THREAT_PROGRESS_MIN,
@@ -389,6 +409,54 @@ def load_expected_model() -> Pipeline:
     return joblib.load(RIDGE_MODEL_PATH)
 
 
+def _robust_zscore_array(values: np.ndarray) -> np.ndarray:
+    arr = np.asarray(values, dtype=float)
+    if arr.size == 0:
+        return arr
+    med = float(np.median(arr))
+    mad = float(np.median(np.abs(arr - med)))
+    scale = 1.4826 * mad
+    if scale <= 1e-12:
+        q75, q25 = np.percentile(arr, [75, 25])
+        scale = max(float(q75 - q25) / 1.349, 1e-9)
+    return (arr - med) / scale
+
+
+def _robust_zscore_by_band(series: pd.Series, bands: pd.Series) -> pd.Series:
+    out = pd.Series(np.nan, index=series.index, dtype=float)
+    for band, idx in bands.groupby(bands, sort=False).groups.items():
+        out.loc[idx] = _robust_zscore_array(series.loc[idx].to_numpy(dtype=float))
+    return out
+
+
+def _composite_impact_pass_flags(sub: pd.DataFrame) -> np.ndarray:
+    """Hybrid impact pass: weighted robust-z score + forward-progress gate per band."""
+    if sub.empty:
+        return np.zeros(0, dtype=bool)
+
+    work = sub.copy()
+    if "progress_ratio" not in work.columns:
+        work["progress_ratio"] = _progress_ratio_array(work)
+    bands = work["distance_band"].astype(str)
+
+    z_xp = _robust_zscore_by_band(work[XP_COL].astype(float), bands)
+    z_res = _robust_zscore_by_band(work[XP_RESIDUAL_COL].astype(float), bands)
+    z_prog = _robust_zscore_by_band(work["progress_ratio"].astype(float), bands)
+    impact_score = (
+        IMPACT_SCORE_W_XP * z_xp
+        + IMPACT_SCORE_W_RESIDUAL * z_res
+        + IMPACT_SCORE_W_PROGRESS * z_prog
+    )
+
+    score_cut = impact_score.groupby(bands, sort=False).transform(
+        lambda s: s.quantile(IMPACT_SCORE_PERCENTILE)
+    )
+    prog_cut = work["progress_ratio"].groupby(bands, sort=False).transform(
+        lambda s: s.quantile(IMPACT_PROGRESS_PERCENTILE)
+    )
+    return ((impact_score >= score_cut) & (work["progress_ratio"] >= prog_cut)).to_numpy(dtype=bool)
+
+
 def apply_expected_and_threat(passes: pd.DataFrame) -> pd.DataFrame:
     out = passes.copy()
     out[XP_EXPECTED_COL] = 0.0
@@ -399,28 +467,44 @@ def apply_expected_and_threat(passes: pd.DataFrame) -> pd.DataFrame:
         return out
 
     model = load_expected_model()
-    residual_thresholds = load_threat_thresholds()
-    xp_thresholds = load_threat_xp_thresholds()
     sub_idx = out.index[mask]
     sub = out.loc[mask]
     expected = _expected_xp_from_model(model, sub)
     residual = sub[XP_COL].to_numpy(dtype=float) - expected
-    xp_values = sub[XP_COL].to_numpy(dtype=float)
     out.loc[sub_idx, XP_EXPECTED_COL] = expected
     out.loc[sub_idx, XP_RESIDUAL_COL] = residual
 
-    threat_flags = np.zeros(len(sub), dtype=bool)
-    bands = sub["distance_band"].astype(str).to_numpy()
-    for i, band in enumerate(bands):
-        threat_flags[i] = (
-            residual[i] > residual_thresholds.get(band, np.inf)
-            and xp_values[i] >= xp_thresholds.get(band, np.inf)
-        )
-    if THREAT_PROGRESS_MIN is not None:
-        progress = _progress_ratio_array(sub)
-        threat_flags &= progress >= THREAT_PROGRESS_MIN
-    out.loc[sub_idx, THREAT_COL] = threat_flags
+    threat_sub = sub.copy()
+    threat_sub[XP_RESIDUAL_COL] = residual
+    out.loc[sub_idx, THREAT_COL] = _composite_impact_pass_flags(threat_sub)
     return out
+
+
+def _refresh_threat_flags_if_needed(
+    passes: pd.DataFrame,
+    meta_path: Path,
+    parquet_path: Path,
+) -> pd.DataFrame:
+    """Re-apply impact-pass flags when the composite rule version changes."""
+    if not meta_path.exists():
+        return apply_expected_and_threat(passes)
+    with open(meta_path, encoding="utf-8") as fh:
+        meta = json.load(fh)
+    if str(meta.get("impact_pass_rule_version", "")) == IMPACT_PASS_RULE_VERSION:
+        return passes
+
+    refreshed = apply_expected_and_threat(passes)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    refreshed.to_parquet(parquet_path, index=False)
+    meta = {
+        **meta,
+        "impact_pass_rule_version": IMPACT_PASS_RULE_VERSION,
+        "impact_pass_rule": IMPACT_PASS_RULE_LABEL,
+        "threats": int(refreshed[THREAT_COL].sum()),
+    }
+    with open(meta_path, "w", encoding="utf-8") as fh:
+        json.dump(meta, fh, indent=2)
+    return refreshed
 
 
 def build_world_cup_season_passes(*, force_artifacts: bool = False) -> pd.DataFrame:
@@ -434,6 +518,8 @@ def build_world_cup_season_passes(*, force_artifacts: bool = False) -> pd.DataFr
     season.to_parquet(XP_PASSES_PARQUET, index=False)
     meta = {
         "version": XP_MODEL_VERSION,
+        "impact_pass_rule_version": IMPACT_PASS_RULE_VERSION,
+        "impact_pass_rule": IMPACT_PASS_RULE_LABEL,
         "passes": int(len(season)),
         "completed": int((season["is_won"] & season["has_end"]).sum()),
         "threats": int(season[THREAT_COL].sum()),
@@ -502,6 +588,8 @@ def build_european_league_season_passes(*, force_artifacts: bool = False) -> pd.
     season.to_parquet(XP_EUROPEAN_PASSES_PARQUET, index=False)
     meta = {
         "version": XP_MODEL_VERSION,
+        "impact_pass_rule_version": IMPACT_PASS_RULE_VERSION,
+        "impact_pass_rule": IMPACT_PASS_RULE_LABEL,
         "passes": int(len(season)),
         "completed": int((season["is_won"] & season["has_end"]).sum()),
         "threats": int(season[THREAT_COL].sum()),
@@ -529,6 +617,12 @@ def load_european_season_passes(*, rebuild: bool = False) -> pd.DataFrame:
             meta = json.load(fh)
         if str(meta.get("version", "")) != XP_MODEL_VERSION:
             return build_european_league_season_passes(force_artifacts=True)
+        if str(meta.get("impact_pass_rule_version", "")) != IMPACT_PASS_RULE_VERSION:
+            return _refresh_threat_flags_if_needed(
+                df,
+                XP_EUROPEAN_META_PATH,
+                XP_EUROPEAN_PASSES_PARQUET,
+            )
     return df
 
 
@@ -548,6 +642,8 @@ def load_season_passes(*, rebuild: bool = False) -> pd.DataFrame:
             meta = json.load(fh)
         if str(meta.get("version", "")) != XP_MODEL_VERSION:
             return build_world_cup_season_passes(force_artifacts=True)
+        if str(meta.get("impact_pass_rule_version", "")) != IMPACT_PASS_RULE_VERSION:
+            return _refresh_threat_flags_if_needed(df, XP_META_PATH, XP_PASSES_PARQUET)
     return df
 
 
@@ -667,6 +763,7 @@ def build_xp_analytics(
     for i, p in enumerate(players, start=1):
         p["xp_m4_rank"] = i
     xstats.attach_distance_indices(players)
+    xstats.attach_pass_length_share_badges(players)
     xstats.attach_composite_indices(players)
     xstats.attach_xp_pass_ratings(players)
     xstats.attach_all_stats_ranks(players)
@@ -679,7 +776,7 @@ def build_european_league_xp_analytics(
     *,
     min_passes: int = 100,
 ) -> tuple[list[dict], list[dict]]:
-    """xP metrics for midfielders in Premier League, Italian Serie A and La Liga."""
+    """xP metrics for midfielders in Premier League, Italian Serie A, La Liga and Bundesliga."""
     import xp_stats_engine as xstats
 
     _ = cache_version
@@ -697,6 +794,7 @@ def build_european_league_xp_analytics(
             .to_dict()
         )
     registry = pe.build_player_registry(season)
+    raw_pass_frame = pe._filter_pass_frame_to_midfielders(pe._load_european_league_pass_frame())
     players: list[dict] = []
     registry_by_id = {str(p["code"]): p for p in registry}
 
@@ -713,6 +811,8 @@ def build_european_league_xp_analytics(
         if not metrics:
             continue
         minutes = mins.get("minutes")
+        player_raw = raw_pass_frame[raw_pass_frame["player_id"].astype(str) == pid]
+        xstats.attach_regular_pass_stats(metrics, player_raw, minutes)
         xstats.apply_per90_metrics(metrics, minutes)
         league_source = str(league_by_player.get(pid, ""))
         players.append({
@@ -733,6 +833,7 @@ def build_european_league_xp_analytics(
     for i, p in enumerate(players, start=1):
         p["xp_m4_rank"] = i
     xstats.attach_distance_indices(players)
+    xstats.attach_pass_length_share_badges(players)
     xstats.attach_composite_indices(players)
     xstats.attach_xp_pass_ratings(players)
     xstats.attach_all_stats_ranks(players)
@@ -749,6 +850,17 @@ def attach_xp_metric_ranks(players: list[dict]) -> None:
         XP_POSITION_RANK_METRICS,
         eligible_only=True,
     )
+
+
+def refresh_xp_midfield_origin_rankings(players: list[dict]) -> None:
+    """Recompute xP ranks after campo ofensivo / campo defensivo groups are assigned."""
+    import xp_stats_engine as xstats
+
+    xstats.attach_distance_indices(players)
+    xstats.attach_composite_indices(players)
+    xstats.attach_xp_pass_ratings(players)
+    xstats.attach_all_stats_ranks(players)
+    attach_xp_metric_ranks(players)
 
 
 def rank_xp_players_by_position(players: list[dict]) -> dict[str, list[dict]]:

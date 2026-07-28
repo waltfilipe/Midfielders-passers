@@ -17,13 +17,17 @@ FINAL_X_MIN = FIELD_X * (1.0 - FINAL_FIELD_SHARE)
 FIRST_THIRD_X = FIELD_X / 3.0
 CENTRAL_Y_MIN = 20.0
 CENTRAL_Y_MAX = 60.0
-LATERAL_INNER_SHARE = 0.30
-LINE_BREAK_FORWARD_ANGLE_DEG = 40.0
-LINE_BREAK_FIELD_BEFORE_30_X = FIELD_X * 0.30
-LINE_BREAK_FIELD_MID_50_X = FIELD_X * 0.50
-LINE_BREAK_DIST_MIN_ATTACK_M = 10.0
-LINE_BREAK_DIST_MIN_MID_M = 15.0
-LINE_BREAK_DIST_MAX_M = 25.0
+LINE_BREAK_FORWARD_ANGLE_DEG = 50.0
+LINE_BREAK_ORIGIN_MIN_X = 30.0
+LINE_BREAK_ORIGIN_ZONE1_MAX_X = 60.0
+LINE_BREAK_ORIGIN_ZONE2_MAX_X = 80.0
+LINE_BREAK_ORIGIN_ZONE3_MAX_X = FIELD_X
+LINE_BREAK_ORIGIN_LATERAL_EXCLUDE_SHARE = 0.10
+LINE_BREAK_DEST_LATERAL_EXCLUDE_SHARE = 0.15
+LINE_BREAK_DIST_MIN_ZONE1_M = 20.0
+LINE_BREAK_DIST_MIN_ZONE2_M = 15.0
+LINE_BREAK_DIST_MIN_ZONE3_M = 10.0
+LINE_BREAK_DIST_MAX_M = 30.0
 CROSS_DIST_MIN_M = 15.0
 CROSS_LATERAL_DELTA_MIN_M = 8.0
 CROSS_MAX_START_X = 102.0
@@ -42,7 +46,7 @@ BANDS = xse.DISTANCE_BAND_ORDER
 DISTANCE_INDEX_MIN_PASS_PERCENTILE = 30
 XP_PROFILE_MIN_MINUTES_PCT = 0.30
 XP_PROFILE_BAR_PASS_PERCENTILE = DISTANCE_INDEX_MIN_PASS_PERCENTILE
-XP_PROFILE_TOP_PASS_POOL_SIZE = 100
+XP_PROFILE_TOP_PASS_POOL_SIZE = 250
 
 DISTANCE_INDEX_GRADES: tuple[tuple[str, float], ...] = (
     ("Good", 0.20),
@@ -105,27 +109,31 @@ def _is_diagonal_long_pass(y_start: np.ndarray, y_end: np.ndarray) -> np.ndarray
     return to_right | to_left
 
 
-def _line_break_origin_corridor(y: np.ndarray) -> np.ndarray:
-    """Central corridor plus the inner 30% of each lateral band (adjacent to center)."""
-    left_inner = (y < CENTRAL_Y_MIN) & (y >= CENTRAL_Y_MIN * (1.0 - LATERAL_INNER_SHARE))
-    right_inner = (y > CENTRAL_Y_MAX) & (
-        y <= CENTRAL_Y_MAX + (FIELD_Y - CENTRAL_Y_MAX) * LATERAL_INNER_SHARE
-    )
-    central = _is_central_corridor(y)
-    return central | left_inner | right_inner
+def _not_in_outer_lateral_band(y: np.ndarray, exclude_share: float) -> np.ndarray:
+    """True when y is outside the outer exclude_share fraction on each touchline."""
+    margin = FIELD_Y * float(exclude_share)
+    return (y >= margin) & (y <= FIELD_Y - margin)
+
+
+def _line_break_origin_ok(y: np.ndarray) -> np.ndarray:
+    """Origin allowed everywhere except the outer 10% lateral bands."""
+    return _not_in_outer_lateral_band(y, LINE_BREAK_ORIGIN_LATERAL_EXCLUDE_SHARE)
+
+
+def _line_break_destination_ok(y: np.ndarray) -> np.ndarray:
+    """Destination allowed everywhere except the outer 15% lateral bands."""
+    return _not_in_outer_lateral_band(y, LINE_BREAK_DEST_LATERAL_EXCLUDE_SHARE)
 
 
 def _line_break_distance_ok(x_start: np.ndarray, dist: np.ndarray) -> np.ndarray:
-    """Distance bands by origin zone: none before 30%, 15–25 m at 30–50%, 10–25 m in attack."""
-    before_30 = x_start <= LINE_BREAK_FIELD_BEFORE_30_X
-    mid_zone = (x_start > LINE_BREAK_FIELD_BEFORE_30_X) & (x_start <= LINE_BREAK_FIELD_MID_50_X)
-    attack_zone = x_start > LINE_BREAK_FIELD_MID_50_X
+    """Distance bands by origin x: 30–60 m → 20–30 m; 60–80 → 15–30; 80–120 → 10–30."""
+    zone1 = (x_start >= LINE_BREAK_ORIGIN_MIN_X) & (x_start <= LINE_BREAK_ORIGIN_ZONE1_MAX_X)
+    zone2 = (x_start > LINE_BREAK_ORIGIN_ZONE1_MAX_X) & (x_start <= LINE_BREAK_ORIGIN_ZONE2_MAX_X)
+    zone3 = (x_start > LINE_BREAK_ORIGIN_ZONE2_MAX_X) & (x_start <= LINE_BREAK_ORIGIN_ZONE3_MAX_X)
     return (
-        ~before_30
-        & (
-            (mid_zone & (dist >= LINE_BREAK_DIST_MIN_MID_M) & (dist <= LINE_BREAK_DIST_MAX_M))
-            | (attack_zone & (dist >= LINE_BREAK_DIST_MIN_ATTACK_M) & (dist <= LINE_BREAK_DIST_MAX_M))
-        )
+        (zone1 & (dist >= LINE_BREAK_DIST_MIN_ZONE1_M) & (dist <= LINE_BREAK_DIST_MAX_M))
+        | (zone2 & (dist >= LINE_BREAK_DIST_MIN_ZONE2_M) & (dist <= LINE_BREAK_DIST_MAX_M))
+        | (zone3 & (dist >= LINE_BREAK_DIST_MIN_ZONE3_M) & (dist <= LINE_BREAK_DIST_MAX_M))
     )
 
 
@@ -185,7 +193,10 @@ MAPS_SPECIAL_PASS_OPTIONS: tuple[tuple[str, str], ...] = (
     ),
     ("diagonal_long", "Long Diagonal"),
     ("line_break", "Line Break"),
+    ("top_residual", "Top Residual"),
 )
+MAPS_TOP_RESIDUAL_PASS_KEY = "top_residual"
+MAPS_TOP_RESIDUAL_N = 20
 MAPS_STAT_TYPE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("regular", "Regular Stats"),
     ("special", "xP Stats"),
@@ -233,12 +244,40 @@ def is_maps_xp_threat_pass(filter_key: str) -> bool:
     return _xp_threat_map_band(filter_key) is not None
 
 
+def is_maps_top_residual_pass(filter_key: str) -> bool:
+    return str(filter_key or "").strip() == MAPS_TOP_RESIDUAL_PASS_KEY
+
+
+def _ensure_residual_column(work: pd.DataFrame) -> pd.DataFrame:
+    if work.empty:
+        return work
+    if RESIDUAL_COL not in work.columns and {"xp_m4", "xp_expected"}.issubset(work.columns):
+        out = work.copy()
+        out[RESIDUAL_COL] = out["xp_m4"].astype(float) - out["xp_expected"].astype(float)
+        return out
+    return work
+
+
+def filter_top_residual_passes(
+    passes: pd.DataFrame,
+    *,
+    n: int = MAPS_TOP_RESIDUAL_N,
+) -> pd.DataFrame:
+    """Top-N completed passes by xP residual (actual − expected)."""
+    work = _ensure_residual_column(_completed_pass_frame(passes))
+    if work.empty or RESIDUAL_COL not in work.columns:
+        return work.iloc[0:0].copy()
+    return work.sort_values(RESIDUAL_COL, ascending=False).head(int(n)).reset_index(drop=True)
+
+
 def filter_passes_for_map(passes: pd.DataFrame, filter_key: str) -> pd.DataFrame:
     """Return completed passes matching a Maps pass-type selection."""
     work = _completed_pass_frame(passes)
     if work.empty:
         return work
     key = str(filter_key or "").strip()
+    if key == MAPS_TOP_RESIDUAL_PASS_KEY:
+        return filter_top_residual_passes(passes)
     threat_band = _xp_threat_map_band(key)
     if threat_band is not None:
         return filter_passes_by_threat_type(work, threat_band)
@@ -310,8 +349,8 @@ def compute_special_pass_masks(scored: pd.DataFrame) -> dict[str, np.ndarray]:
             & _is_diagonal_long_pass(y_start, y_end)
         ),
         "line_break": (
-            _line_break_origin_corridor(y_start)
-            & _is_central_corridor(y_end)
+            _line_break_origin_ok(y_start)
+            & _line_break_destination_ok(y_end)
             & (x_end > x_start)
             & _line_break_distance_ok(x_start, dist)
             & _is_forward_angle(dx, dy, max_angle_deg=LINE_BREAK_FORWARD_ANGLE_DEG)
@@ -514,6 +553,8 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
     """Add per-90 variants in place."""
     if not minutes or float(minutes) <= 0:
         metrics["xp_per_90"] = 0.0
+        metrics["threat_passes_p90"] = 0.0
+        metrics["impact_passes_p90"] = 0.0
         for sp_key in SPECIAL_PASS_COUNT_KEYS:
             metrics[special_pass_per_game_key(sp_key)] = 0.0
         for zone_key in THREAT_ZONE_FILTER_KEYS:
@@ -524,6 +565,7 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
     metrics["xp_per_90"] = float(metrics.get("xp_m4_total", 0.0)) * factor
     threat_count = int(metrics.get("xp_m4_threat_passes", 0))
     metrics["threat_passes_p90"] = float(threat_count) * factor
+    metrics["impact_passes_p90"] = metrics["threat_passes_p90"]
     metrics["xp_m4_threat_passes_p90"] = float(metrics.get("xp_m4_threat_xp_total", 0.0)) * factor
     for band in BANDS:
         band_threats = int(metrics.get(f"xp_m4_threat_{band}", 0))
@@ -608,7 +650,7 @@ XP_ARCHETYPE_RADAR_LABELS: dict[str, str] = {
     "xp_archetype_finisher_display": "Finisher-pass",
 }
 
-# Rendered profile bars (main gradient bar + sub-bars per metric).
+# The two pillars rendered as gradient bars in the xP Profile (grade drivers).
 XP_PROFILE_BAR_KEYS: tuple[str, ...] = (
     "xp_activity_display",
     "xp_edge_display",
@@ -623,25 +665,33 @@ XP_ARCHETYPE_AXIS_KEYS: tuple[str, ...] = (
 )
 
 XP_PROFILE_BAR_LABELS: dict[str, str] = {
-    "xp_activity_display": "Overall Impact",
-    "xp_edge_display": "Impact per Pass",
-    "xp_quality_display": "Delivery vs Expected",
+    "xp_activity_display": "Productivity",
+    "xp_edge_display": "Effectiveness",
+    "xp_quality_display": "Quality",
     "xp_consistency_display": "Consistency",
 }
 
+XP_PROFILE_BAR_ICONS: dict[str, str] = {
+    "xp_activity_display": "fa-chart-simple",
+    "xp_edge_display": "fa-bolt",
+    "xp_quality_display": "fa-arrow-trend-up",
+    "xp_consistency_display": "fa-wave-square",
+}
+
 XP_PROFILE_BAR_METRICS: dict[str, tuple[str, ...]] = {
-    "xp_activity_display": ("xp_per_90", "threat_passes_p90"),
-    "xp_edge_display": ("xp_m4_per_pass", "xp_m4_per_threat_pass"),
+    "xp_activity_display": ("xp_per_90",),
+    "xp_edge_display": ("xp_m4_per_pass",),
     "xp_quality_display": ("xp_residual_median",),
     "xp_consistency_display": ("xp_game_std_adj_score",),
 }
 
-# Individual metrics that get their own sub-bar under each rendered profile bar.
+# Metrics that carry their own rank-based mini-bar in the comparison view.
 XP_PROFILE_SUBMETRICS: tuple[str, ...] = (
     "xp_per_90",
     "threat_passes_p90",
     "xp_m4_per_pass",
     "xp_m4_per_threat_pass",
+    "xp_residual_median",
 )
 
 # Secondary indices shown as coloured status boxes below the regular stats.
@@ -674,8 +724,13 @@ XP_BADGE_SPECS: tuple[tuple[str, str, tuple[str, ...], str], ...] = (
 )
 
 XP_BADGE_TOOLTIPS: dict[str, str] = {
-    "xp_badge_impact": "Top 25 at the position in xP per game and xP per pass.",
-    "xp_badge_threat": f"Top 25 at the position in {IMPACT_PASS_ABBR} per game and xP per {IMPACT_PASS_ABBR}.",
+    "xp_badge_impact": (
+        "Top 25 in campo ofensivo or campo defensivo in xP per game and xP per pass."
+    ),
+    "xp_badge_threat": (
+        f"Top 25 in campo ofensivo or campo defensivo in {IMPACT_PASS_ABBR} per game "
+        f"and xP per {IMPACT_PASS_ABBR}."
+    ),
 }
 
 # Player Analysis compare panel.
@@ -698,7 +753,8 @@ XP_COMPARE_HIGHLIGHT_TOOLTIPS: dict[str, str] = {
         "produces per game."
     ),
     "threat_passes_p90": (
-        f"{IMPACT_PASS_ABBR} produced per 90 minutes — volume of passes that create real danger."
+        f"{IMPACT_PASS_ABBR} produced per 90 minutes — passes with high destination value, "
+        "positive surprise vs expected, and meaningful forward progress."
     ),
     "xp_m4_per_pass": (
         "Average xP per pass — measures the efficiency of each delivery, "
@@ -737,9 +793,9 @@ XP_COMPARE_METRIC_TOOLTIPS: dict[str, str] = {
 }
 
 XP_PROFILE_BAR_TOOLTIPS: dict[str, str] = {
-    "xp_activity_display": f"Offensive impact per game: xP generated and {IMPACT_PASS_ABBR} produced.",
-    "xp_edge_display": f"Value per pass: average xP per pass and per {IMPACT_PASS_ABBR}.",
-    "xp_quality_display": "How much the player delivers above the model's expected value.",
+    "xp_activity_display": "How much xP the player generates per game — passing volume times value.",
+    "xp_edge_display": "Average xP per pass — how valuable each delivery is, regardless of volume.",
+    "xp_quality_display": "Median xP above the model's expectation — value that comes from surprise.",
     "xp_consistency_display": "How stable game-to-game xP delivery is.",
 }
 
@@ -807,16 +863,22 @@ XP_PROFILE_ARCHETYPE_ICONS: dict[str, str] = {
 
 XP_PROFILE_ARCHETYPE_FILTER_ALL = ""
 
-ACTIVITY_METRICS: tuple[str, ...] = ("xp_per_90", "threat_passes_p90")
-EDGE_METRICS: tuple[str, ...] = ("xp_m4_per_pass", "xp_m4_per_threat_pass")
+ACTIVITY_METRICS: tuple[str, ...] = ("xp_per_90",)
+EDGE_METRICS: tuple[str, ...] = ("xp_m4_per_pass",)
 
-# Grade uses only Impacto Geral (IG) and Impacto por Passe (IpP) inputs.
-XP_PASS_RATING_FEATURES: tuple[str, ...] = (
-    "xp_per_90",
-    "threat_passes_p90",
-    "xp_m4_per_pass",
-    "xp_m4_per_threat_pass",
-)
+# Grade = weighted arithmetic mean of Productivity (xP/game) and Effectiveness (xP/pass).
+XP_PASS_RATING_FEATURE_WEIGHTS: dict[str, float] = {
+    "xp_per_90": 0.50,
+    "xp_m4_per_pass": 0.50,
+}
+XP_PASS_RATING_FEATURES: tuple[str, ...] = tuple(XP_PASS_RATING_FEATURE_WEIGHTS)
+
+# Weight each rendered pillar carries in the composite grade.
+XP_PROFILE_BAR_WEIGHTS: dict[str, float] = {
+    display_key: XP_PASS_RATING_FEATURE_WEIGHTS[metrics[0]]
+    for display_key, metrics in XP_PROFILE_BAR_METRICS.items()
+    if metrics and metrics[0] in XP_PASS_RATING_FEATURE_WEIGHTS
+}
 XP_PASS_RATING_TANH_SCALE = 1.25
 XP_PASS_RATING_TANH_AMPLITUDE = 1.15
 XP_PASS_RATING_PERCENTILE_BANDS: tuple[tuple[float, float, float], ...] = (
@@ -883,7 +945,7 @@ def p20_pass_thresholds_by_group(
     """Minimum passes at the position-group percentile (default P30)."""
     pools: dict[str, list[float]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(float(player.get(passes_col) or 0.0))
     return {
         group: float(np.percentile(counts, percentile)) if counts else 0.0
@@ -985,7 +1047,8 @@ XP_PA_LABELS: dict[str, str] = {
 XP_PA_TOOLTIPS: dict[str, str] = {
     "xp_per_90": "xP volume from passing, normalized per 90 minutes.",
     "threat_passes_p90": (
-        f"{IMPACT_PASS_ABBR} per game — residual in the top 10% for distance and xP ≥ P75 in the same band."
+        f"{IMPACT_PASS_ABBR} per game — composite score (45% xP + 35% residual + 20% progress) "
+        "in the top 10% for distance band, with forward progress ≥ P60."
     ),
     "xp_m4_per_pass": "Average xP per pass — measures the efficiency of each delivery.",
     "xp_m4_per_threat_pass": f"Average xP on {IMPACT_PASS_ABBR} (surprise + high value for distance).",
@@ -1175,7 +1238,9 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
     "final_third_passes",
     "passes_to_box",
     "key_passes",
-    "pass_mean_distance",
+    "long_pass_share_pct",
+    "special_line_break_p90",
+    "impact_passes_p90",
 )
 
 
@@ -1408,7 +1473,7 @@ def is_xp_profile_bar_eligible(
     minutes_pct = player.get("minutes_pct")
     if minutes_pct is None or float(minutes_pct) <= float(min_minutes_pct):
         return False
-    group = str(player.get("position_group") or "CM")
+    group = _metric_rank_pool_key(player)
     min_passes = float(pass_thresholds.get(group, 0.0))
     return float(player.get("passes_completed") or 0.0) >= min_passes
 
@@ -1424,14 +1489,14 @@ def _attach_xp_profile_bar_eligibility_for_pool(rows: list[dict]) -> list[dict]:
     """Flag profile-bar eligibility within one position group.
 
     Base filter: minutes > 30% and passes >= P30.
-    When at least 100 players pass the base filter, keep only the top 100 by passes.
+    When at least 250 players pass the base filter, keep only the top 250 by passes.
     Otherwise keep everyone who passes the base filter.
     """
     if not rows:
         return []
 
     pass_thresholds = xp_profile_bar_pass_thresholds(rows)
-    group = str(rows[0].get("position_group") or "CM")
+    group = _metric_rank_pool_key(rows[0])
     p30_threshold = round(float(pass_thresholds.get(group, 0.0)), 1)
     base_eligible = [
         row for row in rows
@@ -1454,7 +1519,7 @@ def _attach_xp_profile_bar_eligibility_for_pool(rows: list[dict]) -> list[dict]:
     for row in rows:
         row["xp_profile_p30_min_passes"] = p30_threshold
         row["xp_profile_min_minutes_pct"] = XP_PROFILE_MIN_MINUTES_PCT
-        row["xp_profile_eligibility_mode"] = "top100" if use_top_pool else "threshold"
+        row["xp_profile_eligibility_mode"] = "top_pool" if use_top_pool else "threshold"
         if use_top_pool:
             row["xp_profile_top_pool_size"] = XP_PROFILE_TOP_PASS_POOL_SIZE
             row["xp_profile_min_passes"] = top_cutoff
@@ -1477,7 +1542,7 @@ def _attach_xp_profile_bar_eligibility_for_pool(rows: list[dict]) -> list[dict]:
         elif not passes_p30_ok:
             row["xp_profile_ineligible_reason"] = "passes_p30"
         elif use_top_pool:
-            row["xp_profile_ineligible_reason"] = "top100_cutoff"
+            row["xp_profile_ineligible_reason"] = "top_pool_cutoff"
         else:
             row["xp_profile_ineligible_reason"] = "passes_p30"
 
@@ -1488,7 +1553,7 @@ def attach_xp_profile_bar_eligibility(players: list[dict]) -> None:
     """Flag players who meet profile-bar eligibility within each position group."""
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     for rows in pools.values():
@@ -1501,7 +1566,7 @@ def attach_composite_indices(players: list[dict]) -> None:
         return
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     for rows in pools.values():
@@ -1528,7 +1593,7 @@ def attach_composite_indices(players: list[dict]) -> None:
         for raw_key, composite in composites.items():
             _attach_index_display_scores(rows, raw_key, display_map[raw_key], composite)
 
-        # Profile bars: rank only among eligible peers (base filters, or top 100 by passes).
+        # Profile bars: rank only among eligible peers (base filters, or top 250 by passes).
         if eligible_rows:
             for raw_key, display_key, metric_cols in XP_PROFILE_BAR_SPECS:
                 _attach_median_rank_display_scores(
@@ -1660,22 +1725,20 @@ def xp_pass_rating_percentile_display(rank: int, pool_size: int) -> float:
 
 
 def attach_xp_pass_ratings(players: list[dict]) -> None:
-    """Attach xP pass rating (4-axis PCA + shrinkage) with percentile display.
+    """Attach xP pass rating (2-metric weighted mean + shrinkage) with percentile display.
 
-    PC1 combines within-position z-scores of the four xP profile dimensions
-    (Impacto Geral, Impacto por ação, Entrega vs Esperado, Consistência). Players are ranked
-    by the raw PCA composite; the displayed grade maps that rank to a 4.5–9.0 scale
-    (top 10% -> 8–9, 10–30% -> 7–8, rest -> 4.5–7) with a single light
-    confidence pull toward 6.0 (50% passes, 50% minutes).
+    The composite is a weighted arithmetic mean of within-position z-scores:
+    Productivity (xP/game, 50%) and Effectiveness (xP/pass, 50%). Players are ranked
+    by that composite; the displayed grade maps the rank to a 4.5–9.0 scale (top 10%
+    -> 8–9, 10–30% -> 7–8, rest -> 4.5–7) with a single light confidence pull
+    toward 6.0.
     """
     if not players:
         return
 
-    from sklearn.decomposition import PCA
-
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     for rows in pools.values():
@@ -1697,20 +1760,19 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
 
         feature_frame = pd.DataFrame(shrunk_by_feature)
         z_frame = feature_frame.apply(_zscore)
-        if pool_size >= 8:
-            pca = PCA(n_components=1, random_state=42)
-            pca_scores = pca.fit_transform(z_frame.to_numpy(dtype=float)).ravel().tolist()
-        else:
-            pca_scores = z_frame.mean(axis=1).astype(float).tolist()
+        weights = pd.Series(XP_PASS_RATING_FEATURE_WEIGHTS)
+        composite_scores = (
+            z_frame.mul(weights, axis=1).sum(axis=1) / weights.sum()
+        ).astype(float).tolist()
 
         for player in rows:
             player["position_p25_passes"] = round(p25_passes, 1)
 
-        raw_displays = [_xp_pass_rating_tanh_display(score) for score in pca_scores]
-        for player, raw_display, pca_z in zip(rows, raw_displays, pca_scores):
+        raw_displays = [_xp_pass_rating_tanh_display(score) for score in composite_scores]
+        for player, raw_display, composite_z in zip(rows, raw_displays, composite_scores):
             player["xp_pass_rating_raw_display"] = round(raw_display, 2)
             player["xp_pass_rating_confidence"] = round(_xp_pass_rating_confidence(player), 4)
-            player["xp_pass_rating_pca_z"] = round(float(pca_z), 4)
+            player["xp_pass_rating_composite_z"] = round(float(composite_z), 4)
 
         ranked = sorted(
             zip(rows, raw_displays),
@@ -1737,13 +1799,66 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
             row["metric_ranks"] = metric_ranks
 
 
+PASS_LENGTH_BADGE_PERCENTILE = 67.0
+PASS_LENGTH_BADGE_MIN_SHARE = 0.38
+
+
+def attach_pass_length_share_badges(players: list[dict]) -> None:
+    """Flag players in the top third of short/long pass share within profile peers."""
+    if not players:
+        return
+
+    pools: dict[str, list[dict]] = {}
+    for player in players:
+        pools.setdefault(_metric_rank_pool_key(player), []).append(player)
+
+    for rows in pools.values():
+        for row in rows:
+            row.pop("pass_length_badge_long", None)
+            row.pop("pass_length_badge_short", None)
+            short = float(row.get("passes_short") or 0.0)
+            long_ = float(row.get("passes_long") or 0.0)
+            band_total = short + long_
+            if band_total > 0:
+                row["long_pass_share_pct"] = round(long_ / band_total * 100.0, 1)
+                row["short_pass_share_pct"] = round(short / band_total * 100.0, 1)
+            else:
+                row["long_pass_share_pct"] = 0.0
+                row["short_pass_share_pct"] = 0.0
+
+        long_entries: list[tuple[dict, float]] = []
+        short_entries: list[tuple[dict, float]] = []
+        for row in rows:
+            try:
+                long_share = float(row.get("long_pass_share_pct") or 0.0) / 100.0
+                short_share = float(row.get("short_pass_share_pct") or 0.0) / 100.0
+            except (TypeError, ValueError):
+                continue
+            if long_share > 0:
+                long_entries.append((row, long_share))
+            if short_share > 0:
+                short_entries.append((row, short_share))
+
+        if len(long_entries) < 3 or len(short_entries) < 3:
+            continue
+
+        long_cut = float(np.percentile([share for _, share in long_entries], PASS_LENGTH_BADGE_PERCENTILE))
+        short_cut = float(np.percentile([share for _, share in short_entries], PASS_LENGTH_BADGE_PERCENTILE))
+        for row, share in long_entries:
+            if share >= long_cut and share >= PASS_LENGTH_BADGE_MIN_SHARE:
+                row["pass_length_badge_long"] = True
+        for row, share in short_entries:
+            if share >= short_cut and share >= PASS_LENGTH_BADGE_MIN_SHARE:
+                row["pass_length_badge_short"] = True
+
+
 def attach_distance_indices(players: list[dict]) -> None:
     """Within-position index per band with balanced grades and light volume weight."""
     if not players:
         return
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     skill_weight = DISTANCE_INDEX_SKILL_WEIGHT
@@ -1852,6 +1967,14 @@ def _eligible_profile_pool_rows(rows: list[dict]) -> list[dict]:
     return [row for row in rows if row.get("xp_profile_bars_eligible")]
 
 
+def _metric_rank_pool_key(player: dict) -> str:
+    """Rank peers within campo ofensivo/defensivo when assigned; else position group."""
+    origin = str(player.get("midfield_origin_profile") or "").strip().lower()
+    if origin in {"campo_ofensivo", "campo_defensivo"}:
+        return origin
+    return str(player.get("position_group") or "CM")
+
+
 def _clear_metric_ranks(row: dict, metrics: tuple[str, ...]) -> None:
     for metric in metrics:
         if metric.startswith("xp_dist_index_"):
@@ -1869,7 +1992,7 @@ def attach_metric_ranks_within_position(
     """Rank metrics within position group, optionally restricted to profile-eligible peers."""
     pools: dict[str, list[dict]] = {}
     for player in players:
-        group = str(player.get("position_group") or "CM")
+        group = _metric_rank_pool_key(player)
         pools.setdefault(group, []).append(player)
 
     rank_metrics = tuple(
