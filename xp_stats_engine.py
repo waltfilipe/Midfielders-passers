@@ -38,7 +38,7 @@ PENALTY_Y_MAX = pe.PENALTY_BOX_Y_MAX
 
 XP_COL = "xp_m4"
 THREAT_COL = "is_threat_m4"
-IMPACT_PASS_ABBR = "I.P."
+IMPACT_PASS_ABBR = "Impact"
 RESIDUAL_COL = "xp_residual"
 DISTANCE_BAND_LABELS = xse.DISTANCE_BAND_LABELS
 XP_DISTANCE_BAND_MAX_SHORT_M = xse.XP_DISTANCE_BAND_MAX_SHORT_M
@@ -809,11 +809,14 @@ XP_PROFILE_SUBMETRICS: tuple[str, ...] = (
 
 # Secondary indices shown as coloured status boxes below the regular stats.
 # (index_key, label, metrics, invert_metrics)
+XP_INDEX_ELITE_TOP_N = 10
 XP_INDEX_SPECS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...] = (
     ("xp_idx_consistency", "Consistency", ("xp_game_std_adj_score",), ()),
+    ("xp_idx_impact", "Impact", ("threat_passes_p90",), ()),
 )
 
 XP_INDEX_TIER_LABELS: dict[str, str] = {
+    "elite": "Elite",
     "below": "Below average",
     "mid": "Average",
     "above": "Above average",
@@ -821,11 +824,16 @@ XP_INDEX_TIER_LABELS: dict[str, str] = {
 
 XP_INDEX_TOOLTIPS: dict[str, str] = {
     "xp_idx_consistency": "Game-to-game xP stability — how consistent the player's delivery is.",
+    "xp_idx_impact": (
+        "Impact passes combine high destination value, positive residual and forward "
+        "progress — deliveries that meaningfully change expected threat."
+    ),
 }
 
 # Icons for the index rows (tier indices + badges) shown in the xP Profile card.
 XP_INDEX_ICONS: dict[str, str] = {
     "xp_idx_consistency": "fa-wave-square",
+    "xp_idx_impact": "fa-crosshairs",
 }
 
 # Achievement badges — earned when ranked in the top N among eligible peers on the
@@ -1161,8 +1169,8 @@ XP_PA_LABELS: dict[str, str] = {
 XP_PA_TOOLTIPS: dict[str, str] = {
     "xp_per_90": "xP volume from passing, normalized per 90 minutes.",
     "threat_passes_p90": (
-        f"{IMPACT_PASS_ABBR} per game — composite score (45% xP + 35% residual + 20% progress) "
-        "in the top 7.5% for distance band, with forward progress ≥ P65."
+        "Impact passes per game — deliveries that combine high destination value, "
+        "positive residual and forward progress relative to peers."
     ),
     "xp_m4_per_pass": "Average xP per pass — measures the efficiency of each delivery.",
     "xp_m4_per_threat_pass": f"Average xP on {IMPACT_PASS_ABBR} (surprise + high value for distance).",
@@ -1368,12 +1376,11 @@ PASS_BUILDUP_METRICS: tuple[str, ...] = (
     "progressive_passes",
     "final_third_passes",
     "special_line_break_p90",
-    "ip_dest_first_two_thirds_p90",
+    "threat_passes_p90",
 )
 PASS_CHANCE_CREATION_METRICS: tuple[str, ...] = (
     "key_passes",
     "passes_to_box",
-    "ip_dest_final_third_p90",
 )
 PASS_SCORE_SPECS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("pass_buildup_index", "pass_buildup_display", PASS_BUILDUP_METRICS),
@@ -1384,23 +1391,14 @@ PASS_SCORE_LABELS: dict[str, str] = {
     "pass_buildup_display": "Build-up",
     "pass_chance_creation_index": "Chance creation",
     "pass_chance_creation_display": "Chance creation",
-    "ip_dest_first_two_thirds_p90": f"{IMPACT_PASS_ABBR} in first 2/3 / game",
-    "ip_dest_final_third_p90": f"{IMPACT_PASS_ABBR} in final third / game",
 }
 PASS_SCORE_TOOLTIPS: dict[str, str] = {
     "pass_buildup_index": (
         "Within-position composite of progressive passes, final-third entries, "
-        "line-breaking passes and impact passes with destination in the first two thirds."
+        "line-breaking passes and impact passes per game."
     ),
     "pass_chance_creation_index": (
-        "Within-position composite of key passes, passes into the box and "
-        f"impact passes with destination in the final third."
-    ),
-    "ip_dest_first_two_thirds_p90": (
-        f"{IMPACT_PASS_ABBR} per game with pass destination in the first two thirds of the field."
-    ),
-    "ip_dest_final_third_p90": (
-        f"{IMPACT_PASS_ABBR} per game with pass destination in the final third of the field."
+        "Within-position composite of key passes and passes into the box per game."
     ),
 }
 PASS_SCORE_LETTER_KEYS: dict[str, str] = {
@@ -1929,8 +1927,22 @@ def attach_composite_indices(players: list[dict]) -> None:
                 _clear_xp_profile_bar_scores(row)
 
 
+def _index_tier_from_rank(rank: int, pool_size: int) -> str:
+    """Map peer rank to below / mid / above / elite (top N athletes)."""
+    if pool_size <= 0 or rank <= 0:
+        return "mid"
+    if rank <= XP_INDEX_ELITE_TOP_N:
+        return "elite"
+    pct = float(rank) / float(pool_size)
+    if pct <= 1.0 / 3.0:
+        return "above"
+    if pct <= 2.0 / 3.0:
+        return "mid"
+    return "below"
+
+
 def _attach_secondary_indices(eligible_rows: list[dict]) -> None:
-    """Attach z-composite indices and tercile tiers (below/mid/above) among eligible peers."""
+    """Attach z-composite indices and tier labels among eligible peers."""
     if not eligible_rows:
         return
     edf = pd.DataFrame(eligible_rows)
@@ -1940,14 +1952,12 @@ def _attach_secondary_indices(eligible_rows: list[dict]) -> None:
         order = composite.rank(method="min", ascending=False)
         for i, row in enumerate(eligible_rows):
             row[idx_key] = float(composite.iloc[i])
-            pct = float(order.iloc[i]) / pool if pool else 1.0
-            if pct <= 1.0 / 3.0:
-                tier = "above"
-            elif pct <= 2.0 / 3.0:
-                tier = "mid"
-            else:
-                tier = "below"
-            row[f"{idx_key}_tier"] = tier
+            rank_val = order.iloc[i]
+            if pd.isna(rank_val):
+                row[f"{idx_key}_tier"] = "mid"
+                continue
+            rank = int(rank_val)
+            row[f"{idx_key}_tier"] = _index_tier_from_rank(rank, pool)
 
     # Achievement badges: earned only when the player is inside the top N of the
     # position on EVERY metric of the pair (e.g. Impacto = top 25 em xP/Jogo E xP/Passe).

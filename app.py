@@ -1546,43 +1546,16 @@ def _compare_pass_mix_compact_html(xp_profile: dict | None) -> str:
     if share is None:
         return ""
     share = float(share)
-    peer_avg = xp_profile.get("long_pass_share_ref_avg_pct")
-    if peer_avg is None:
-        peer_avg = xp_profile.get("long_pass_share_peer_avg_pct")
-    center_marker = ""
-    player_marker = ""
+    marker_pos = max(4.0, min(96.0, share))
+    player_marker = (
+        f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%"></span>'
+    )
     meta = f"<strong>{share:.1f}%</strong> long"
-    if peer_avg is not None:
-        peer_avg = float(peer_avg)
-        delta = share - peer_avg
-        sign = "+" if delta >= 0 else "−"
-        meta = (
-            f"<strong>{share:.1f}%</strong> long · "
-            f"{sign}{abs(delta):.1f} pp vs top 100"
-        )
-        half_span = float(
-            xp_profile.get("long_pass_share_ref_span_pp")
-            or xp_profile.get("long_pass_share_peer_span_pp")
-            or 0.0
-        )
-        if half_span <= 0:
-            half_span = max(3.5, min(peer_avg, 100.0 - peer_avg) * 0.85)
-        marker_pos = 50.0 + (share - peer_avg) / half_span * 50.0
-        marker_pos = max(3.0, min(97.0, marker_pos))
-        center_marker = '<span class="pa-pass-mix-center"></span>'
-        player_marker = (
-            f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%"></span>'
-        )
-    else:
-        marker_pos = max(4.0, min(96.0, share))
-        player_marker = (
-            f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%"></span>'
-        )
     return (
         '<div class="pa-compare-compact-block">'
         '<span class="pa-compare-compact-label">Pass length mix</span>'
         '<div class="pa-pass-mix-track pa-pass-mix-track-compact">'
-        f"{center_marker}{player_marker}"
+        f"{player_marker}"
         "</div>"
         '<div class="pa-pass-mix-axis pa-pass-mix-axis-compact">'
         '<span class="pa-pass-mix-axis-short">Short</span>'
@@ -1594,26 +1567,23 @@ def _compare_pass_mix_compact_html(xp_profile: dict | None) -> str:
 
 
 def _compare_xp_indices_compact_html(xp_profile: dict | None) -> str:
-    """Compact Consistency + I.P. chips for the Compare column."""
+    """Compact Consistency + Impact tier chips for the Compare column."""
     if not xp_profile or not xp_profile.get("xp_profile_bars_eligible", True):
         return ""
     chips: list[str] = []
-    tier = xp_profile.get("xp_idx_consistency_tier")
-    if tier:
+    for label, tier_key in (
+        ("Consistency", "xp_idx_consistency_tier"),
+        ("Impact", "xp_idx_impact_tier"),
+    ):
+        tier = xp_profile.get(tier_key)
+        if not tier:
+            continue
         tier_label = xstats.XP_INDEX_TIER_LABELS.get(tier, "—")
         chips.append(
             '<span class="pa-compare-compact-chip">'
-            '<span class="pa-compare-compact-chip-label">Consistency</span>'
+            f'<span class="pa-compare-compact-chip-label">{html.escape(label)}</span>'
             f'<span class="pa-compare-compact-chip-val pa-compare-compact-tier-{html.escape(tier)}">'
             f"{html.escape(tier_label)}</span>"
-            "</span>"
-        )
-    per_game = xp_profile.get("threat_passes_p90")
-    if per_game is not None:
-        chips.append(
-            '<span class="pa-compare-compact-chip">'
-            f'<span class="pa-compare-compact-chip-label">{html.escape(IMPACT_PASS_ABBR)}</span>'
-            f'<span class="pa-compare-compact-chip-val">{float(per_game):.1f} / game</span>'
             "</span>"
         )
     if not chips:
@@ -3264,6 +3234,7 @@ st.markdown(
         font-weight: 700;
         line-height: 1.2;
     }
+    .pa-compare-compact-tier-elite { color: #38bdf8; font-weight: 800; }
     .pa-compare-compact-tier-above { color: #4ade80; }
     .pa-compare-compact-tier-mid { color: #fbbf24; }
     .pa-compare-compact-tier-below { color: #f87171; }
@@ -4820,6 +4791,20 @@ st.markdown(
     .pa-xp-index-row-below .pa-xp-index-row-val { color: #fb923c; }
     .pa-xp-index-row-mid .pa-xp-index-row-val { color: #facc15; }
     .pa-xp-index-row-above .pa-xp-index-row-val { color: #4ade80; }
+    .pa-xp-index-row-elite .pa-xp-index-row-val {
+        color: #38bdf8;
+        font-weight: 800;
+    }
+    .pa-xp-index-tier-elite-note {
+        display: block;
+        margin-top: 0.08rem;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #7dd3fc;
+        opacity: 0.95;
+    }
     .pa-xp-index-row-earned {
         border-color: rgba(74, 222, 128, 0.45);
         background: linear-gradient(90deg, rgba(74, 222, 128, 0.12) 0%, rgba(15, 23, 42, 0.45) 100%);
@@ -7706,21 +7691,12 @@ _XP_BAR_TICKS_HTML = (
 def _xp_profile_pillar_head_html(display_key: str) -> str:
     label = xstats.XP_PROFILE_BAR_LABELS.get(display_key, display_key)
     icon = XP_PROFILE_BAR_ICONS.get(display_key, "fa-circle-dot")
-    weight = XP_PROFILE_BAR_WEIGHTS.get(display_key)
-    weight_html = ""
-    if weight:
-        weight_txt = f"{float(weight) * 100:.0f}%"
-        weight_html = (
-            f'<span class="pa-xp-pillar-weight" title="Weight in the xP grade">'
-            f"{html.escape(weight_txt)}</span>"
-        )
     return (
         '<div class="pa-xp-pillar-head">'
         '<span class="pa-xp-pillar-icon">'
         f'<i class="fa-solid {html.escape(icon)}" aria-hidden="true"></i>'
         "</span>"
         f'<span class="pa-xp-pillar-label">{html.escape(label)}</span>'
-        f"{weight_html}"
         "</div>"
     )
 
@@ -7874,13 +7850,60 @@ def _xp_index_tip_lines_html(
     return "".join(lines)
 
 
-_IMPACT_PASS_TIP_KEYS: tuple[str, ...] = (
-    "threat_passes_p90",
-    "xp_m4_threat_passes_p90",
-    "xp_m4_per_threat_pass",
-    "xp_m4_threat_rate",
-    "xp_m4_threat_passes",
-)
+_IMPACT_PASS_TIP_KEYS: tuple[str, ...] = ()
+
+
+def _xp_index_tier_row_class(tier: str) -> str:
+    if tier == "elite":
+        return "pa-xp-index-row-badge pa-xp-index-row-elite"
+    if tier == "above":
+        return "pa-xp-index-row-badge pa-xp-index-row-earned"
+    return f"pa-xp-index-row-{tier}"
+
+
+def _xp_index_tier_value_html(tier: str, tier_label: str) -> str:
+    if tier == "elite":
+        return (
+            '<span class="pa-xp-index-row-val">'
+            f"{html.escape(tier_label)}"
+            '<span class="pa-xp-index-tier-elite-note">top 10 athletes</span>'
+            "</span>"
+        )
+    return f'<span class="pa-xp-index-row-val">{html.escape(tier_label)}</span>'
+
+
+def _xp_index_tier_row_html(
+    label: str,
+    tier: str,
+    *,
+    tier_key: str,
+    icon: str,
+) -> str:
+    if not tier:
+        return ""
+    tier_label = xstats.XP_INDEX_TIER_LABELS.get(tier, "—")
+    row_class = _xp_index_tier_row_class(tier)
+    summary = xstats.XP_INDEX_TOOLTIPS.get(tier_key, "")
+    summary_html = (
+        f'<span class="pa-xp-index-tip-summary">{html.escape(summary)}</span>'
+        if summary
+        else ""
+    )
+    tipbox = (
+        f'<span class="pa-xp-index-tip-title">{html.escape(label)}</span>'
+        f"{summary_html}"
+    )
+    value_html = _xp_index_tier_value_html(tier, tier_label)
+    tip_cls = " pa-xp-index-row-hastip"
+    return (
+        f'<div class="pa-xp-index-row {row_class}{tip_cls}">'
+        f'<span class="pa-xp-index-row-icon"><i class="fa-solid {html.escape(icon)}"></i></span>'
+        f'<span class="pa-xp-index-row-name">{html.escape(label)}</span>'
+        '<span class="pa-xp-index-row-sep" aria-hidden="true"></span>'
+        f"{value_html}"
+        f'<span class="pa-xp-index-tipbox">{tipbox}</span>'
+        "</div>"
+    )
 
 
 def _rank_tier_class(xp_profile: dict, key: str) -> str:
@@ -7898,27 +7921,16 @@ def _rank_tier_class(xp_profile: dict, key: str) -> str:
 
 
 def _xp_impact_pass_row_html(xp_profile: dict) -> str:
-    """I.P. row: volume per game plus a tooltip with the underlying Impact Pass numbers."""
-    per_game = xp_profile.get("threat_passes_p90")
-    value = f"{float(per_game):.1f} / game" if per_game is not None else "—"
-    row_class = f"pa-xp-index-row-badge {_rank_tier_class(xp_profile, 'threat_passes_p90')}"
-    summary = xstats.pa_stats_metric_tooltip("threat_passes_p90")
-    summary_html = (
-        f'<span class="pa-xp-index-tip-summary">{html.escape(summary)}</span>'
-        if summary
-        else ""
-    )
-    tipbox = (
-        f'<span class="pa-xp-index-tip-title">{html.escape(IMPACT_PASS_ABBR)} · Impact Passes</span>'
-        f"{summary_html}"
-        f"{_xp_index_tip_lines_html(xp_profile, _IMPACT_PASS_TIP_KEYS)}"
-    )
-    return _xp_index_row_html(
-        IMPACT_PASS_ABBR,
-        value,
-        row_class=row_class,
-        icon="fa-crosshairs",
-        tipbox=tipbox,
+    """Impact row with tier label and description-only tooltip."""
+    tier = xp_profile.get("xp_idx_impact_tier")
+    if not tier:
+        return ""
+    icon = xstats.XP_INDEX_ICONS.get("xp_idx_impact", "fa-crosshairs")
+    return _xp_index_tier_row_html(
+        "Impact",
+        tier,
+        tier_key="xp_idx_impact",
+        icon=icon,
     )
 
 
@@ -7956,47 +7968,21 @@ def _round_point_title(point: dict) -> str:
     return " · ".join(parts)
 
 
-_CONSISTENCY_TIP_KEYS: tuple[str, ...] = (
-    "xp_game_std_adj_score",
-    "xp_game_mean",
-    "xp_games_above_median_pct",
-)
-
-
 def _xp_consistency_row_html(
     xp_profile: dict,
     xp_passes_df: pd.DataFrame | None = None,
 ) -> str:
-    """Consistency row with hover tooltip (like I.P.) instead of an expandable panel."""
+    """Consistency row with description-only tooltip and tier label."""
+    _ = xp_passes_df
     tier = xp_profile.get("xp_idx_consistency_tier")
     if not tier:
         return ""
-    tier_label = xstats.XP_INDEX_TIER_LABELS.get(tier, "—")
     icon = xstats.XP_INDEX_ICONS.get("xp_idx_consistency", "fa-wave-square")
-    row_class = (
-        "pa-xp-index-row-badge pa-xp-index-row-earned"
-        if tier == "above"
-        else f"pa-xp-index-row-{tier}"
-    )
-    summary = xstats.XP_INDEX_TOOLTIPS.get("xp_idx_consistency", "")
-    summary_html = (
-        f'<span class="pa-xp-index-tip-summary">{html.escape(summary)}</span>'
-        if summary
-        else ""
-    )
-    chart_html = _round_production_chart_html(xp_profile, xp_passes_df, compact=True)
-    tipbox = (
-        '<span class="pa-xp-index-tip-title">Consistency</span>'
-        f"{summary_html}"
-        f"{_xp_index_tip_lines_html(xp_profile, _CONSISTENCY_TIP_KEYS, show_rank=False)}"
-        f'<span class="pa-xp-index-tip-chart">{chart_html}</span>'
-    )
-    return _xp_index_row_html(
+    return _xp_index_tier_row_html(
         "Consistency",
-        tier_label,
-        row_class=row_class,
+        tier,
+        tier_key="xp_idx_consistency",
         icon=icon,
-        tipbox=tipbox,
     )
 
 
@@ -8088,7 +8074,7 @@ def _xp_index_boxes_html(
 
 
 def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
-    """Bar comparing the player's long-pass share against the peer average at center."""
+    """Bar showing the player's short vs long pass mix."""
     if not xp_profile:
         return ""
     share = xp_profile.get("long_pass_share_pct")
@@ -8096,65 +8082,13 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         return ""
     share = float(share)
     short_share = 100.0 - share
-    peer_avg = xp_profile.get("long_pass_share_ref_avg_pct")
-    if peer_avg is None:
-        peer_avg = xp_profile.get("long_pass_share_peer_avg_pct")
-    peer_count = int(
-        xp_profile.get("long_pass_share_ref_count")
-        or xp_profile.get("long_pass_share_peer_count")
-        or 0
-    )
     short_label = xstats.DISTANCE_BAND_LABELS.get("short", "≤30m")
     long_label = xstats.DISTANCE_BAND_LABELS.get("long", ">30m")
-
-    delta_html = ""
-    center_marker = ""
-    player_marker = ""
-    foot = (
-        '<p class="pa-pass-mix-foot">Peer average unavailable for this position.</p>'
+    marker_pos = max(4.0, min(96.0, share))
+    player_marker = (
+        f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%" '
+        f'title="Player long share: {share:.1f}%"></span>'
     )
-    if peer_avg is not None:
-        peer_avg = float(peer_avg)
-        delta = share - peer_avg
-        delta_cls = "up" if delta >= 0 else "down"
-        sign = "+" if delta >= 0 else "−"
-        delta_html = (
-            f'<span class="pa-pass-mix-delta pa-pass-mix-delta-{delta_cls}" '
-            f'title="Difference against the top-100 midfielder reference">'
-            f"{sign}{abs(delta):.1f} pp</span>"
-        )
-        half_span = float(
-            xp_profile.get("long_pass_share_ref_span_pp")
-            or xp_profile.get("long_pass_share_peer_span_pp")
-            or 0.0
-        )
-        if half_span <= 0:
-            half_span = max(3.5, min(peer_avg, 100.0 - peer_avg) * 0.85)
-        marker_pos = 50.0 + (share - peer_avg) / half_span * 50.0
-        marker_pos = max(3.0, min(97.0, marker_pos))
-        center_marker = (
-            f'<span class="pa-pass-mix-center" '
-            f'title="Top {peer_count} midfielders by passes — avg long share: {peer_avg:.1f}%"></span>'
-        )
-        player_marker = (
-            f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%" '
-            f'title="Player long share: {share:.1f}%"></span>'
-        )
-        pctile = xp_profile.get("long_pass_share_pctile")
-        pctile_txt = f" · P{float(pctile):.0f}" if pctile is not None else ""
-        foot = (
-            '<p class="pa-pass-mix-foot">'
-            f"Center = avg of top {peer_count} midfielders by passes "
-            f"({peer_avg:.1f}% long)"
-            f"{html.escape(pctile_txt)}"
-            "</p>"
-        )
-    else:
-        marker_pos = max(4.0, min(96.0, share))
-        player_marker = (
-            f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%" '
-            f'title="Player long share: {share:.1f}%"></span>'
-        )
 
     return (
         '<div class="player-card pa-pass-mix-card">'
@@ -8163,10 +8097,8 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         '<i class="fa-solid fa-ruler-horizontal" aria-hidden="true"></i>'
         "</span>"
         '<span class="pa-pass-mix-title">Pass Length Mix</span>'
-        f"{delta_html}"
         "</div>"
         '<div class="pa-pass-mix-track">'
-        f"{center_marker}"
         f"{player_marker}"
         "</div>"
         '<div class="pa-pass-mix-axis">'
@@ -8179,7 +8111,6 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         '<span class="pa-pass-mix-legend-item pa-pass-mix-legend-long">'
         f"<strong>{share:.1f}%</strong> long</span>"
         "</div>"
-        f"{foot}"
         "</div>"
     )
 
@@ -8424,7 +8355,7 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
             "progressive_passes",
             "final_third_passes",
             "special_line_break_p90",
-            "ip_dest_first_two_thirds_p90",
+            "threat_passes_p90",
         ),
     ),
     (
@@ -8435,7 +8366,6 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         (
             "key_passes",
             "passes_to_box",
-            "ip_dest_final_third_p90",
         ),
     ),
 )
@@ -8446,8 +8376,7 @@ XP_PA_REGULAR_COMPONENT_LABELS: dict[str, str] = {
     "passes_to_box": "Passes into box / game",
     "key_passes": "Key passes / game",
     "special_line_break_p90": "Line breaking passes / game",
-    "ip_dest_first_two_thirds_p90": "Impact passes in first 2/3 / game",
-    "ip_dest_final_third_p90": "Impact passes in final third / game",
+    "threat_passes_p90": "Impact passes / game",
 }
 
 XP_PA_REGULAR_COMPONENT_TOOLTIPS: dict[str, str] = {
@@ -8465,11 +8394,9 @@ XP_PA_REGULAR_COMPONENT_TOOLTIPS: dict[str, str] = {
         "destination outside the outer 15%, forward angle ≤ 50°, distance 20–30 m "
         "(origin 30–60 m), 15–30 m (60–80 m), or 10–30 m (80–120 m)."
     ),
-    "ip_dest_first_two_thirds_p90": (
-        "Impact passes per game with destination in the first two thirds of the field."
-    ),
-    "ip_dest_final_third_p90": (
-        "Impact passes per game with destination in the final third of the field."
+    "threat_passes_p90": (
+        "Impact passes per game — deliveries that combine high destination value, "
+        "positive residual and forward progress relative to peers."
     ),
 }
 
@@ -8479,19 +8406,17 @@ XP_PA_REGULAR_COMPONENT_KIND: dict[str, str] = {
     "passes_to_box": "p90",
     "key_passes": "p90",
     "special_line_break_p90": "p90",
-    "ip_dest_first_two_thirds_p90": "p90",
-    "ip_dest_final_third_p90": "p90",
+    "threat_passes_p90": "p90",
 }
 
 XP_PA_REGULAR_SCORE_TOOLTIPS: dict[str, str] = {
     "pass_buildup_display": (
         "Within-position composite of progressive passes, final-third entries, "
-        "line-breaking passes and impact passes with destination in the first two thirds. "
+        "line-breaking passes and impact passes per game. "
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
     "pass_chance_creation_display": (
-        "Within-position composite of key passes, passes into the box and "
-        "impact passes with destination in the final third. "
+        "Within-position composite of key passes and passes into the box per game. "
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
 }
@@ -11814,11 +11739,11 @@ def render_presentation_tab(
         '<div class="pres-cards-3">'
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-chart-simple"></i></span>'
-        "<h5>Productivity <em>50%</em></h5>"
+        "<h5>Productivity</h5>"
         "<p>xP generated per game — how much total value the player delivers through their passes.</p></div>"
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-bolt"></i></span>'
-        "<h5>Effectiveness <em>50%</em></h5>"
+        "<h5>Effectiveness</h5>"
         "<p>xP per pass — how much value each delivery carries, regardless of volume.</p></div>"
         "</div>",
         unsafe_allow_html=True,
