@@ -6,3 +6,4 @@ venv/
 .env
 data/sofascore/
 passbr*/
+scripts/output/
