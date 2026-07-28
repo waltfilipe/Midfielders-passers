@@ -159,6 +159,7 @@ xpe = _load_xp_study_engine()
 xe = _load_xp_engine()
 xstats = _load_xp_stats_engine()
 IMPACT_PASS_ABBR = getattr(xstats, "IMPACT_PASS_ABBR", "I.P.")
+XP_ROUND_SERIES_KEY = getattr(xstats, "XP_ROUND_SERIES_KEY", "xp_round_series")
 XP_PROFILE_BAR_KEYS_RENDER: tuple[str, ...] = (
     "xp_activity_display",
     "xp_edge_display",
@@ -7308,9 +7309,18 @@ _ROUND_CHART_PAD_X = 7.0
 _ROUND_CHART_PAD_Y = 9.0
 
 
-def _round_production_series(xp_profile: dict) -> list[dict]:
-    series = xp_profile.get(xstats.XP_ROUND_SERIES_KEY) or ()
-    return [dict(point) for point in series]
+def _round_production_series(
+    xp_profile: dict,
+    xp_passes_df: pd.DataFrame | None = None,
+) -> list[dict]:
+    raw = xp_profile.get(XP_ROUND_SERIES_KEY)
+    if not raw and xp_passes_df is not None and not xp_passes_df.empty:
+        compute_fn = getattr(xstats, "round_production_series", None)
+        if compute_fn is not None:
+            scored = xp_passes_df[xp_passes_df["is_won"] & xp_passes_df["has_end"]]
+            if not scored.empty:
+                raw = compute_fn(scored)
+    return [dict(point) for point in (raw or ())]
 
 
 def _round_point_title(point: dict) -> str:
@@ -7327,9 +7337,12 @@ def _round_point_title(point: dict) -> str:
     return " · ".join(parts)
 
 
-def _round_production_chart_html(xp_profile: dict) -> str:
+def _round_production_chart_html(
+    xp_profile: dict,
+    xp_passes_df: pd.DataFrame | None = None,
+) -> str:
     """Inline SVG line chart of xP produced per round, with the season mean as reference."""
-    series = _round_production_series(xp_profile)
+    series = _round_production_series(xp_profile, xp_passes_df)
     if len(series) < 3:
         return (
             '<p class="pa-round-chart-empty">'
@@ -7388,7 +7401,10 @@ def _round_production_chart_html(xp_profile: dict) -> str:
     )
 
 
-def _xp_consistency_details_html(xp_profile: dict) -> str:
+def _xp_consistency_details_html(
+    xp_profile: dict,
+    xp_passes_df: pd.DataFrame | None = None,
+) -> str:
     """Consistency row that expands into the round-by-round production chart."""
     tier = xp_profile.get("xp_idx_consistency_tier")
     if not tier:
@@ -7412,18 +7428,21 @@ def _xp_consistency_details_html(xp_profile: dict) -> str:
         "</summary>"
         '<div class="pa-xp-index-details-body">'
         '<p class="pa-round-chart-title">xP per round</p>'
-        f"{_round_production_chart_html(xp_profile)}"
+        f"{_round_production_chart_html(xp_profile, xp_passes_df)}"
         f"{_xp_index_tip_lines_html(xp_profile, ('xp_game_mean', 'xp_games_above_median_pct'))}"
         "</div>"
         "</details>"
     )
 
 
-def _xp_index_boxes_html(xp_profile: dict | None) -> str:
+def _xp_index_boxes_html(
+    xp_profile: dict | None,
+    xp_passes_df: pd.DataFrame | None = None,
+) -> str:
     if not xp_profile or not xp_profile.get("xp_profile_bars_eligible", True):
         return ""
     rows: list[str] = [
-        _xp_consistency_details_html(xp_profile),
+        _xp_consistency_details_html(xp_profile, xp_passes_df),
         _xp_impact_pass_row_html(xp_profile),
     ]
     rows = [row for row in rows if row]
@@ -7537,11 +7556,14 @@ def _xp_profile_archetype_html(xp_profile: dict | None, *, as_title: bool = Fals
     )
 
 
-def _xp_profile_score_column_html(xp_profile: dict | None) -> str:
+def _xp_profile_score_column_html(
+    xp_profile: dict | None,
+    xp_passes_df: pd.DataFrame | None = None,
+) -> str:
     if not xp_profile:
         return ""
     bars_html = _xp_profile_bars_html(xp_profile)
-    index_html = _xp_index_boxes_html(xp_profile)
+    index_html = _xp_index_boxes_html(xp_profile, xp_passes_df)
     return (
         '<div class="player-card pa-xp-profile-card">'
         '<p class="pa-xp-profile-title">xP Profile</p>'
@@ -7555,9 +7577,10 @@ def _player_analysis_score_stack_html(
     player: dict,
     xp_profile: dict | None,
     metric_ranks: dict,
+    xp_passes_df: pd.DataFrame | None = None,
 ) -> str:
     rating_panel = _player_analysis_rating_panel_html(player, metric_ranks, xp_profile)
-    profile_html = _xp_profile_score_column_html(xp_profile)
+    profile_html = _xp_profile_score_column_html(xp_profile, xp_passes_df)
     pass_mix_html = _pa_pass_length_card_html(xp_profile)
     return (
         '<div class="pa-score-stack">'
@@ -8017,10 +8040,16 @@ def _build_player_analysis_layout_html(
     confidence_passes: float = RATING_CONFIDENCE_PASSES,
     rating_key: str = "progression_rating",
     rating_slot_fn=None,
+    xp_passes_df: pd.DataFrame | None = None,
 ) -> str:
     metric_ranks = player.get("metric_ranks") if isinstance(player.get("metric_ranks"), dict) else {}
     layout_style = f"--pa-card-h: {PLAYER_ANALYSIS_CARD_HEIGHT_PX}px;"
-    score_stack = _player_analysis_score_stack_html(player, xp_profile, metric_ranks)
+    score_stack = _player_analysis_score_stack_html(
+        player,
+        xp_profile,
+        metric_ranks,
+        xp_passes_df=xp_passes_df,
+    )
     left_card = _build_player_analysis_left_card_html(
         player,
         origin_heatmap_b64=origin_heatmap_b64,
@@ -10456,6 +10485,7 @@ def render_player_analysis_section(
 
     origin_heatmap_b64: str | None = None
     passes_df = passes_by_player.get(player_id)
+    xp_passes_df = load_player_analysis_xp_passes().get(str(player_id))
     if passes_df is not None and not passes_df.empty:
         fig_origin = draw_action_origin_smooth_heatmap(
             passes_df,
@@ -10471,6 +10501,7 @@ def render_player_analysis_section(
             render_player_analysis_profile(
                 player,
                 xp_profile=xp_profile,
+                xp_passes_df=xp_passes_df,
                 scout_section_specs=PROGRESSION_SCOUT_SECTION_SPECS,
                 pillar_labels=_PROGRESSION_RADAR_METRIC_LABELS,
                 origin_heatmap_b64=origin_heatmap_b64,
