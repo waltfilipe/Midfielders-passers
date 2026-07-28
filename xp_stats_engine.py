@@ -826,51 +826,30 @@ XP_BADGE_TOOLTIPS: dict[str, str] = {
     ),
 }
 
-# Player Analysis compare panel.
-# Highlighted comparison metrics (more emphasis, with mini-bars).
-XP_COMPARE_HIGHLIGHT_KEYS: tuple[str, ...] = (
-    "xp_per_90",
-    "threat_passes_p90",
-    "xp_m4_per_pass",
-    "xp_m4_per_threat_pass",
+# Player Analysis compare panel — single ordered metric list per column.
+XP_COMPARE_COLUMN_KEYS: tuple[tuple[str, str], ...] = (
+    ("xp_activity_display", "Productivity"),
+    ("xp_edge_display", "Effectiveness"),
+    ("xp_m4_per_threat_pass", "Impact"),
+    ("passes_total", "Passes"),
+    ("progressive_passes", "Progressive"),
+    ("final_third_passes", "Final Third"),
+    ("key_passes", "Key Passes"),
+    ("special_line_break_p90", "Line Breaking Passes"),
+    ("threat_passes_p90", "Impact Passes"),
 )
-XP_COMPARE_HIGHLIGHT_LABELS: dict[str, str] = {
-    "xp_per_90": "xP (Per game)",
-    "threat_passes_p90": f"{IMPACT_PASS_ABBR} (Per game)",
-    "xp_m4_per_pass": "xP/Pass",
-    "xp_m4_per_threat_pass": f"xP/{IMPACT_PASS_ABBR}",
-}
-XP_COMPARE_HIGHLIGHT_TOOLTIPS: dict[str, str] = {
-    "xp_per_90": (
+XP_COMPARE_COLUMN_TOOLTIPS: dict[str, str] = {
+    "xp_activity_display": (
         "xP volume normalized per 90 minutes — how much offensive value the player "
         "produces per game."
     ),
-    "threat_passes_p90": (
-        f"{IMPACT_PASS_ABBR} produced per 90 minutes — passes with high destination value, "
-        "positive surprise vs expected, and meaningful forward progress."
-    ),
-    "xp_m4_per_pass": (
+    "xp_edge_display": (
         "Average xP per pass — measures the efficiency of each delivery, "
         "independent of volume."
     ),
     "xp_m4_per_threat_pass": (
         f"Average xP on {IMPACT_PASS_ABBR} — the quality of high-value passes produced."
     ),
-}
-# Secondary key metrics (less emphasis) = traditional volume stats.
-XP_COMPARE_METRIC_KEYS: tuple[str, ...] = (
-    "passes_total",
-    "progressive_passes",
-    "final_third_passes",
-    "key_passes",
-)
-XP_COMPARE_METRIC_LABELS: dict[str, str] = {
-    "passes_total": "Passes",
-    "progressive_passes": "Progressive",
-    "final_third_passes": "Final Third",
-    "key_passes": "Key Passes",
-}
-XP_COMPARE_METRIC_TOOLTIPS: dict[str, str] = {
     "passes_total": "Passes attempted per game (p90).",
     "progressive_passes": (
         "Progressive passes completed per game (p90) — Wyscout criterion: "
@@ -883,6 +862,31 @@ XP_COMPARE_METRIC_TOOLTIPS: dict[str, str] = {
     "key_passes": (
         "Passes leading to a shot per game (p90) — deliveries that result in a shot."
     ),
+    "special_line_break_p90": (
+        "Line-breaking passes per game (p90) — passes that break the opponent's "
+        "defensive line."
+    ),
+    "threat_passes_p90": (
+        f"{IMPACT_PASS_ABBR} produced per 90 minutes — passes with high destination value, "
+        "positive surprise vs expected, and meaningful forward progress."
+    ),
+}
+# Legacy grouped keys kept for any table-style compare helpers still in use.
+XP_COMPARE_HIGHLIGHT_KEYS: tuple[str, ...] = tuple(
+    key for key, _label in XP_COMPARE_COLUMN_KEYS[:3]
+)
+XP_COMPARE_HIGHLIGHT_LABELS: dict[str, str] = dict(XP_COMPARE_COLUMN_KEYS[:3])
+XP_COMPARE_HIGHLIGHT_TOOLTIPS: dict[str, str] = {
+    key: XP_COMPARE_COLUMN_TOOLTIPS[key]
+    for key in XP_COMPARE_HIGHLIGHT_KEYS
+}
+XP_COMPARE_METRIC_KEYS: tuple[str, ...] = tuple(
+    key for key, _label in XP_COMPARE_COLUMN_KEYS[3:]
+)
+XP_COMPARE_METRIC_LABELS: dict[str, str] = dict(XP_COMPARE_COLUMN_KEYS[3:])
+XP_COMPARE_METRIC_TOOLTIPS: dict[str, str] = {
+    key: XP_COMPARE_COLUMN_TOOLTIPS[key]
+    for key in XP_COMPARE_METRIC_KEYS
 }
 
 XP_PROFILE_BAR_TOOLTIPS: dict[str, str] = {

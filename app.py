@@ -1283,7 +1283,8 @@ def _xp_compare_profile_row_html(
 
 def _xp_compare_metric_label_html(label: str, key: str) -> str:
     tip = (
-        xstats.XP_COMPARE_HIGHLIGHT_TOOLTIPS.get(key)
+        xstats.XP_COMPARE_COLUMN_TOOLTIPS.get(key)
+        or xstats.XP_COMPARE_HIGHLIGHT_TOOLTIPS.get(key)
         or xstats.XP_COMPARE_METRIC_TOOLTIPS.get(key)
         or ""
     ).strip()
@@ -1519,7 +1520,8 @@ def _compare_column_metric_html(
     num = _xp_compare_metric_numeric(source, key)
     other_num = _xp_compare_metric_numeric(other_source, key) if other_source else None
     arrow = _cmp_delta_compare_html(num, other_num) if other_source is not None else ""
-    bar = _xp_compare_mini_bar_html(_xp_compare_metric_numeric(source, f"{key}_sub_display"))
+    bar_key = key if key in xstats.XP_PROFILE_BAR_KEYS else f"{key}_sub_display"
+    bar = _xp_compare_mini_bar_html(_xp_compare_metric_numeric(source, bar_key))
     bar_block = (
         f'<span class="pa-xp-compare-mini-bar-wrap">{bar}</span>' if bar else ""
     )
@@ -1536,6 +1538,107 @@ def _compare_column_metric_html(
     )
 
 
+def _compare_pass_mix_compact_html(xp_profile: dict | None) -> str:
+    """Compact pass-length mix for the Compare column."""
+    if not xp_profile:
+        return ""
+    share = xp_profile.get("long_pass_share_pct")
+    if share is None:
+        return ""
+    share = float(share)
+    peer_avg = xp_profile.get("long_pass_share_ref_avg_pct")
+    if peer_avg is None:
+        peer_avg = xp_profile.get("long_pass_share_peer_avg_pct")
+    center_marker = ""
+    player_marker = ""
+    meta = f"<strong>{share:.1f}%</strong> long"
+    if peer_avg is not None:
+        peer_avg = float(peer_avg)
+        delta = share - peer_avg
+        sign = "+" if delta >= 0 else "−"
+        meta = (
+            f"<strong>{share:.1f}%</strong> long · "
+            f"{sign}{abs(delta):.1f} pp vs top 100"
+        )
+        half_span = float(
+            xp_profile.get("long_pass_share_ref_span_pp")
+            or xp_profile.get("long_pass_share_peer_span_pp")
+            or 0.0
+        )
+        if half_span <= 0:
+            half_span = max(3.5, min(peer_avg, 100.0 - peer_avg) * 0.85)
+        marker_pos = 50.0 + (share - peer_avg) / half_span * 50.0
+        marker_pos = max(3.0, min(97.0, marker_pos))
+        center_marker = '<span class="pa-pass-mix-center"></span>'
+        player_marker = (
+            f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%"></span>'
+        )
+    else:
+        marker_pos = max(4.0, min(96.0, share))
+        player_marker = (
+            f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%"></span>'
+        )
+    return (
+        '<div class="pa-compare-compact-block">'
+        '<span class="pa-compare-compact-label">Pass length mix</span>'
+        '<div class="pa-pass-mix-track pa-pass-mix-track-compact">'
+        f"{center_marker}{player_marker}"
+        "</div>"
+        '<div class="pa-pass-mix-axis pa-pass-mix-axis-compact">'
+        '<span class="pa-pass-mix-axis-short">Short</span>'
+        '<span class="pa-pass-mix-axis-long">Long</span>'
+        "</div>"
+        f'<span class="pa-compare-compact-meta">{meta}</span>'
+        "</div>"
+    )
+
+
+def _compare_xp_indices_compact_html(xp_profile: dict | None) -> str:
+    """Compact Consistency + I.P. chips for the Compare column."""
+    if not xp_profile or not xp_profile.get("xp_profile_bars_eligible", True):
+        return ""
+    chips: list[str] = []
+    tier = xp_profile.get("xp_idx_consistency_tier")
+    if tier:
+        tier_label = xstats.XP_INDEX_TIER_LABELS.get(tier, "—")
+        chips.append(
+            '<span class="pa-compare-compact-chip">'
+            '<span class="pa-compare-compact-chip-label">Consistency</span>'
+            f'<span class="pa-compare-compact-chip-val pa-compare-compact-tier-{html.escape(tier)}">'
+            f"{html.escape(tier_label)}</span>"
+            "</span>"
+        )
+    per_game = xp_profile.get("threat_passes_p90")
+    if per_game is not None:
+        chips.append(
+            '<span class="pa-compare-compact-chip">'
+            f'<span class="pa-compare-compact-chip-label">{html.escape(IMPACT_PASS_ABBR)}</span>'
+            f'<span class="pa-compare-compact-chip-val">{float(per_game):.1f} / game</span>'
+            "</span>"
+        )
+    if not chips:
+        return ""
+    return (
+        '<div class="pa-compare-compact-block">'
+        '<span class="pa-compare-compact-label">xP indices</span>'
+        f'<div class="pa-compare-compact-chips">{"".join(chips)}</div>'
+        "</div>"
+    )
+
+
+def _compare_column_insights_html(xp_profile: dict | None) -> str:
+    indices_html = _compare_xp_indices_compact_html(xp_profile)
+    mix_html = _compare_pass_mix_compact_html(xp_profile)
+    if not indices_html and not mix_html:
+        return ""
+    return (
+        '<div class="pa-compare-col-insights">'
+        f"{indices_html}"
+        f"{mix_html}"
+        "</div>"
+    )
+
+
 def _compare_column_html(
     player: dict,
     source: dict,
@@ -1545,24 +1648,15 @@ def _compare_column_html(
     fmt_pct_fn,
     other_source: dict | None = None,
 ) -> str:
-    highlight_metrics = "".join(
+    metric_rows = "".join(
         _compare_column_metric_html(
-            xstats.XP_COMPARE_HIGHLIGHT_LABELS.get(key, key),
+            label,
             source,
             key,
             other_source=other_source,
-            highlight=True,
+            highlight=key in xstats.XP_PROFILE_BAR_KEYS or key == "xp_m4_per_threat_pass",
         )
-        for key in xstats.XP_COMPARE_HIGHLIGHT_KEYS
-    )
-    key_metrics = "".join(
-        _compare_column_metric_html(
-            xstats.XP_COMPARE_METRIC_LABELS.get(key, key),
-            source,
-            key,
-            other_source=other_source,
-        )
-        for key in xstats.XP_COMPARE_METRIC_KEYS
+        for key, label in xstats.XP_COMPARE_COLUMN_KEYS
     )
     return (
         f'<div class="pa-compare-column pa-compare-column-{html.escape(variant)}">'
@@ -1571,10 +1665,9 @@ def _compare_column_html(
         f"{_compare_column_facts_html(player, fmt_pct_fn=fmt_pct_fn)}"
         '<div class="pa-compare-col-section">Pass origin</div>'
         f"{_compare_column_heatmap_html(heatmap_b64)}"
-        '<div class="pa-compare-col-section">Highlighted metrics</div>'
-        f'<div class="pa-compare-col-metrics">{highlight_metrics}</div>'
-        '<div class="pa-compare-col-section">Key metrics</div>'
-        f'<div class="pa-compare-col-metrics">{key_metrics}</div>'
+        f"{_compare_column_insights_html(source)}"
+        '<div class="pa-compare-col-section">Metrics</div>'
+        f'<div class="pa-compare-col-metrics">{metric_rows}</div>'
         "</div>"
     )
 
@@ -1591,10 +1684,12 @@ def _build_pa_compare_layout_html(
 ) -> str:
     return (
         '<div class="player-card pa-compare-columns-card">'
+        '<div class="pa-compare-columns-wrap">'
         '<div class="pa-compare-columns">'
         f"{_compare_column_html(primary_player, primary_source, heatmap_b64=primary_heatmap_b64, variant='primary', fmt_pct_fn=fmt_pct_fn, other_source=secondary_source)}"
         '<div class="pa-compare-columns-divider" aria-hidden="true"></div>'
         f"{_compare_column_html(compare_player, secondary_source, heatmap_b64=compare_heatmap_b64, variant='secondary', fmt_pct_fn=fmt_pct_fn, other_source=primary_source)}"
+        "</div>"
         "</div>"
         "</div>"
     )
@@ -3020,13 +3115,21 @@ st.markdown(
         padding: 0;
         overflow: hidden;
     }
+    .pa-compare-columns-wrap {
+        display: flex;
+        justify-content: center;
+        padding: 0.35rem 0 0.55rem;
+    }
     .pa-compare-columns {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+        grid-template-columns: minmax(0, 19.5rem) 1px minmax(0, 19.5rem);
         gap: 0;
-        align-items: stretch;
+        align-items: start;
+        width: fit-content;
+        max-width: 100%;
     }
     .pa-compare-columns-divider {
+        align-self: stretch;
         background: linear-gradient(
             180deg,
             rgba(167, 139, 250, 0.08),
@@ -3039,7 +3142,8 @@ st.markdown(
         display: flex;
         flex-direction: column;
         gap: 0;
-        min-width: 0;
+        width: 19.5rem;
+        max-width: 100%;
         padding: 0 0 0.85rem;
     }
     .pa-compare-column-primary {
@@ -3051,15 +3155,15 @@ st.markdown(
     .pa-compare-col-head {
         display: flex;
         align-items: center;
-        gap: 0.8rem;
-        padding: 0.95rem 1rem 0.8rem;
+        gap: 0.75rem;
+        padding: 0.85rem 0.85rem 0.7rem;
         border-bottom: 1px solid #243049;
     }
     .pa-compare-col-head-text { min-width: 0; }
     .pa-compare-col-section {
-        padding: 0.62rem 1rem 0.35rem;
+        padding: 0.55rem 0.85rem 0.3rem;
         color: #93c5fd;
-        font-size: 0.66rem;
+        font-size: 0.64rem;
         font-weight: 800;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -3068,7 +3172,7 @@ st.markdown(
         display: flex;
         flex-direction: column;
         gap: 0;
-        padding: 0 1rem;
+        padding: 0 0.85rem;
         border-bottom: 1px solid #1a2236;
     }
     .pa-compare-col-fact {
@@ -3098,19 +3202,91 @@ st.markdown(
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 240px;
-        margin: 0.35rem 1rem 0.55rem;
-        padding: 0.5rem;
+        width: 100%;
+        aspect-ratio: 1.05;
+        min-height: 0;
+        margin: 0.2rem 0.85rem 0.45rem;
+        padding: 0.45rem;
         border-radius: 12px;
         background: rgba(9, 14, 27, 0.72);
         border: 1px solid rgba(51, 65, 85, 0.6);
         overflow: hidden;
+        box-sizing: border-box;
+    }
+    .pa-compare-col-insights {
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+        padding: 0 0.85rem 0.55rem;
+        border-bottom: 1px solid #1a2236;
+    }
+    .pa-compare-compact-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0.32rem;
+        padding: 0.5rem 0.55rem;
+        border-radius: 10px;
+        background: rgba(9, 14, 27, 0.55);
+        border: 1px solid rgba(51, 65, 85, 0.55);
+    }
+    .pa-compare-compact-label {
+        color: #64748b;
+        font-size: 0.58rem;
+        font-weight: 800;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+    }
+    .pa-compare-compact-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+    .pa-compare-compact-chip {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 0.08rem;
+        min-width: 0;
+        padding: 0.28rem 0.45rem;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.72);
+        border: 1px solid rgba(51, 65, 85, 0.55);
+    }
+    .pa-compare-compact-chip-label {
+        color: #64748b;
+        font-size: 0.56rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    .pa-compare-compact-chip-val {
+        color: #e2e8f0;
+        font-size: 0.74rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    .pa-compare-compact-tier-above { color: #4ade80; }
+    .pa-compare-compact-tier-mid { color: #fbbf24; }
+    .pa-compare-compact-tier-below { color: #f87171; }
+    .pa-compare-compact-meta {
+        color: #94a3b8;
+        font-size: 0.64rem;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+    .pa-compare-compact-meta strong { color: #e2e8f0; }
+    .pa-pass-mix-track-compact {
+        height: 0.52rem;
+        margin-top: 0.05rem;
+    }
+    .pa-pass-mix-axis-compact {
+        font-size: 0.56rem;
+        margin-top: -0.05rem;
     }
     .pa-compare-col-metrics {
         display: flex;
         flex-direction: column;
         gap: 0;
-        padding: 0 1rem;
+        padding: 0 0.85rem;
     }
     .pa-compare-col-metric {
         display: flex;
@@ -3175,7 +3351,8 @@ st.markdown(
     }
     .pa-compare-heatmap {
         width: 100%;
-        max-height: 280px;
+        height: 100%;
+        max-height: none;
         object-fit: contain;
         display: block;
         border-radius: 8px;
