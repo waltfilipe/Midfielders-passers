@@ -4293,6 +4293,12 @@ st.markdown(
         opacity: 1;
         visibility: visible;
     }
+    /* Last row sits at the card foot, so its tooltip drops down instead of
+       covering an expanded chart above it. */
+    .pa-xp-index-list > .pa-xp-index-row-hastip:last-child .pa-xp-index-tipbox {
+        top: calc(100% + 8px);
+        bottom: auto;
+    }
     .pa-xp-index-tip-title {
         display: block;
         margin-bottom: 0.28rem;
