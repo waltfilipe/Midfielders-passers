@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 import passes_engine as pe
 import xp_study_engine as xse
 
-XP_DATA_CACHE_VERSION = 56
+XP_DATA_CACHE_VERSION = 57
 XP_POSITION_RANK_METRICS: tuple[str, ...] = (
     "xp_m4_total",
     "xp_m4_per_pass",
@@ -32,15 +32,15 @@ THREAT_QUANTILE = 0.10
 THREAT_XP_QUANTILE = 0.75
 THREAT_PROGRESS_MIN = 0.0
 # Composite impact-pass rule (replaces residual∩xP dual threshold on is_threat_m4).
-IMPACT_PASS_RULE_VERSION = "composite_v1_hybrid_p90_prog60"
+IMPACT_PASS_RULE_VERSION = "composite_v2_p925_prog65"
 IMPACT_SCORE_W_XP = 0.45
 IMPACT_SCORE_W_RESIDUAL = 0.35
 IMPACT_SCORE_W_PROGRESS = 0.20
-IMPACT_SCORE_PERCENTILE = 0.90
-IMPACT_PROGRESS_PERCENTILE = 0.60
+IMPACT_SCORE_PERCENTILE = 0.925
+IMPACT_PROGRESS_PERCENTILE = 0.65
 IMPACT_PASS_RULE_LABEL = (
-    "composite score (45% destination xP + 35% residual + 20% progress) ≥ P90 per distance band "
-    "and progress_ratio ≥ P60 per band"
+    "composite score (45% destination xP + 35% residual + 20% progress) ≥ P92.5 per distance band "
+    "and progress_ratio ≥ P65 per band"
 )
 XP_COL = "xp_m4"
 XP_SPATIAL_COL = "xp_hier_od"

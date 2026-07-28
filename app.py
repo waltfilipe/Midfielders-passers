@@ -7924,8 +7924,8 @@ def render_xp_season_rankings(xp_players: list[dict]) -> None:
     st.markdown("### xP M4 — Copa do Mundo")
     st.caption(
         f"Model 4 (origin 12×8 → destination 12×8) · Team seasonal surface · "
-        f"{IMPACT_PASS_ABBR} = composite score (45% xP + 35% residual + 20% progress) ≥ P90 per band "
-        f"and progress ≥ P60 per band · "
+        f"{IMPACT_PASS_ABBR} = composite score (45% xP + 35% residual + 20% progress) ≥ P{int(xe.IMPACT_SCORE_PERCENTILE * 1000) / 10} per band "
+        f"and progress ≥ P{int(xe.IMPACT_PROGRESS_PERCENTILE * 100)} per band · "
         f"{meta.get('passes', '—'):,} passes · "
         f"{meta.get('threats', '—'):,} xP {IMPACT_PASS_ABBR}"
         if meta
