@@ -270,6 +270,45 @@ def filter_top_residual_passes(
     return work.sort_values(RESIDUAL_COL, ascending=False).head(int(n)).reset_index(drop=True)
 
 
+def filter_passes_by_map_round(passes: pd.DataFrame, round_key: str) -> pd.DataFrame:
+    """Filter completed passes to one match (rodada) or keep all when round_key is 'all'."""
+    if passes is None or passes.empty:
+        return passes
+    key = str(round_key or "all").strip()
+    if key in {"", "all"}:
+        return passes
+    if key.startswith("event:") and "event_id" in passes.columns:
+        event_id = int(key.split(":", 1)[1])
+        return passes[passes["event_id"].astype(int) == event_id].copy()
+    return passes
+
+
+def map_round_options(passes: pd.DataFrame) -> tuple[list[str], dict[str, str]]:
+    """Build selectbox options for per-match / all-round pass maps."""
+    labels = {"all": "Todas as rodadas"}
+    keys = ["all"]
+    if passes is None or passes.empty or "event_id" not in passes.columns:
+        return keys, labels
+    work = passes.dropna(subset=["event_id"]).copy()
+    if work.empty:
+        return keys, labels
+    agg: dict[str, str] = {"match_date": "first"}
+    if "home_team" in work.columns:
+        agg["home_team"] = "first"
+    if "away_team" in work.columns:
+        agg["away_team"] = "first"
+    matches = work.groupby("event_id", as_index=False).agg(agg).sort_values("match_date")
+    for idx, row in enumerate(matches.itertuples(index=False), start=1):
+        event_id = int(getattr(row, "event_id"))
+        date_txt = str(getattr(row, "match_date", "") or "—")[:10]
+        home = str(getattr(row, "home_team", "") or "—")
+        away = str(getattr(row, "away_team", "") or "—")
+        key = f"event:{event_id}"
+        labels[key] = f"Rodada {idx} · {date_txt} · {home} vs {away}"
+        keys.append(key)
+    return keys, labels
+
+
 def filter_passes_for_map(passes: pd.DataFrame, filter_key: str) -> pd.DataFrame:
     """Return completed passes matching a Maps pass-type selection."""
     work = _completed_pass_frame(passes)

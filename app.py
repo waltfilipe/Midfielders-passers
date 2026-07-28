@@ -228,6 +228,7 @@ PA_LEAGUE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("italia_seriea", "Serie A"),
     ("laliga", "La Liga"),
     ("bundesliga", "Bundesliga"),
+    ("ligue1", "Ligue 1"),
 )
 PA_FIELD_OPTIONS: tuple[tuple[str, str], ...] = (
     ("all", "Todos os campos"),
@@ -4924,7 +4925,7 @@ def load_player_analysis_bundle(
 
 PLAYER_ANALYSIS_BUNDLE_KEY = "player_analysis_bundle"
 EUROPEAN_MIDFIELDER_LOAD_MSG = (
-    "Premier League, Serie A (Italy), La Liga and Bundesliga midfielders. "
+    "Premier League, Serie A (Italy), La Liga, Bundesliga and Ligue 1 midfielders. "
     "Load this pool on demand to keep the app startup light."
 )
 
@@ -8258,6 +8259,79 @@ def _maps_passes_table(pass_df, *, sort_by_residual: bool = False) -> "pd.DataFr
     return work.reset_index(drop=True)
 
 
+def _pass_map_round_options(raw_passes) -> tuple[list[str], dict[str, str]]:
+    return xstats.map_round_options(raw_passes)
+
+
+def _filter_pass_map_round(passes, round_key: str):
+    return xstats.filter_passes_by_map_round(passes, round_key)
+
+
+def _pass_map_scope_label(round_key: str, round_labels: dict[str, str]) -> str:
+    if str(round_key or "all") == "all":
+        return APP_LEAGUE
+    return round_labels.get(str(round_key), APP_LEAGUE)
+
+
+def _render_pass_map_figures(
+    *,
+    work,
+    player_name: str,
+    map_filter_key: str,
+    map_category_label: str,
+    season_label: str,
+    captions_language: str,
+) -> tuple[object, object, str]:
+    if xstats.is_maps_top_residual_pass(map_filter_key):
+        fig_passes = draw_top_residual_passes_map(
+            work,
+            player_name=player_name,
+            season_label=season_label,
+            show_labels=True,
+        )
+        if captions_language == "pt":
+            pass_caption = (
+                f"Top {len(work)} passes por resíduo · cor = Δ (xP real − esperado)"
+            )
+        else:
+            pass_caption = (
+                f"Top {len(work)} passes by residual · color = Δ (xP real − esperado)"
+            )
+    else:
+        fig_passes = draw_special_passes_season_map(
+            work,
+            player_name=player_name,
+            season_label=season_label,
+            category_label=map_category_label,
+            xp_col="xp_m4",
+            highlight_index=None,
+            show_labels=False,
+            cmap=_CMAP_XP_GRAY_RED,
+        )
+        if captions_language == "pt":
+            pass_kind = (
+                f"xP {IMPACT_PASS_ABBR}"
+                if xstats.is_maps_xp_threat_pass(map_filter_key)
+                else "passes completos"
+            )
+            pass_caption = f"{len(work)} {pass_kind} · cor = xP (cinza → vermelho forte)"
+        else:
+            pass_kind = (
+                f"xP {IMPACT_PASS_ABBR}"
+                if xstats.is_maps_xp_threat_pass(map_filter_key)
+                else "completed passes"
+            )
+            pass_caption = f"{len(work)} {pass_kind} · pass color = xP (gray → strong red)"
+    fig_dest = draw_passes_destination_heatmap(
+        work,
+        player_name=player_name,
+        season_label=season_label,
+        category_label=map_category_label,
+        cmap=_CMAP_XP_GRAY_RED,
+    )
+    return fig_passes, fig_dest, pass_caption
+
+
 def _maps_pass_option_label(row, index: int) -> str:
     xp = float(row.get("xp_m4") or 0.0)
     residual = float(row.get("xp_residual") or 0.0)
@@ -8846,7 +8920,15 @@ def render_maps_section(
 
     st.markdown('<div class="pa-maps-compact">', unsafe_allow_html=True)
     raw_passes = xp_passes_by_player.get(str(player_id))
-    passes_df = xstats.filter_passes_for_map(raw_passes, map_filter_key)
+    round_keys, round_labels = _pass_map_round_options(raw_passes)
+    round_key = st.selectbox(
+        "Round",
+        options=round_keys,
+        format_func=lambda key: round_labels[key],
+        key=f"maps_round_{player_id}",
+    )
+    scoped_passes = _filter_pass_map_round(raw_passes, round_key)
+    passes_df = xstats.filter_passes_for_map(scoped_passes, map_filter_key)
     if passes_df is None or passes_df.empty:
         st.info("No completed passes for this player with the selected filter.")
     else:
@@ -8855,39 +8937,14 @@ def render_maps_section(
             sort_by_residual=xstats.is_maps_top_residual_pass(map_filter_key),
         )
         player_name = str(player.get("player_name", "—"))
-        if xstats.is_maps_top_residual_pass(map_filter_key):
-            fig_passes = draw_top_residual_passes_map(
-                work,
-                player_name=player_name,
-                season_label=APP_LEAGUE,
-                show_labels=True,
-            )
-            pass_caption = (
-                f"Top {len(work)} passes by residual · color = Δ (xP real − esperado)"
-            )
-        else:
-            fig_passes = draw_special_passes_season_map(
-                work,
-                player_name=player_name,
-                season_label=APP_LEAGUE,
-                category_label=map_category_label,
-                xp_col="xp_m4",
-                highlight_index=None,
-                show_labels=False,
-                cmap=_CMAP_XP_GRAY_RED,
-            )
-            pass_kind = (
-                f"xP {IMPACT_PASS_ABBR}"
-                if xstats.is_maps_xp_threat_pass(map_filter_key)
-                else "completed passes"
-            )
-            pass_caption = f"{len(work)} {pass_kind} · pass color = xP (gray → strong red)"
-        fig_dest = draw_passes_destination_heatmap(
-            work,
+        season_label = _pass_map_scope_label(round_key, round_labels)
+        fig_passes, fig_dest, pass_caption = _render_pass_map_figures(
+            work=work,
             player_name=player_name,
-            season_label=APP_LEAGUE,
-            category_label=map_category_label,
-            cmap=_CMAP_XP_GRAY_RED,
+            map_filter_key=map_filter_key,
+            map_category_label=map_category_label,
+            season_label=season_label,
+            captions_language="en",
         )
         map_col, dest_col = st.columns(2, gap="small")
         with map_col:
@@ -8943,7 +9000,8 @@ def render_estudo_section() -> None:
         f"Premier League ({meta.get('league_matches_premier_league', '—')}) + "
         f"Italy Serie A ({meta.get('league_matches_italia_seriea', '—')}) + "
         f"La Liga ({meta.get('league_matches_laliga', '—')}) + "
-        f"Bundesliga ({meta.get('league_matches_bundesliga', '—')}) = "
+        f"Bundesliga ({meta.get('league_matches_bundesliga', '—')}) + "
+        f"Ligue 1 ({meta.get('league_matches_ligue1', '—')}) = "
         f"{meta.get('league_matches', '—')} matches · "
         f"{meta.get('league_passes', 0):,} completed passes."
     )
@@ -9515,7 +9573,7 @@ def render_xp_maps_analysis_tab() -> None:
         f"Base: top {player_count} meio-campistas com mais passes completados "
         f"(mín. {_fmt_int_ptbr(min_cutoff)} passes) · "
         f"{_fmt_int_ptbr(total_passes)} passes agregados · "
-        "4 ligas europeias (PL, Serie A, La Liga, Bundesliga)."
+        "5 ligas europeias (PL, Serie A, La Liga, Bundesliga, Ligue 1)."
     )
 
     _render_interactive_cell_map(top_n)
@@ -9701,7 +9759,15 @@ def _render_pa_maps_panel(player: dict, player_id: str) -> None:
 
     st.markdown('<div class="pa-maps-compact">', unsafe_allow_html=True)
     raw_passes = xp_passes_by_player.get(str(player_id))
-    passes_df = xstats.filter_passes_for_map(raw_passes, map_filter_key)
+    round_keys, round_labels = _pass_map_round_options(raw_passes)
+    round_key = st.selectbox(
+        "Rodada",
+        options=round_keys,
+        format_func=lambda key: round_labels[key],
+        key=f"pa_maps_round_{player_id}",
+    )
+    scoped_passes = _filter_pass_map_round(raw_passes, round_key)
+    passes_df = xstats.filter_passes_for_map(scoped_passes, map_filter_key)
     if passes_df is None or passes_df.empty:
         st.info("Nenhum passe completo para este jogador com o filtro selecionado.")
     else:
@@ -9710,39 +9776,14 @@ def _render_pa_maps_panel(player: dict, player_id: str) -> None:
             sort_by_residual=xstats.is_maps_top_residual_pass(map_filter_key),
         )
         player_name = str(player.get("player_name", "—"))
-        if xstats.is_maps_top_residual_pass(map_filter_key):
-            fig_passes = draw_top_residual_passes_map(
-                work,
-                player_name=player_name,
-                season_label=APP_LEAGUE,
-                show_labels=True,
-            )
-            pass_caption = (
-                f"Top {len(work)} passes por resíduo · cor = Δ (xP real − esperado)"
-            )
-        else:
-            fig_passes = draw_special_passes_season_map(
-                work,
-                player_name=player_name,
-                season_label=APP_LEAGUE,
-                category_label=map_category_label,
-                xp_col="xp_m4",
-                highlight_index=None,
-                show_labels=False,
-                cmap=_CMAP_XP_GRAY_RED,
-            )
-            pass_kind = (
-                f"xP {IMPACT_PASS_ABBR}"
-                if xstats.is_maps_xp_threat_pass(map_filter_key)
-                else "passes completos"
-            )
-            pass_caption = f"{len(work)} {pass_kind} · cor = xP (cinza → vermelho forte)"
-        fig_dest = draw_passes_destination_heatmap(
-            work,
+        season_label = _pass_map_scope_label(round_key, round_labels)
+        fig_passes, fig_dest, pass_caption = _render_pass_map_figures(
+            work=work,
             player_name=player_name,
-            season_label=APP_LEAGUE,
-            category_label=map_category_label,
-            cmap=_CMAP_XP_GRAY_RED,
+            map_filter_key=map_filter_key,
+            map_category_label=map_category_label,
+            season_label=season_label,
+            captions_language="pt",
         )
         map_col, dest_col = st.columns(2, gap="small")
         with map_col:
@@ -10256,7 +10297,7 @@ def render_presentation_tab(
         "<div class='pres-about-body'>"
         "<h4>Dashboard</h4>"
         "<p>Comparison of midfielders from the top European leagues "
-        "(Premier League, Serie A, La Liga and Bundesliga), "
+        "(Premier League, Serie A, La Liga, Bundesliga and Ligue 1), "
         f"analyzing the impact of their passes through the {xp_ref}.</p>"
         f"<p>The {xp_ref} is the foundation: player profile, positional rankings "
         "and the real impact of each delivery.</p>"

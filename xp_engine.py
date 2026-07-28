@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 import passes_engine as pe
 import xp_study_engine as xse
 
-XP_DATA_CACHE_VERSION = 54
+XP_DATA_CACHE_VERSION = 56
 XP_POSITION_RANK_METRICS: tuple[str, ...] = (
     "xp_m4_total",
     "xp_m4_per_pass",
@@ -27,7 +27,7 @@ XP_POSITION_RANK_METRICS: tuple[str, ...] = (
     "xp_m4_total_long",
     "xp_m4_threat_long_p90",
 )
-XP_MODEL_VERSION = "m4_od_12x8_b4_a2_pr0_global_ita_laliga_dist30_access_ridge_v7"
+XP_MODEL_VERSION = "m4_od_12x8_b4_a2_pr0_global_ita_laliga_ligue1_blend65_35_dist30_access_ridge_v8"
 THREAT_QUANTILE = 0.10
 THREAT_XP_QUANTILE = 0.75
 THREAT_PROGRESS_MIN = 0.0
@@ -535,12 +535,14 @@ def _build_season_passes_from_frame(
     frame: pd.DataFrame,
     *,
     force_artifacts: bool = False,
+    blend_league_reference: bool = False,
 ) -> pd.DataFrame:
-    league_ref = xse._league_reference_surfaces(
+    grid_dims = (
         GRID.dest_cols, GRID.dest_rows,
         GRID.od_origin_cols, GRID.od_origin_rows,
         GRID.od_dest_cols, GRID.od_dest_rows,
     )
+    global_ref = xse._league_reference_surfaces(*grid_dims)
     if frame.empty:
         return pd.DataFrame()
 
@@ -549,6 +551,14 @@ def _build_season_passes_from_frame(
     chunks: list[pd.DataFrame] = []
     for eid in frame["event_id"].astype(int).unique():
         mf = frame[frame["event_id"].astype(int) == int(eid)].copy()
+        league_ref = global_ref
+        if blend_league_reference and "league_source" in mf.columns:
+            league_values = mf["league_source"].dropna().astype(str)
+            if not league_values.empty:
+                league_ref = xse.reference_surfaces_for_league_source(
+                    str(league_values.iloc[0]),
+                    *grid_dims,
+                )
         scored = score_match_passes_m4(
             mf,
             league_ref,
@@ -581,7 +591,11 @@ def _build_season_passes_from_frame(
 
 def build_european_league_season_passes(*, force_artifacts: bool = False) -> pd.DataFrame:
     frame = pe._filter_pass_frame_to_midfielders(pe._load_european_league_pass_frame())
-    season = _build_season_passes_from_frame(frame, force_artifacts=force_artifacts)
+    season = _build_season_passes_from_frame(
+        frame,
+        force_artifacts=force_artifacts,
+        blend_league_reference=True,
+    )
     if season.empty:
         return season
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -590,6 +604,8 @@ def build_european_league_season_passes(*, force_artifacts: bool = False) -> pd.
         "version": XP_MODEL_VERSION,
         "impact_pass_rule_version": IMPACT_PASS_RULE_VERSION,
         "impact_pass_rule": IMPACT_PASS_RULE_LABEL,
+        "reference_global_weight": xse.XP_REFERENCE_GLOBAL_WEIGHT,
+        "reference_league_weight": xse.XP_REFERENCE_LEAGUE_WEIGHT,
         "passes": int(len(season)),
         "completed": int((season["is_won"] & season["has_end"]).sum()),
         "threats": int(season[THREAT_COL].sum()),
@@ -776,7 +792,7 @@ def build_european_league_xp_analytics(
     *,
     min_passes: int = 100,
 ) -> tuple[list[dict], list[dict]]:
-    """xP metrics for midfielders in Premier League, Italian Serie A, La Liga and Bundesliga."""
+    """xP metrics for midfielders in Premier League, Serie A, La Liga, Bundesliga and Ligue 1."""
     import xp_stats_engine as xstats
 
     _ = cache_version

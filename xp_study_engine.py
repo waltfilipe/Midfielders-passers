@@ -13,6 +13,8 @@ import passes_engine as pe
 STUDY_MATCH_EVENT_ID = 15526003
 XP_SMOOTHING = 1.0
 XP_BLEND_ALPHA = 0.0
+XP_REFERENCE_GLOBAL_WEIGHT = 0.65
+XP_REFERENCE_LEAGUE_WEIGHT = 0.35
 XP_PASS_MAX = 1.0
 
 FIELD_X = pe.FIELD_X
@@ -375,6 +377,11 @@ def _load_combined_league_pass_frame() -> pd.DataFrame:
         bl = bundesliga.copy()
         bl["league_source"] = "bundesliga"
         frames.append(bl)
+    ligue1 = pe._load_ligue1_pass_frame()
+    if not ligue1.empty:
+        lg = ligue1.copy()
+        lg["league_source"] = "ligue1"
+        frames.append(lg)
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
@@ -397,6 +404,69 @@ def _league_completed_passes() -> pd.DataFrame:
     return completed
 
 
+def _grid_config(
+    dest_cols: int,
+    dest_rows: int,
+    od_origin_cols: int,
+    od_origin_rows: int,
+    od_dest_cols: int,
+    od_dest_rows: int,
+) -> GridConfig:
+    return GridConfig(
+        dest_cols, dest_rows,
+        od_origin_cols, od_origin_rows,
+        od_dest_cols, od_dest_rows,
+        "", "",
+    )
+
+
+def _empty_reference_surfaces(
+    dest_cols: int,
+    dest_rows: int,
+    od_origin_cols: int,
+    od_origin_rows: int,
+    od_dest_cols: int,
+    od_dest_rows: int,
+) -> dict[str, np.ndarray | float | int]:
+    empty_dest = np.zeros((dest_rows, dest_cols), dtype=float)
+    empty_od = np.zeros((od_origin_rows, od_origin_cols, od_dest_rows, od_dest_cols), dtype=float)
+    return {
+        "dest_count": empty_dest,
+        "dest_count_per_match": empty_dest,
+        "dest_xp": _counts_to_xp_grid(empty_dest),
+        "od_count": empty_od,
+        "od_count_per_match": empty_od,
+        "num_matches": 1,
+        "league_passes": 0,
+    }
+
+
+def _surfaces_from_completed(
+    completed: pd.DataFrame,
+    grid: GridConfig,
+) -> dict[str, np.ndarray | float | int]:
+    if completed.empty:
+        return _empty_reference_surfaces(
+            grid.dest_cols, grid.dest_rows,
+            grid.od_origin_cols, grid.od_origin_rows,
+            grid.od_dest_cols, grid.od_dest_rows,
+        )
+    dest_count = _count_destination_grid(completed, grid)
+    od_count = _count_od_tensor(completed, grid)
+    num_matches = max(int(completed["event_id"].nunique()), 1)
+    dest_per_match = dest_count / num_matches
+    od_per_match = od_count / num_matches
+    return {
+        "dest_count": dest_count,
+        "dest_count_per_match": dest_per_match,
+        "dest_xp": _counts_to_xp_grid(dest_count),
+        "od_count": od_count,
+        "od_count_per_match": od_per_match,
+        "num_matches": num_matches,
+        "league_passes": int(len(completed)),
+    }
+
+
 @functools.lru_cache(maxsize=16)
 def _league_reference_surfaces(
     dest_cols: int,
@@ -406,27 +476,16 @@ def _league_reference_surfaces(
     od_dest_cols: int,
     od_dest_rows: int,
 ) -> dict[str, np.ndarray | float | int]:
-    grid = GridConfig(
+    grid = _grid_config(
         dest_cols, dest_rows,
         od_origin_cols, od_origin_rows,
         od_dest_cols, od_dest_rows,
-        "", "",
     )
     completed = _league_completed_passes()
+    surfaces = _surfaces_from_completed(completed, grid)
     if completed.empty:
-        empty_dest = np.zeros((dest_rows, dest_cols), dtype=float)
-        empty_od = np.zeros((od_origin_rows, od_origin_cols, od_dest_rows, od_dest_cols), dtype=float)
-        return {
-            "dest_count": empty_dest,
-            "dest_count_per_match": empty_dest,
-            "dest_xp": _counts_to_xp_grid(empty_dest),
-            "od_count": empty_od,
-            "od_count_per_match": empty_od,
-            "num_matches": 1,
-        }
+        return surfaces
 
-    dest_count = _count_destination_grid(completed, grid)
-    od_count = _count_od_tensor(completed, grid)
     if "league_source" in completed.columns:
         matches_by_league = completed.groupby("league_source")["event_id"].nunique()
         num_matches_world_cup = int(matches_by_league.get("world_cup", 0))
@@ -435,13 +494,15 @@ def _league_reference_surfaces(
         num_matches_italia_seriea = int(matches_by_league.get("italia_seriea", 0))
         num_matches_laliga = int(matches_by_league.get("laliga", 0))
         num_matches_bundesliga = int(matches_by_league.get("bundesliga", 0))
+        num_matches_ligue1 = int(matches_by_league.get("ligue1", 0))
         num_matches = max(
             num_matches_world_cup
             + num_matches_serie_a
             + num_matches_premier_league
             + num_matches_italia_seriea
             + num_matches_laliga
-            + num_matches_bundesliga,
+            + num_matches_bundesliga
+            + num_matches_ligue1,
             1,
         )
     else:
@@ -451,16 +512,10 @@ def _league_reference_surfaces(
         num_matches_italia_seriea = 0
         num_matches_laliga = 0
         num_matches_bundesliga = 0
+        num_matches_ligue1 = 0
         num_matches = max(num_matches_world_cup, 1)
-    dest_per_match = dest_count / num_matches
-    od_per_match = od_count / num_matches
 
-    return {
-        "dest_count": dest_count,
-        "dest_count_per_match": dest_per_match,
-        "dest_xp": _counts_to_xp_grid(dest_count),
-        "od_count": od_count,
-        "od_count_per_match": od_per_match,
+    surfaces.update({
         "num_matches": num_matches,
         "num_matches_world_cup": num_matches_world_cup,
         "num_matches_serie_a": num_matches_serie_a,
@@ -468,8 +523,86 @@ def _league_reference_surfaces(
         "num_matches_italia_seriea": num_matches_italia_seriea,
         "num_matches_laliga": num_matches_laliga,
         "num_matches_bundesliga": num_matches_bundesliga,
-        "league_passes": int(len(completed)),
-    }
+        "num_matches_ligue1": num_matches_ligue1,
+        "reference_global_weight": XP_REFERENCE_GLOBAL_WEIGHT,
+        "reference_league_weight": XP_REFERENCE_LEAGUE_WEIGHT,
+    })
+    return surfaces
+
+
+@functools.lru_cache(maxsize=32)
+def _league_source_reference_surfaces(
+    league_source: str,
+    dest_cols: int,
+    dest_rows: int,
+    od_origin_cols: int,
+    od_origin_rows: int,
+    od_dest_cols: int,
+    od_dest_rows: int,
+) -> dict[str, np.ndarray | float | int] | None:
+    completed = _league_completed_passes()
+    if completed.empty or "league_source" not in completed.columns:
+        return None
+    sub = completed[completed["league_source"].astype(str) == str(league_source)]
+    if sub.empty:
+        return None
+    grid = _grid_config(
+        dest_cols, dest_rows,
+        od_origin_cols, od_origin_rows,
+        od_dest_cols, od_dest_rows,
+    )
+    return _surfaces_from_completed(sub, grid)
+
+
+def blend_global_league_reference(
+    global_ref: dict[str, np.ndarray | float | int],
+    league_ref: dict[str, np.ndarray | float | int] | None,
+    *,
+    global_weight: float = XP_REFERENCE_GLOBAL_WEIGHT,
+    league_weight: float = XP_REFERENCE_LEAGUE_WEIGHT,
+) -> dict[str, np.ndarray | float | int]:
+    """Blend global and league-specific xP reference surfaces (65% / 35% by default)."""
+    if not league_ref:
+        return global_ref
+    blended = dict(global_ref)
+    blended["dest_count_per_match"] = (
+        float(global_weight) * global_ref["dest_count_per_match"]
+        + float(league_weight) * league_ref["dest_count_per_match"]
+    )
+    blended["od_count_per_match"] = (
+        float(global_weight) * global_ref["od_count_per_match"]
+        + float(league_weight) * league_ref["od_count_per_match"]
+    )
+    blended["reference_global_weight"] = float(global_weight)
+    blended["reference_league_weight"] = float(league_weight)
+    blended["reference_league_source"] = league_ref.get("reference_league_source")
+    return blended
+
+
+def reference_surfaces_for_league_source(
+    league_source: str,
+    dest_cols: int,
+    dest_rows: int,
+    od_origin_cols: int,
+    od_origin_rows: int,
+    od_dest_cols: int,
+    od_dest_rows: int,
+) -> dict[str, np.ndarray | float | int]:
+    global_ref = _league_reference_surfaces(
+        dest_cols, dest_rows,
+        od_origin_cols, od_origin_rows,
+        od_dest_cols, od_dest_rows,
+    )
+    league_ref = _league_source_reference_surfaces(
+        league_source,
+        dest_cols, dest_rows,
+        od_origin_cols, od_origin_rows,
+        od_dest_cols, od_dest_rows,
+    )
+    if league_ref is not None:
+        league_ref = dict(league_ref)
+        league_ref["reference_league_source"] = str(league_source)
+    return blend_global_league_reference(global_ref, league_ref)
 
 
 def _cap_pass_xp(values: np.ndarray, zone_mult: np.ndarray) -> np.ndarray:
@@ -830,8 +963,11 @@ def load_study_match_bundle(
         "league_matches_italia_seriea": int(league.get("num_matches_italia_seriea", 0)),
         "league_matches_laliga": int(league.get("num_matches_laliga", 0)),
         "league_matches_bundesliga": int(league.get("num_matches_bundesliga", 0)),
+        "league_matches_ligue1": int(league.get("num_matches_ligue1", 0)),
         "league_passes": int(league.get("league_passes", 0)),
         "blend_alpha": XP_BLEND_ALPHA,
+        "reference_global_weight": XP_REFERENCE_GLOBAL_WEIGHT,
+        "reference_league_weight": XP_REFERENCE_LEAGUE_WEIGHT,
         "xp_pass_max": XP_PASS_MAX,
         "grid_preset": grid.key,
         "grid_label": grid.label,
