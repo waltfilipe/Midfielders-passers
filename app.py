@@ -12161,7 +12161,8 @@ def render_presentation_tab(
         '<div class="pres-tile">'
         '<span class="pres-icon"><i class="fa-solid fa-user"></i></span>'
         "<h5>Player Profile</h5><p>Full player profile with stats and positional rank.</p></div>"
-        '<div class="pres-feature-card">'
+        '<div class="pres-tile">'
+        '<span class="pres-icon"><i class="fa-solid fa-code-compare"></i></span>'
         "<h5>Compare</h5><p>Side-by-side comparison of two filtered players with heatmaps and xP metrics.</p></div>"
         '<div class="pres-tile">'
         '<span class="pres-icon"><i class="fa-solid fa-braille"></i></span>'
