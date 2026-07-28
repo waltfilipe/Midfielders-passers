@@ -1404,6 +1404,134 @@ def _xp_compare_player_source(
     return base
 
 
+_COMPARE_PROFILE_KEYS: tuple[str, ...] = (
+    "dominant_foot",
+    "age",
+    "height",
+    "nationality",
+    "minutes",
+)
+
+_COMPARE_PROFILE_SHORT_LABELS: dict[str, str] = {
+    "dominant_foot": "Foot",
+    "age": "Age",
+    "height": "Height",
+    "nationality": "Nation",
+    "minutes": "Minutes",
+}
+
+_COMPARE_PROFILE_ICONS: dict[str, str] = {
+    "dominant_foot": "fa-shoe-prints",
+    "age": "fa-cake-candles",
+    "height": "fa-ruler-vertical",
+    "nationality": "fa-flag",
+    "minutes": "fa-clock",
+}
+
+
+def _player_origin_heatmap_b64(
+    player_id: str,
+    passes_by_player: dict,
+    player_name: str,
+) -> str | None:
+    passes_df = passes_by_player.get(player_id)
+    if passes_df is None or passes_df.empty:
+        return None
+    fig_origin = draw_action_origin_smooth_heatmap(
+        passes_df,
+        None,
+        str(player_name),
+        profile=True,
+    )
+    return _fig_to_b64(fig_origin)
+
+
+def _compare_player_facts_html(player: dict, *, fmt_pct_fn) -> str:
+    items: list[str] = []
+    for key in _COMPARE_PROFILE_KEYS:
+        if key == "minutes":
+            value = _general_profile_minutes_html(player, fmt_pct_fn=fmt_pct_fn)
+        else:
+            value = _general_profile_value_html(player, key, fmt_pct_fn=fmt_pct_fn)
+        icon = _COMPARE_PROFILE_ICONS.get(key, "fa-circle")
+        label = _COMPARE_PROFILE_SHORT_LABELS.get(key, key)
+        items.append(
+            '<div class="pa-compare-fact">'
+            f'<span class="pa-compare-fact-ic"><i class="fa-solid {icon}" aria-hidden="true"></i></span>'
+            '<span class="pa-compare-fact-body">'
+            f'<span class="pa-compare-fact-label">{html.escape(label)}</span>'
+            f'<span class="pa-compare-fact-val">{value}</span>'
+            "</span>"
+            "</div>"
+        )
+    return f'<div class="pa-compare-facts">{"".join(items)}</div>'
+
+
+def _compare_player_column_html(
+    player: dict,
+    *,
+    heatmap_b64: str | None,
+    variant: str,
+    fmt_pct_fn,
+) -> str:
+    search_pos = sim.player_search_position(player)
+    group_label = sim.similarity_position_label(search_pos) if search_pos else "—"
+    if heatmap_b64:
+        heatmap_html = (
+            '<div class="pa-compare-heatmap-wrap">'
+            f'<img class="pa-compare-heatmap" src="data:image/png;base64,{heatmap_b64}" '
+            'alt="Pass origin heatmap" />'
+            "</div>"
+        )
+    else:
+        heatmap_html = '<p class="pa-compare-heatmap-empty">Heatmap unavailable</p>'
+    return (
+        f'<div class="pa-compare-player pa-compare-player-{html.escape(variant)}">'
+        '<div class="pa-compare-player-head">'
+        f'<div class="pa-compare-photo-wrap">{_player_photo_html(player)}</div>'
+        '<div class="pa-compare-player-meta">'
+        f'<div class="pa-compare-player-name">{html.escape(str(player.get("player_name", "—")))}</div>'
+        '<div class="pa-compare-player-sub">'
+        f"{html.escape(str(player.get('team', '—')))} · "
+        f"{html.escape(str(player.get('position', '—')))} · "
+        f"{html.escape(group_label)}"
+        "</div>"
+        "</div>"
+        "</div>"
+        f"{_compare_player_facts_html(player, fmt_pct_fn=fmt_pct_fn)}"
+        f"{heatmap_html}"
+        "</div>"
+    )
+
+
+def _build_pa_compare_layout_html(
+    primary_player: dict,
+    compare_player: dict,
+    primary_source: dict,
+    secondary_source: dict,
+    *,
+    primary_heatmap_b64: str | None,
+    compare_heatmap_b64: str | None,
+    fmt_pct_fn,
+) -> str:
+    primary_name = str(primary_player.get("player_name", "Player A"))
+    secondary_name = str(compare_player.get("player_name", "Player B"))
+    players_block = (
+        '<div class="pa-compare-players">'
+        f"{_compare_player_column_html(primary_player, heatmap_b64=primary_heatmap_b64, variant='primary', fmt_pct_fn=fmt_pct_fn)}"
+        '<div class="pa-compare-vs" aria-hidden="true">vs</div>'
+        f"{_compare_player_column_html(compare_player, heatmap_b64=compare_heatmap_b64, variant='secondary', fmt_pct_fn=fmt_pct_fn)}"
+        "</div>"
+    )
+    stats_block = _xp_compare_stats_html(
+        primary_source,
+        secondary_source,
+        primary_name=primary_name,
+        secondary_name=secondary_name,
+    )
+    return f'<div class="pa-compare-layout">{players_block}{stats_block}</div>'
+
+
 def _render_xp_comparison_panel(
     primary: dict,
     *,
@@ -1411,6 +1539,8 @@ def _render_xp_comparison_panel(
     progression_by_id: dict[str, dict],
     pass_by_id: dict[str, dict],
     xp_by_id: dict[str, dict],
+    passes_by_player: dict,
+    fmt_pct_fn=pg_fmt_pct,
 ) -> None:
     primary_id = str(primary.get("player_id"))
     primary_xp = xp_by_id.get(primary_id)
@@ -1458,6 +1588,7 @@ def _render_xp_comparison_panel(
         return
 
     compare_player = progression_by_id.get(compare_id) or pass_by_id.get(compare_id, {})
+    compare_player = pp.enrich_player_general_profile(compare_player)
     primary_source = _xp_compare_player_source(
         primary,
         primary_xp,
@@ -1468,12 +1599,25 @@ def _render_xp_comparison_panel(
         compare_xp,
         pass_player=pass_by_id.get(compare_id),
     )
+    primary_heatmap_b64 = _player_origin_heatmap_b64(
+        primary_id,
+        passes_by_player,
+        str(primary.get("player_name", "")),
+    )
+    compare_heatmap_b64 = _player_origin_heatmap_b64(
+        compare_id,
+        passes_by_player,
+        str(compare_player.get("player_name", compare_xp.get("player_name", ""))),
+    )
     st.html(
-        _xp_compare_stats_html(
+        _build_pa_compare_layout_html(
+            primary,
+            compare_player,
             primary_source,
             secondary_source,
-            primary_name=str(primary.get("player_name", "—")),
-            secondary_name=str(compare_player.get("player_name", compare_xp.get("player_name", "—"))),
+            primary_heatmap_b64=primary_heatmap_b64,
+            compare_heatmap_b64=compare_heatmap_b64,
+            fmt_pct_fn=fmt_pct_fn,
         ),
         width="stretch",
     )
@@ -2799,6 +2943,156 @@ st.markdown(
         letter-spacing: 0.01em;
     }
     .pa-compare-hero-sub { font-size: 0.82rem; color: #94a3b8; }
+    .pa-compare-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .pa-compare-players {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        gap: 0.7rem;
+        align-items: stretch;
+    }
+    .pa-compare-player {
+        display: flex;
+        flex-direction: column;
+        gap: 0.7rem;
+        padding: 0.9rem 0.95rem;
+        border-radius: 14px;
+        border: 1px solid #2e3a57;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(10, 16, 30, 0.96));
+        min-width: 0;
+    }
+    .pa-compare-player-primary {
+        border-color: rgba(167, 139, 250, 0.34);
+        box-shadow: inset 0 1px 0 rgba(167, 139, 250, 0.08);
+    }
+    .pa-compare-player-secondary {
+        border-color: rgba(134, 239, 172, 0.28);
+        box-shadow: inset 0 1px 0 rgba(134, 239, 172, 0.06);
+    }
+    .pa-compare-vs {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        align-self: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid #334155;
+    }
+    .pa-compare-player-head {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 0;
+    }
+    .pa-compare-photo-wrap .pa-identity-photo,
+    .pa-compare-photo-wrap .pa-identity-photo-placeholder {
+        width: 3.35rem;
+        height: 3.35rem;
+        border-radius: 12px;
+        font-size: 0.95rem;
+    }
+    .pa-compare-player-meta { min-width: 0; }
+    .pa-compare-player-name {
+        color: #f8fafc;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .pa-compare-player-sub {
+        margin-top: 0.18rem;
+        color: #94a3b8;
+        font-size: 0.74rem;
+        font-weight: 600;
+        line-height: 1.35;
+    }
+    .pa-compare-facts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.42rem 0.55rem;
+    }
+    .pa-compare-fact {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.42rem;
+        min-width: 0;
+        padding: 0.38rem 0.45rem;
+        border-radius: 9px;
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid rgba(51, 65, 85, 0.55);
+    }
+    .pa-compare-fact-ic {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.2rem;
+        height: 1.2rem;
+        margin-top: 0.05rem;
+        color: #93c5fd;
+        font-size: 0.62rem;
+        flex-shrink: 0;
+    }
+    .pa-compare-fact-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.08rem;
+        min-width: 0;
+    }
+    .pa-compare-fact-label {
+        color: #64748b;
+        font-size: 0.58rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+    .pa-compare-fact-val {
+        color: #e2e8f0;
+        font-size: 0.78rem;
+        font-weight: 700;
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .pa-compare-heatmap-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 150px;
+        margin-top: 0.1rem;
+        padding: 0.35rem;
+        border-radius: 10px;
+        background: rgba(9, 14, 27, 0.65);
+        border: 1px solid rgba(51, 65, 85, 0.55);
+        overflow: hidden;
+    }
+    .pa-compare-heatmap {
+        width: 100%;
+        max-height: 170px;
+        object-fit: contain;
+        display: block;
+        border-radius: 7px;
+    }
+    .pa-compare-heatmap-empty {
+        margin: 0;
+        padding: 1.5rem 0.5rem;
+        text-align: center;
+        color: #64748b;
+        font-size: 0.72rem;
+        font-style: italic;
+    }
     .pa-xp-compare-card {
         padding: 1rem 1.15rem 0.9rem;
     }
@@ -4370,7 +4664,7 @@ st.markdown(
     .pa-round-chart {
         display: block;
         width: 100%;
-        height: 74px;
+        height: 88px;
         overflow: visible;
     }
     .pa-round-chart-area {
@@ -4474,32 +4768,57 @@ st.markdown(
     }
     .pa-pass-mix-track {
         position: relative;
-        height: 0.62rem;
+        height: 0.68rem;
         border-radius: 999px;
         overflow: visible;
-        background: linear-gradient(90deg, rgba(56, 189, 248, 0.28) 0%, rgba(56, 189, 248, 0.12) 100%);
+        background: linear-gradient(
+            90deg,
+            rgba(56, 189, 248, 0.42) 0%,
+            rgba(56, 189, 248, 0.14) 42%,
+            rgba(251, 191, 36, 0.14) 58%,
+            rgba(251, 191, 36, 0.42) 100%
+        );
         border: 1px solid rgba(51, 65, 85, 0.7);
         box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.4);
     }
-    .pa-pass-mix-fill {
+    .pa-pass-mix-center {
         position: absolute;
-        top: 0;
-        right: 0;
-        height: 100%;
-        border-radius: 0 999px 999px 0;
-        background: linear-gradient(90deg, rgba(251, 191, 36, 0.55) 0%, #fbbf24 100%);
-        box-shadow: inset 1px 0 0 rgba(15, 23, 42, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    }
-    .pa-pass-mix-avg {
-        position: absolute;
-        top: -0.16rem;
-        bottom: -0.16rem;
+        top: -0.18rem;
+        bottom: -0.18rem;
+        left: 50%;
         width: 2px;
+        transform: translateX(-50%);
         border-radius: 999px;
-        background: #f8fafc;
+        background: rgba(248, 250, 252, 0.92);
         box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
         cursor: help;
+        z-index: 1;
     }
+    .pa-pass-mix-marker {
+        position: absolute;
+        top: 50%;
+        width: 0.62rem;
+        height: 0.62rem;
+        border-radius: 999px;
+        transform: translate(-50%, -50%);
+        background: #f8fafc;
+        border: 2px solid #0f172a;
+        box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.55);
+        cursor: help;
+        z-index: 2;
+    }
+    .pa-pass-mix-axis {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        color: #94a3b8;
+        font-size: 0.6rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    .pa-pass-mix-axis-short { color: #7dd3fc; }
+    .pa-pass-mix-axis-long { color: #fcd34d; }
     .pa-pass-mix-legend {
         display: flex;
         justify-content: space-between;
@@ -6407,39 +6726,6 @@ def _pass_grade_tier(display_score: float) -> tuple[str, str]:
     return "low", "Below average"
 
 
-def _pass_grade_driver_lines_html(xp_profile: dict) -> str:
-    """One compact line per grade driver: label, value and rank inside the group."""
-    lines: list[str] = []
-    for display_key in XP_PROFILE_BAR_KEYS_RENDER:
-        label = xstats.XP_PROFILE_BAR_LABELS.get(display_key, display_key)
-        weight = XP_PROFILE_BAR_WEIGHTS.get(display_key)
-        metric_keys = xstats.XP_PROFILE_BAR_METRICS.get(display_key, ())
-        if not metric_keys:
-            continue
-        metric_key = metric_keys[0]
-        value = xstats.format_pa_stats_value(metric_key, xp_profile.get(metric_key))
-        rank = xp_profile.get(f"{metric_key}_rank_in_group")
-        total = xp_profile.get(f"{metric_key}_rank_pool_in_group")
-        rank_html = (
-            f'<span class="pa-pass-grade-driver-rank">#{int(rank)} of {int(total)}</span>'
-            if rank and total
-            else ""
-        )
-        weight_txt = f" · {float(weight) * 100:.0f}%" if weight else ""
-        lines.append(
-            '<div class="pa-pass-grade-driver">'
-            f'<span class="pa-pass-grade-driver-name">{html.escape(str(label))}'
-            f"{html.escape(weight_txt)}</span>"
-            '<span class="pa-pass-grade-driver-dots" aria-hidden="true"></span>'
-            f'<span class="pa-pass-grade-driver-val">{html.escape(value)}</span>'
-            f"{rank_html}"
-            "</div>"
-        )
-    if not lines:
-        return ""
-    return f'<div class="pa-pass-grade-drivers">{"".join(lines)}</div>'
-
-
 def _player_analysis_pass_grade_panel_html(
     player: dict,
     xp_profile: dict | None,
@@ -6467,19 +6753,12 @@ def _player_analysis_pass_grade_panel_html(
     accent = _pass_grade_gradient_color(pct)
     low_sample = _is_low_sample_rating(merged, rating_key="xp_pass_rating")
     low_cls = " pa-pass-grade-low-sample" if low_sample else ""
-    rank = xp_profile.get("xp_pass_rating_rank_in_group")
-    total = xp_profile.get("xp_pass_rating_rank_pool_in_group")
-    rank_html = (
-        '<span class="pa-pass-grade-rank">'
-        f"#{int(rank)} of {int(total)} · {html.escape(_pa_field_group_label(xp_profile))}"
-        "</span>"
-        if rank and total
-        else ""
-    )
     low_note = (
+        '<div class="pa-pass-grade-foot">'
         '<span class="pa-pass-grade-flag" title="Small sample — grade shrunk toward the mean">'
         '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> low sample'
         "</span>"
+        "</div>"
         if low_sample
         else ""
     )
@@ -6501,11 +6780,9 @@ def _player_analysis_pass_grade_panel_html(
         "</span>"
         f'<span class="pa-pass-grade-marker" style="left:{marker_pct:.1f}%"></span>'
         "</div>"
-        '<div class="pa-pass-grade-axis"><span>4.5</span><span>9.0</span></div>'
         "</div>"
         "</div>"
-        f'<div class="pa-pass-grade-foot">{rank_html}{low_note}</div>'
-        f"{_pass_grade_driver_lines_html(xp_profile)}"
+        f"{low_note}"
         "</div>"
     )
 
@@ -7304,9 +7581,9 @@ def _xp_impact_pass_row_html(xp_profile: dict) -> str:
 
 
 _ROUND_CHART_W = 252.0
-_ROUND_CHART_H = 74.0
-_ROUND_CHART_PAD_X = 7.0
-_ROUND_CHART_PAD_Y = 9.0
+_ROUND_CHART_H = 88.0
+_ROUND_CHART_PAD_X = 8.0
+_ROUND_CHART_PAD_Y = 10.0
 
 
 def _round_production_series(
@@ -7351,13 +7628,12 @@ def _round_production_chart_html(
         )
     values = [float(point.get("xp") or 0.0) for point in series]
     count = len(values)
-    hi = max(values)
     lo = min(values)
+    hi = max(values)
     span = (hi - lo) if hi > lo else max(hi, 1.0)
     mean = sum(values) / count
     inner_w = _ROUND_CHART_W - 2 * _ROUND_CHART_PAD_X
     inner_h = _ROUND_CHART_H - 2 * _ROUND_CHART_PAD_Y
-    baseline = _ROUND_CHART_H - _ROUND_CHART_PAD_Y
 
     def pos_x(index: int) -> float:
         return _ROUND_CHART_PAD_X + inner_w * index / (count - 1)
@@ -7366,17 +7642,10 @@ def _round_production_chart_html(
         return _ROUND_CHART_PAD_Y + inner_h * (1.0 - (value - lo) / span)
 
     points = " ".join(f"{pos_x(i):.1f},{pos_y(v):.1f}" for i, v in enumerate(values))
-    area = (
-        f"{_ROUND_CHART_PAD_X:.1f},{baseline:.1f} "
-        f"{points} "
-        f"{pos_x(count - 1):.1f},{baseline:.1f}"
-    )
     mean_y = pos_y(mean)
-    peak_index = values.index(hi)
     dots = "".join(
-        f'<circle class="pa-round-chart-dot'
-        f'{" pa-round-chart-dot-peak" if i == peak_index else ""}" '
-        f'cx="{pos_x(i):.1f}" cy="{pos_y(v):.1f}" r="{2.6 if i == peak_index else 1.9}">'
+        f'<circle class="pa-round-chart-dot" '
+        f'cx="{pos_x(i):.1f}" cy="{pos_y(v):.1f}" r="1.6">'
         f"<title>{html.escape(_round_point_title(series[i]))}</title>"
         "</circle>"
         for i, v in enumerate(values)
@@ -7385,17 +7654,15 @@ def _round_production_chart_html(
         '<div class="pa-round-chart-wrap">'
         f'<svg class="pa-round-chart" viewBox="0 0 {_ROUND_CHART_W:.0f} {_ROUND_CHART_H:.0f}" '
         'role="img" preserveAspectRatio="none" '
-        f'aria-label="xP per round across {count} matches">'
-        f'<polygon class="pa-round-chart-area" points="{area}"></polygon>'
+        f'aria-label="xP per game across {count} matches">'
         f'<line class="pa-round-chart-mean" x1="{_ROUND_CHART_PAD_X:.1f}" y1="{mean_y:.1f}" '
         f'x2="{_ROUND_CHART_W - _ROUND_CHART_PAD_X:.1f}" y2="{mean_y:.1f}"></line>'
         f'<polyline class="pa-round-chart-line" points="{points}"></polyline>'
         f"{dots}"
         "</svg>"
         '<div class="pa-round-chart-legend">'
-        f'<span class="pa-round-chart-legend-item">{count} matches</span>'
-        f'<span class="pa-round-chart-legend-item pa-round-chart-legend-mean">avg {mean:.2f} xP</span>'
-        f'<span class="pa-round-chart-legend-item">peak {hi:.2f} xP</span>'
+        f'<span class="pa-round-chart-legend-item pa-round-chart-legend-mean">μ {mean:.2f} xP</span>'
+        f'<span class="pa-round-chart-legend-item">{count} games</span>'
         "</div>"
         "</div>"
     )
@@ -7427,9 +7694,8 @@ def _xp_consistency_details_html(
         f"{_xp_index_row_inner_html('Consistency', tier_label, icon=icon, trailing=arrow)}"
         "</summary>"
         '<div class="pa-xp-index-details-body">'
-        '<p class="pa-round-chart-title">xP per round</p>'
+        '<p class="pa-round-chart-title">xP per game</p>'
         f"{_round_production_chart_html(xp_profile, xp_passes_df)}"
-        f"{_xp_index_tip_lines_html(xp_profile, ('xp_game_mean', 'xp_games_above_median_pct'))}"
         "</div>"
         "</details>"
     )
@@ -7457,7 +7723,7 @@ def _xp_index_boxes_html(
 
 
 def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
-    """Bar comparing the player's long-pass share with the peer average."""
+    """Bar comparing the player's long-pass share against the peer average at center."""
     if not xp_profile:
         return ""
     share = xp_profile.get("long_pass_share_pct")
@@ -7471,7 +7737,8 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
     long_label = xstats.DISTANCE_BAND_LABELS.get("long", ">30m")
 
     delta_html = ""
-    peer_marker = ""
+    center_marker = ""
+    player_marker = ""
     foot = (
         '<p class="pa-pass-mix-foot">Peer average unavailable for this position.</p>'
     )
@@ -7482,21 +7749,33 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         sign = "+" if delta >= 0 else "−"
         delta_html = (
             f'<span class="pa-pass-mix-delta pa-pass-mix-delta-{delta_cls}" '
-            f'title="Difference against the position peer average">'
+            f'title="Difference against the midfielder peer average">'
             f"{sign}{abs(delta):.1f} pp</span>"
         )
-        # The long slice grows from the right edge, so the peer boundary sits at 100 - avg.
-        peer_marker = (
-            f'<span class="pa-pass-mix-avg" style="left:{max(0.0, min(100.0, 100.0 - peer_avg)):.1f}%" '
-            f'title="Peer average long share: {peer_avg:.1f}%"></span>'
+        half_span = max(18.0, min(peer_avg, 100.0 - peer_avg) * 1.35)
+        marker_pos = 50.0 + (share - peer_avg) / half_span * 50.0
+        marker_pos = max(4.0, min(96.0, marker_pos))
+        center_marker = (
+            f'<span class="pa-pass-mix-center" '
+            f'title="Midfielder average long share: {peer_avg:.1f}%"></span>'
+        )
+        player_marker = (
+            f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%" '
+            f'title="Player long share: {share:.1f}%"></span>'
         )
         pctile = xp_profile.get("long_pass_share_pctile")
         pctile_txt = f" · P{float(pctile):.0f}" if pctile is not None else ""
         foot = (
             '<p class="pa-pass-mix-foot">'
-            f"Tick = position average ({peer_avg:.1f}% long, {peer_count} players)"
+            f"Center = midfielder avg ({peer_avg:.1f}% long, {peer_count} players)"
             f"{html.escape(pctile_txt)}"
             "</p>"
+        )
+    else:
+        marker_pos = max(4.0, min(96.0, share))
+        player_marker = (
+            f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%" '
+            f'title="Player long share: {share:.1f}%"></span>'
         )
 
     return (
@@ -7509,14 +7788,18 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         f"{delta_html}"
         "</div>"
         '<div class="pa-pass-mix-track">'
-        f'<span class="pa-pass-mix-fill" style="width:{max(0.0, min(100.0, share)):.1f}%"></span>'
-        f"{peer_marker}"
+        f"{center_marker}"
+        f"{player_marker}"
+        "</div>"
+        '<div class="pa-pass-mix-axis">'
+        f'<span class="pa-pass-mix-axis-short">Short {html.escape(short_label)}</span>'
+        f'<span class="pa-pass-mix-axis-long">Long {html.escape(long_label)}</span>'
         "</div>"
         '<div class="pa-pass-mix-legend">'
         '<span class="pa-pass-mix-legend-item pa-pass-mix-legend-short">'
-        f"Short {html.escape(short_label)} · <strong>{short_share:.1f}%</strong></span>"
+        f"<strong>{short_share:.1f}%</strong> short</span>"
         '<span class="pa-pass-mix-legend-item pa-pass-mix-legend-long">'
-        f"Long {html.escape(long_label)} · <strong>{share:.1f}%</strong></span>"
+        f"<strong>{share:.1f}%</strong> long</span>"
         "</div>"
         f"{foot}"
         "</div>"
@@ -10519,7 +10802,7 @@ def render_player_analysis_section(
                 '<span class="pa-compare-hero-icon"><i class="fa-solid fa-code-compare"></i></span>'
                 '<span class="pa-compare-hero-text">'
                 '<span class="pa-compare-hero-title">Compare players</span>'
-                '<span class="pa-compare-hero-sub">Impact profile and key metrics side by side</span>'
+                '<span class="pa-compare-hero-sub">Profile, heatmaps and key metrics side by side</span>'
                 "</span>"
                 "</div>",
                 unsafe_allow_html=True,
@@ -10531,6 +10814,7 @@ def render_player_analysis_section(
                     progression_by_id=progression_by_id,
                     pass_by_id=pass_by_id,
                     xp_by_id=xp_by_id,
+                    passes_by_player=passes_by_player,
                 )
             else:
                 st.info("xP metrics unavailable for comparison.")
