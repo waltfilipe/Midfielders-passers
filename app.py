@@ -217,6 +217,11 @@ PA_FILTER_FIELD_KEY = "pa_filter_field"
 PA_FILTER_AGE_KEY = "pa_filter_age"
 PA_FILTER_PLAYER_KEY = "pa_filter_player"
 PA_VIEW_SELECT_KEY = "pa_view_select"
+PA_COMPARE_FILTER_LEAGUE_KEY = "cmp_filter_league"
+PA_COMPARE_FILTER_FIELD_KEY = "cmp_filter_field"
+PA_COMPARE_FILTER_AGE_KEY = "cmp_filter_age"
+PA_COMPARE_PLAYER_A_KEY = "cmp_filter_player_a"
+PA_COMPARE_PLAYER_B_KEY = "cmp_filter_player_b"
 PA_VIEW_SCATTER = "scatter"
 PA_VIEW_MAPS = "maps"
 PA_VIEW_LABELS: dict[str, str] = {
@@ -3713,6 +3718,72 @@ st.markdown(
         font-weight: 600;
     }
     .pa-filter-count strong { color: #38bdf8; }
+    .cmp-shell {
+        max-width: 1480px;
+        margin: 0.15rem auto 1.25rem auto;
+    }
+    .cmp-compare-hero { margin-bottom: 0.85rem; }
+    .st-key-cmp_filter_card {
+        background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
+        border: 1px solid #2a3550;
+        border-radius: 14px;
+        padding: 0.85rem 0.9rem 1rem;
+        box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
+    }
+    .st-key-cmp_filter_card [data-testid="stVerticalBlock"] { gap: 0.45rem; }
+    .st-key-cmp_filter_card label[data-testid="stWidgetLabel"] p {
+        font-size: 0.76rem !important;
+        font-weight: 700 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #93a4bc !important;
+    }
+    .cmp-filter-head {
+        display: flex;
+        flex-direction: column;
+        gap: 0.22rem;
+        margin-bottom: 0.7rem;
+        padding-bottom: 0.65rem;
+        border-bottom: 1px solid #243049;
+    }
+    .cmp-filter-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        color: #f1f5f9;
+        font-size: 0.92rem;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+    }
+    .cmp-filter-title .cmp-filter-ic { color: #60a5fa; }
+    .cmp-filter-sub {
+        color: #94a3b8;
+        font-size: 0.74rem;
+        line-height: 1.35;
+        margin: 0;
+    }
+    .cmp-filter-count {
+        margin-top: 0.55rem;
+        padding-top: 0.55rem;
+        border-top: 1px dashed rgba(148, 163, 184, 0.22);
+        color: #cbd5e1;
+        font-size: 0.76rem;
+        font-weight: 600;
+    }
+    .cmp-filter-count strong { color: #38bdf8; }
+    .cmp-player-pane {
+        min-width: 0;
+        width: 100%;
+    }
+    .cmp-player-pane .pa-compare-player-card {
+        max-width: none;
+        width: 100%;
+        justify-self: stretch;
+    }
+    .cmp-player-pane .pa-compare-col-heatmap {
+        max-height: 240px;
+        min-height: 175px;
+    }
     .st-key-pa_filter_card label[data-testid="stWidgetLabel"] p {
         font-size: 0.78rem !important;
         font-weight: 700 !important;
@@ -7181,7 +7252,7 @@ def _pass_grade_gradient_color(pct: float) -> str:
 
 
 _PASS_GRADE_TIERS: tuple[tuple[float, str, str], ...] = (
-    (8.0, "elite", "Elite"),
+    (8.2, "elite", "Elite"),
     (7.0, "strong", "Very good"),
     (6.0, "solid", "Good"),
     (5.0, "average", "Average"),
@@ -9071,7 +9142,7 @@ def render_dashboard_player_picker(
     all_players: list[dict],
     players_by_id: dict[str, dict],
 ) -> str | None:
-    st.caption("Select a player in the Maps or Player Analysis tabs.")
+    st.caption("Select a player in the Maps or Player Profile tabs.")
 
     options = _player_options(all_players)
     if not options:
@@ -9092,7 +9163,7 @@ def render_dashboard_player_picker(
     )
 
     if not selected_label:
-        st.info("Select a player in the Maps or Player Analysis tabs.")
+        st.info("Select a player in the Maps or Player Profile tabs.")
         return None
 
     player_id = id_by_label[selected_label]
@@ -10836,7 +10907,7 @@ def _render_pa_filter_card(
             '<span class="pa-filter-title">'
             '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
             '<span class="pa-filter-sub">Refine o grupo de meio-campistas, selecione o jogador '
-            "e abra gráficos ou mapas sob demanda.</span>"
+            "e abra gráficos ou mapas sob demanda (aba Player Profile).</span>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -10923,6 +10994,214 @@ def _render_pa_filter_card(
         show_maps = PA_VIEW_MAPS in selected_views
 
     return player_id, show_scatter, show_maps
+
+
+def _render_compare_filter_card(
+    all_players: list[dict],
+    progression_by_id: dict[str, dict],
+    *,
+    xp_by_id: dict[str, dict] | None,
+) -> tuple[str | None, str | None]:
+    """Vertical filter card for the Compare tab: league, field, age and two player picks."""
+    with st.container(key="cmp_filter_card"):
+        st.markdown(
+            '<div class="cmp-filter-head">'
+            '<span class="cmp-filter-title">'
+            '<span class="cmp-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
+            '<span class="cmp-filter-sub">Refine o grupo e escolha os dois jogadores a comparar.</span>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        league_labels = dict(PA_LEAGUE_OPTIONS)
+        league = st.selectbox(
+            "Liga",
+            options=[key for key, _ in PA_LEAGUE_OPTIONS],
+            format_func=lambda key: league_labels[key],
+            key=PA_COMPARE_FILTER_LEAGUE_KEY,
+        )
+
+        field_labels = dict(PA_FIELD_OPTIONS)
+        field = st.selectbox(
+            "Campo de atuação",
+            options=[key for key, _ in PA_FIELD_OPTIONS],
+            format_func=lambda key: field_labels[key],
+            key=PA_COMPARE_FILTER_FIELD_KEY,
+            help=(
+                "Origem das ações: ofensivo = maioria dos passes começa no campo de ataque; "
+                "defensivo = maioria começa no campo de defesa."
+            ),
+        )
+
+        age_key = st.selectbox(
+            "Faixa etária",
+            options=[key for key, _, _ in PA_AGE_OPTIONS],
+            format_func=lambda key: PA_AGE_LABELS[key],
+            key=PA_COMPARE_FILTER_AGE_KEY,
+            help="Idade via base pública; jogadores sem idade ficam fora das faixas filtradas.",
+        )
+        age_min, age_max = dict((key, (lo, hi)) for key, lo, hi in PA_AGE_OPTIONS)[age_key]
+
+        pool = _filter_pa_pool(
+            all_players,
+            progression_by_id,
+            league=league,
+            field=field,
+            age_min=age_min,
+            age_max=age_max,
+        )
+        all_codes, all_groups = _all_position_filters()
+        options = _player_analysis_options(
+            pool,
+            progression_by_id,
+            position_codes=all_codes,
+            position_groups=all_groups,
+            xp_by_id=xp_by_id,
+            sort_by="xp_pass_rating",
+        )
+
+        player_a_id: str | None = None
+        player_b_id: str | None = None
+        if not options:
+            st.selectbox("Jogador 1", options=["—"], disabled=True, key="cmp_player_a_empty")
+            st.selectbox("Jogador 2", options=["—"], disabled=True, key="cmp_player_b_empty")
+            return None, None
+
+        labels = [opt[3] for opt in options]
+        id_by_label = {opt[3]: opt[0] for opt in options}
+        if st.session_state.get(PA_COMPARE_PLAYER_A_KEY) not in labels:
+            st.session_state[PA_COMPARE_PLAYER_A_KEY] = labels[0]
+        selected_a_label = st.selectbox(
+            "Jogador 1",
+            options=labels,
+            key=PA_COMPARE_PLAYER_A_KEY,
+        )
+        player_a_id = id_by_label.get(selected_a_label)
+
+        options_b = [opt for opt in options if opt[0] != player_a_id]
+        if not options_b:
+            options_b = options
+        labels_b = [opt[3] for opt in options_b]
+        id_by_label_b = {opt[3]: opt[0] for opt in options_b}
+        if st.session_state.get(PA_COMPARE_PLAYER_B_KEY) not in labels_b:
+            st.session_state[PA_COMPARE_PLAYER_B_KEY] = labels_b[min(1, len(labels_b) - 1)]
+        selected_b_label = st.selectbox(
+            "Jogador 2",
+            options=labels_b,
+            key=PA_COMPARE_PLAYER_B_KEY,
+        )
+        player_b_id = id_by_label_b.get(selected_b_label)
+
+        st.markdown(
+            f'<div class="cmp-filter-count"><strong>{len(pool)}</strong> jogadores no grupo filtrado</div>',
+            unsafe_allow_html=True,
+        )
+
+    return player_a_id, player_b_id
+
+
+def render_compare_section(
+    all_players: list[dict],
+    passes_by_player: dict,
+    progression_by_id: dict[str, dict],
+    pass_by_id: dict[str, dict],
+    *,
+    xp_by_id: dict[str, dict] | None = None,
+    fmt_pct_fn=pg_fmt_pct,
+) -> None:
+    """Compare tab: vertical filters on the left, two player cards side by side."""
+    if not all_players:
+        st.info("No players available.")
+        return
+    if not xp_by_id:
+        st.info("xP metrics unavailable for comparison.")
+        return
+
+    st.markdown('<div class="cmp-shell">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="pa-compare-hero cmp-compare-hero">'
+        '<span class="pa-compare-hero-icon"><i class="fa-solid fa-code-compare"></i></span>'
+        '<span class="pa-compare-hero-text">'
+        '<span class="pa-compare-hero-title">Compare players</span>'
+        '<span class="pa-compare-hero-sub">Filtre o grupo e compare dois jogadores lado a lado</span>'
+        "</span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    col_filter, col_a, col_b = st.columns([0.24, 0.38, 0.38], gap="large")
+    with col_filter:
+        player_a_id, player_b_id = _render_compare_filter_card(
+            all_players,
+            progression_by_id,
+            xp_by_id=xp_by_id,
+        )
+
+    if not player_a_id or not player_b_id:
+        st.info("Selecione dois jogadores nos filtros para comparar.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+    if player_a_id == player_b_id:
+        st.warning("Selecione dois jogadores diferentes.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    player_a = progression_by_id.get(player_a_id) or pass_by_id.get(player_a_id, {})
+    player_b = progression_by_id.get(player_b_id) or pass_by_id.get(player_b_id, {})
+    player_a = pp.enrich_player_general_profile(player_a)
+    player_b = pp.enrich_player_general_profile(player_b)
+
+    xp_a = xp_by_id.get(player_a_id)
+    xp_b = xp_by_id.get(player_b_id)
+    if not xp_a or not xp_b:
+        st.warning("xP metrics unavailable for one or both selected players.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    source_a = _xp_compare_player_source(player_a, xp_a, pass_player=pass_by_id.get(player_a_id))
+    source_b = _xp_compare_player_source(player_b, xp_b, pass_player=pass_by_id.get(player_b_id))
+    heatmap_a = _player_origin_heatmap_b64(
+        player_a_id,
+        passes_by_player,
+        str(player_a.get("player_name", "")),
+    )
+    heatmap_b = _player_origin_heatmap_b64(
+        player_b_id,
+        passes_by_player,
+        str(player_b.get("player_name", "")),
+    )
+
+    with col_a:
+        st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
+        st.html(
+            _compare_column_html(
+                player_a,
+                source_a,
+                heatmap_b64=heatmap_a,
+                variant="primary",
+                fmt_pct_fn=fmt_pct_fn,
+                other_source=source_b,
+            ),
+            width="stretch",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_b:
+        st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
+        st.html(
+            _compare_column_html(
+                player_b,
+                source_b,
+                heatmap_b64=heatmap_b,
+                variant="secondary",
+                fmt_pct_fn=fmt_pct_fn,
+                other_source=source_a,
+            ),
+            width="stretch",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 @st.cache_data(show_spinner="Carregando mapas de passe…")
@@ -11382,46 +11661,21 @@ def render_player_analysis_section(
         )
         origin_heatmap_b64 = _fig_to_b64(fig_origin)
 
-    with st.container(key="pa_subtabs"):
-        tab_profile, tab_compare = st.tabs(["  Player Profile  ", "  Compare  "])
-        with tab_profile:
-            render_player_analysis_profile(
-                player,
-                xp_profile=xp_profile,
-                xp_passes_df=xp_passes_df,
-                scout_section_specs=PROGRESSION_SCOUT_SECTION_SPECS,
-                pillar_labels=_PROGRESSION_RADAR_METRIC_LABELS,
-                origin_heatmap_b64=origin_heatmap_b64,
-                label_fn=pg_analyst_metric_label,
-                tooltip_fn=pg_metric_tooltip,
-                rank_in_group_fn=pg_rank_in_group_label,
-                fmt_pct_fn=pg_fmt_pct,
-                fmt_stat_fn=pg_fmt_stat_value,
-                confidence_minutes=RATING_CONFIDENCE_MINUTES,
-                confidence_passes=RATING_CONFIDENCE_PASSES,
-            )
-        with tab_compare:
-            st.markdown(
-                '<div class="pa-compare-hero">'
-                '<span class="pa-compare-hero-icon"><i class="fa-solid fa-code-compare"></i></span>'
-                '<span class="pa-compare-hero-text">'
-                '<span class="pa-compare-hero-title">Compare players</span>'
-                '<span class="pa-compare-hero-sub">Profile, heatmaps and key metrics side by side</span>'
-                "</span>"
-                "</div>",
-                unsafe_allow_html=True,
-            )
-            if xp_by_id:
-                _render_xp_comparison_panel(
-                    player,
-                    all_players=all_players,
-                    progression_by_id=progression_by_id,
-                    pass_by_id=pass_by_id,
-                    xp_by_id=xp_by_id,
-                    passes_by_player=passes_by_player,
-                )
-            else:
-                st.info("xP metrics unavailable for comparison.")
+    render_player_analysis_profile(
+        player,
+        xp_profile=xp_profile,
+        xp_passes_df=xp_passes_df,
+        scout_section_specs=PROGRESSION_SCOUT_SECTION_SPECS,
+        pillar_labels=_PROGRESSION_RADAR_METRIC_LABELS,
+        origin_heatmap_b64=origin_heatmap_b64,
+        label_fn=pg_analyst_metric_label,
+        tooltip_fn=pg_metric_tooltip,
+        rank_in_group_fn=pg_rank_in_group_label,
+        fmt_pct_fn=pg_fmt_pct,
+        fmt_stat_fn=pg_fmt_stat_value,
+        confidence_minutes=RATING_CONFIDENCE_MINUTES,
+        confidence_passes=RATING_CONFIDENCE_PASSES,
+    )
 
     if show_scatter:
         st.markdown("---")
@@ -11689,7 +11943,7 @@ def _render_presentation_blur_demo(player: dict, passes) -> None:
 PRES_FEATURE_SPECS: tuple[tuple[str, str, str], ...] = (
     (
         "player_analysis",
-        "Player Analysis",
+        "Player Profile",
         "Focused player profile with xP metrics and position ranks.",
     ),
     (
@@ -11729,7 +11983,7 @@ def _player_analysis_mock_inner_html() -> str:
     )
     return (
         '<div class="pres-sim-mock">'
-        '<div class="pres-sim-mock-head">Player Analysis</div>'
+        '<div class="pres-sim-mock-head">Player Profile</div>'
         '<div class="pres-sim-mock-field">Copa do Mundo player · rating profile</div>'
         '<div class="pres-sim-mock-field" style="margin-top:0.45rem">Similar - Serie A · Comparison</div>'
         '<table class="pres-sim-mock-table"><thead><tr>'
@@ -11745,7 +11999,7 @@ def _render_presentation_player_analysis_demo() -> None:
         f'<div class="pres-blur-back">{_player_analysis_mock_inner_html()}</div>'
         '<div class="pres-blur-overlay pres-blur-overlay-side">'
         '<div class="pres-blur-caption">'
-        "<strong>Player Analysis</strong>"
+        "<strong>Player Profile</strong>"
         "<p>Explore any Copa do Mundo player with season xP metrics, pillar stats, "
         "<strong>Similar - Série A</strong> and <strong>Comparison</strong>.</p>"
         "<p style='margin-top:0.45rem'>Comparables are ranked by pass+carry metrics at the same position group. "
@@ -11775,7 +12029,7 @@ def _render_presentation_maps_demo() -> None:
 def _render_pres_flow_steps() -> None:
     steps = [
         (
-            "Player Analysis",
+            "Player Profile",
             "Choose position, archetype and player to view the xP Profile, regular stats "
             "and special passes, with positional rank.",
         ),
@@ -11831,7 +12085,7 @@ def render_presentation_tab(
         f"analyzing the impact of their passes through the {xp_ref}.</p>"
         f"<p>The {xp_ref} is the foundation: player profile, positional rankings "
         "and the real impact of each delivery.</p>"
-        "<p>Includes <strong>Player Analysis</strong>, proprietary data and maps "
+        "<p>Includes <strong>Player Profile</strong>, <strong>Compare</strong>, proprietary data and maps "
         "to dig deeper into each case.</p>"
         "</div>"
         "</div>",
@@ -11902,11 +12156,13 @@ def render_presentation_tab(
         '<div class="pres-cards-row">'
         '<div class="pres-tile">'
         '<span class="pres-icon"><i class="fa-solid fa-sliders"></i></span>'
-        "<h5>Filters</h5><p>In <strong>Player Analysis</strong>, filter midfielders by league, "
+        "<h5>Filters</h5><p>In <strong>Player Profile</strong> or <strong>Compare</strong>, filter midfielders by league, "
         "field orientation (attacking or defensive) and age band (&gt;30, 23-30, Sub-23, Sub-21).</p></div>"
         '<div class="pres-tile">'
         '<span class="pres-icon"><i class="fa-solid fa-user"></i></span>'
-        "<h5>Player Analysis</h5><p>Full player profile with stats and positional rank.</p></div>"
+        "<h5>Player Profile</h5><p>Full player profile with stats and positional rank.</p></div>"
+        '<div class="pres-feature-card">'
+        "<h5>Compare</h5><p>Side-by-side comparison of two filtered players with heatmaps and xP metrics.</p></div>"
         '<div class="pres-tile">'
         '<span class="pres-icon"><i class="fa-solid fa-braille"></i></span>'
         "<h5>Scatter &amp; Maps on demand</h5><p>From the selected player, open X/Y scatter charts "
@@ -12296,12 +12552,12 @@ def _render_similarity_results_tab(
 
 
 def main() -> None:
-    tab_pres, tab_analysis, tab_xp_maps = st.tabs(
-        ["Overview", "Player Analysis", "xP - Maps Analysis"]
+    tab_pres, tab_profile, tab_compare, tab_xp_maps = st.tabs(
+        ["Overview", "Player Profile", "Compare", "xP - Maps Analysis"]
     )
     with tab_pres:
         render_presentation_tab([], {}, {}, {}, rated=[], xp_players=[])
-    with tab_analysis:
+    with tab_profile:
         bundle = _european_midfielder_bundle_or_prompt(button_key="load_pa_bundle")
         if bundle:
             (
@@ -12325,6 +12581,27 @@ def main() -> None:
                 pa_pool_by_position,
                 pa_carries_pool_by_position,
                 xp_by_id=pa_xp_by_id,
+            )
+    with tab_compare:
+        bundle = _european_midfielder_bundle_or_prompt(button_key="load_cmp_bundle")
+        if bundle:
+            (
+                cmp_players,
+                cmp_passes_by_player,
+                cmp_progression_by_id,
+                _cmp_players_by_id,
+                _cmp_carries_by_id,
+                _cmp_progression_pool,
+                _cmp_pool,
+                _cmp_carries_pool,
+                cmp_xp_by_id,
+            ) = bundle
+            render_compare_section(
+                cmp_players,
+                cmp_passes_by_player,
+                cmp_progression_by_id,
+                _cmp_players_by_id,
+                xp_by_id=cmp_xp_by_id,
             )
     with tab_xp_maps:
         render_xp_maps_analysis_tab()

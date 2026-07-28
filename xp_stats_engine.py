@@ -972,8 +972,8 @@ XP_PASS_RATING_TANH_SCALE = 1.25
 XP_PASS_RATING_TANH_AMPLITUDE = 1.15
 XP_PASS_RATING_PERCENTILE_BANDS: tuple[tuple[float, float, float], ...] = (
     # (max_rank_pct, score_at_band_start, score_at_band_end) — rank 1 = lowest pct.
-    (0.10, 9.0, 8.0),   # top 10%
-    (0.30, 8.0, 7.0),   # 10–30%
+    (0.10, 8.5, 8.2),   # top 10%
+    (0.30, 7.5, 7.0),   # 10–30%
     (1.00, 7.0, 4.5),   # rest
 )
 XP_PASS_RATING_CONFIDENCE_WEIGHT = 0.4
@@ -1996,9 +1996,9 @@ def _apply_xp_pass_rating_confidence(score_percentile: float, confidence: float)
 
 
 def xp_pass_rating_percentile_display(rank: int, pool_size: int) -> float:
-    """Map within-position rank to a 4.5–9.0 display score.
+    """Map within-position rank to a 4.5–8.5 display score.
 
-    Top 10% -> 8.0–9.0, 10–30% -> 7.0–8.0, rest -> 4.5–7.0.
+    Top 10% -> 8.2–8.5, 10–30% -> 7.0–7.5, rest -> 4.5–7.0.
     """
     if pool_size <= 0 or rank <= 0:
         return pe.RATING_DISPLAY_MID
@@ -2020,8 +2020,8 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
 
     The composite is a weighted arithmetic mean of within-position z-scores:
     Productivity (xP/game, 50%) and Effectiveness (xP/pass, 50%). Players are ranked
-    by that composite; the displayed grade maps the rank to a 4.5–9.0 scale (top 10%
-    -> 8–9, 10–30% -> 7–8, rest -> 4.5–7) with a single light confidence pull
+    by that composite; the displayed grade maps the rank to a 4.5–8.5 scale (top 10%
+    -> 8.2–8.5, 10–30% -> 7.0–7.5, rest -> 4.5–7.0) with a single light confidence pull
     toward 6.0.
     """
     if not players:
