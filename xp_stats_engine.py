@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 import passes_engine as pe
 import xp_study_engine as xse
@@ -970,6 +971,15 @@ XP_PROFILE_BAR_WEIGHTS: dict[str, float] = {
 }
 XP_PASS_RATING_TANH_SCALE = 1.25
 XP_PASS_RATING_TANH_AMPLITUDE = 1.15
+# Blended overall grade: probit(rank) + tanh(composite z), then confidence pull to 6.0.
+XP_PASS_RATING_BLEND_RANK_WEIGHT = 0.52
+XP_PASS_RATING_BLEND_PROBIT_SIGMA = 0.95
+XP_PASS_RATING_BLEND_PROBIT_RANK_CAP = 8.20
+XP_PASS_RATING_BLEND_MERIT_AMPLITUDE = 2.45
+XP_PASS_RATING_BLEND_MERIT_SCALE = 1.0
+XP_PASS_RATING_DISPLAY_CAP = 8.48
+XP_PASS_RATING_DISPLAY_FLOOR = 4.5
+# Legacy piecewise bands (superseded by blended display; kept for offline scripts).
 XP_PASS_RATING_PERCENTILE_BANDS: tuple[tuple[float, float, float], ...] = (
     # (max_rank_pct, score_at_band_start, score_at_band_end) — rank 1 = lowest pct.
     (0.10, 8.5, 8.2),   # top 10%
@@ -1995,11 +2005,48 @@ def _apply_xp_pass_rating_confidence(score_percentile: float, confidence: float)
     return float(grade), float(uncertainty)
 
 
-def xp_pass_rating_percentile_display(rank: int, pool_size: int) -> float:
-    """Map within-position rank to a 4.5–8.5 display score.
+def xp_pass_rating_blended_display(rank: int, pool_size: int, composite_z: float) -> float:
+    """Map rank + composite z to a 4.5–8.48 display score (idea 4, calibrated).
 
-    Top 10% -> 8.2–8.5, 10–30% -> 7.0–7.5, rest -> 4.5–7.0.
+    52% within-position probit rank (σ=0.95, cap 8.20) blended with 48% tanh merit
+    from the composite z-score. Preserves rank order while letting elite z separate
+    at the top without pinning everyone at 8.5.
     """
+    if pool_size <= 0 or rank <= 0:
+        return pe.RATING_DISPLAY_MID
+    pct_rank = (float(rank) - 0.5) / float(pool_size)
+    grade_rank = float(
+        np.clip(
+            norm.ppf(1.0 - pct_rank, loc=pe.RATING_DISPLAY_MID, scale=XP_PASS_RATING_BLEND_PROBIT_SIGMA),
+            XP_PASS_RATING_DISPLAY_FLOOR,
+            XP_PASS_RATING_BLEND_PROBIT_RANK_CAP,
+        )
+    )
+    grade_merit = float(
+        pe.RATING_DISPLAY_MID
+        + XP_PASS_RATING_BLEND_MERIT_AMPLITUDE
+        * np.tanh(float(composite_z) / XP_PASS_RATING_BLEND_MERIT_SCALE)
+    )
+    blended = (
+        XP_PASS_RATING_BLEND_RANK_WEIGHT * grade_rank
+        + (1.0 - XP_PASS_RATING_BLEND_RANK_WEIGHT) * grade_merit
+    )
+    return float(np.clip(blended, XP_PASS_RATING_DISPLAY_FLOOR, XP_PASS_RATING_DISPLAY_CAP))
+
+
+def xp_pass_rating_percentile_display(
+    rank: int,
+    pool_size: int,
+    composite_z: float | None = None,
+) -> float:
+    """Blended pass-grade display; ``composite_z`` should always be supplied."""
+    if composite_z is None:
+        composite_z = 0.0
+    return xp_pass_rating_blended_display(rank, pool_size, composite_z)
+
+
+def _xp_pass_rating_percentile_band_display(rank: int, pool_size: int) -> float:
+    """Legacy piecewise rank-to-grade mapping (offline comparisons only)."""
     if pool_size <= 0 or rank <= 0:
         return pe.RATING_DISPLAY_MID
     pct = float(rank) / float(pool_size)
@@ -2016,13 +2063,12 @@ def xp_pass_rating_percentile_display(rank: int, pool_size: int) -> float:
 
 
 def attach_xp_pass_ratings(players: list[dict]) -> None:
-    """Attach xP pass rating (2-metric weighted mean + shrinkage) with percentile display.
+    """Attach xP pass rating (2-metric weighted mean + shrinkage) with blended display.
 
     The composite is a weighted arithmetic mean of within-position z-scores:
     Productivity (xP/game, 50%) and Effectiveness (xP/pass, 50%). Players are ranked
-    by that composite; the displayed grade maps the rank to a 4.5–8.5 scale (top 10%
-    -> 8.2–8.5, 10–30% -> 7.0–7.5, rest -> 4.5–7.0) with a single light confidence pull
-    toward 6.0.
+    by that composite; the displayed grade blends a probit rank curve with tanh(composite z)
+    (52/48), clipped to 4.5–8.48, then a light confidence pull toward 6.0.
     """
     if not players:
         return
@@ -2066,14 +2112,14 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
             player["xp_pass_rating_composite_z"] = round(float(composite_z), 4)
 
         ranked = sorted(
-            zip(rows, raw_displays),
+            zip(rows, composite_scores),
             key=lambda item: float(item[1]),
             reverse=True,
         )
-        for rank, (row, _display) in enumerate(ranked, start=1):
+        for rank, (row, composite_z) in enumerate(ranked, start=1):
             row["xp_pass_rating_rank_in_group"] = rank
             row["xp_pass_rating_rank_pool_in_group"] = pool_size
-            pct_display = xp_pass_rating_percentile_display(rank, pool_size)
+            pct_display = xp_pass_rating_blended_display(rank, pool_size, float(composite_z))
             confidence = float(row.get("xp_pass_rating_confidence") or 0.0)
             adjusted, uncertainty = _apply_xp_pass_rating_confidence(pct_display, confidence)
             row["xp_pass_rating_percentile_display"] = round(pct_display, 2)

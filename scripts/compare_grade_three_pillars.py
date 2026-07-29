@@ -53,7 +53,7 @@ def legacy_ratings(rows: list[dict]) -> dict[int, dict]:
     order = sorted(range(pool_size), key=lambda i: displays[i], reverse=True)
     out: dict[int, dict] = {}
     for rank, i in enumerate(order, start=1):
-        pct = xs.xp_pass_rating_percentile_display(rank, pool_size)
+        pct = xs._xp_pass_rating_percentile_band_display(rank, pool_size)
         confidence = float(rows[i].get("xp_pass_rating_confidence") or 0.0)
         adjusted, _ = xs._apply_xp_pass_rating_confidence(pct, confidence)
         out[i] = {"rank": rank, "pool": pool_size, "rating": adjusted / 10.0}
