@@ -34,7 +34,7 @@ def _rank_percentile_scores(rows: list[dict], composite_z: list[float]) -> list[
     order = sorted(range(pool_size), key=lambda i: composite_z[i], reverse=True)
     scores = [0.0] * pool_size
     for rank, i in enumerate(order, start=1):
-        scores[i] = xs.xp_pass_rating_blended_display(rank, pool_size, float(z_list[i]))
+        scores[i] = xs.xp_pass_rating_blended_display(rank, pool_size, float(composite_z[i]))
     return scores
 
 
