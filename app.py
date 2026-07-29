@@ -243,17 +243,17 @@ PA_FIELD_OPTIONS: tuple[tuple[str, str], ...] = (
 )
 PA_AGE_OPTIONS: tuple[tuple[str, int | None, int | None], ...] = (
     ("all", None, None),
-    ("over30", 31, None),
-    ("23_30", 23, 30),
-    ("u23", None, 23),
     ("u21", None, 21),
+    ("u23", 22, 23),
+    ("24_30", 24, 30),
+    ("over30", 31, None),
 )
 PA_AGE_LABELS: dict[str, str] = {
     "all": "Todas as idades",
-    "over30": ">30 anos",
-    "23_30": "23-30 anos",
-    "u23": "Sub-23",
-    "u21": "Sub-21",
+    "u21": "U21",
+    "u23": "U23",
+    "24_30": "24-30",
+    "over30": ">30",
 }
 XP_CELL_MAP_HEIGHT = 1320
 INTERACTIVE_CELL_MAP_CACHE_VERSION = 5
@@ -1149,14 +1149,14 @@ def _cmp_stat_pct_delta_html(self_val: float | None, other_val: float | None) ->
 
 
 def _cmp_delta_compare_html(primary_val: float | None, compare_val: float | None) -> str:
-    """Arrow for the compare athlete only, relative to the main athlete."""
+    """Arrow showing whether compare_val is above/below primary_val."""
     if primary_val is None or compare_val is None:
         return ""
     if abs(compare_val - primary_val) < 0.05:
         return '<span class="cmp-delta flat" title="Tie">●</span>'
     if compare_val > primary_val:
-        return '<span class="cmp-delta up" title="Above primary">▲</span>'
-    return '<span class="cmp-delta down" title="Below primary">▼</span>'
+        return '<span class="cmp-delta up" title="Above">▲</span>'
+    return '<span class="cmp-delta down" title="Below">▼</span>'
 
 
 def _progression_compare_stats_html(
@@ -1527,7 +1527,7 @@ def _compare_column_metric_html(
     value = html.escape(_xp_compare_metric_display(source, key))
     num = _xp_compare_metric_numeric(source, key)
     other_num = _xp_compare_metric_numeric(other_source, key) if other_source else None
-    arrow = _cmp_delta_compare_html(num, other_num) if other_source is not None else ""
+    arrow = _cmp_delta_compare_html(other_num, num) if other_source is not None else ""
     bar_key = key if key in xstats.XP_PROFILE_BAR_KEYS else f"{key}_sub_display"
     bar = _xp_compare_mini_bar_html(_xp_compare_metric_numeric(source, bar_key))
     bar_block = (
@@ -3719,27 +3719,32 @@ st.markdown(
     }
     .pa-filter-count strong { color: #38bdf8; }
     .cmp-shell {
-        max-width: 1060px;
+        max-width: 1380px;
         margin: 0.15rem auto 1.25rem auto;
     }
     .cmp-compare-hero {
-        margin-bottom: 0.75rem;
-        max-width: 1060px;
+        margin-bottom: 0.85rem;
+        max-width: 1380px;
         margin-left: auto;
         margin-right: auto;
     }
+    .st-key-cmp_layout_row {
+        max-width: 1380px;
+        margin: 0 auto;
+        width: 100%;
+    }
     .st-key-cmp_layout_row [data-testid="stHorizontalBlock"] {
-        gap: 0.55rem !important;
-        max-width: 1060px;
+        gap: 0.85rem !important;
+        max-width: 1380px;
         margin: 0 auto;
         width: 100%;
         align-items: flex-start;
     }
     .st-key-cmp_layout_row [data-testid="column"]:first-child {
-        flex: 0 0 228px !important;
-        width: 228px !important;
-        min-width: 228px !important;
-        max-width: 228px !important;
+        flex: 0 0 268px !important;
+        width: 268px !important;
+        min-width: 268px !important;
+        max-width: 268px !important;
     }
     .st-key-cmp_layout_row [data-testid="column"]:not(:first-child) {
         flex: 1 1 0 !important;
@@ -3805,10 +3810,27 @@ st.markdown(
         max-width: none;
         width: 100%;
         justify-self: stretch;
+        margin: 0;
     }
     .cmp-player-pane .pa-compare-col-heatmap {
-        max-height: 240px;
-        min-height: 175px;
+        max-height: 300px;
+        min-height: 220px;
+    }
+    .cmp-player-pane .pa-compare-col-head {
+        padding: 1rem 1.1rem 0.9rem;
+    }
+    .cmp-player-pane .pa-compare-profile-list {
+        padding-left: 1.1rem;
+        padding-right: 1.1rem;
+    }
+    .cmp-player-pane .pa-compare-col-metrics,
+    .cmp-player-pane .pa-compare-col-scores {
+        padding-left: 1.1rem;
+        padding-right: 1.1rem;
+    }
+    .cmp-player-pane .pa-compare-col-section {
+        padding-left: 1.1rem;
+        padding-right: 1.1rem;
     }
     .st-key-pa_filter_card label[data-testid="stWidgetLabel"] p {
         font-size: 0.78rem !important;
@@ -11156,7 +11178,7 @@ def render_compare_section(
     )
 
     with st.container(key="cmp_layout_row"):
-        col_filter, col_a, col_b = st.columns([0.9, 1.3, 1.3], gap="small")
+        col_filter, col_a, col_b = st.columns([1.0, 1.65, 1.65], gap="medium")
         with col_filter:
             player_a_id, player_b_id = _render_compare_filter_card(
                 all_players,
@@ -12184,7 +12206,7 @@ def render_presentation_tab(
         '<div class="pres-tile">'
         '<span class="pres-icon"><i class="fa-solid fa-sliders"></i></span>'
         "<h5>Filters</h5><p>In <strong>Player Profile</strong> or <strong>Compare</strong>, filter midfielders by league, "
-        "field orientation (attacking or defensive) and age band (&gt;30, 23-30, Sub-23, Sub-21).</p></div>"
+        "field orientation (attacking or defensive) and age band (U21, U23, 24-30, &gt;30).</p></div>"
         '<div class="pres-tile">'
         '<span class="pres-icon"><i class="fa-solid fa-user"></i></span>'
         "<h5>Player Profile</h5><p>Full player profile with stats and positional rank.</p></div>"
