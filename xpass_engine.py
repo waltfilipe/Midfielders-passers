@@ -23,7 +23,9 @@ import passes_engine as pe
 import xp_engine as xe
 import xp_study_engine as xse
 
-XPASS_MODEL_VERSION = "xpass_logistic_od12x8_dist_prog_lat_v2"
+XPASS_MODEL_VERSION = "xpass_logistic_od12x8_dist_prog_lat_v3"
+XPASS_HARD_COE_THRESHOLD = 0.65
+XPASS_HARD_COE_MIN_ATTEMPTS = 25
 XPASS_COL = "xpass"
 XPASS_RESIDUAL_COL = "xpass_residual"
 MIN_PLAYER_PASSES = 100
@@ -245,10 +247,10 @@ def aggregate_player_xpass_metrics(
         coe_pct = actual_pct - expected_pct
         coe_count = completed - expected
 
-        hard_mask = xpass < 0.72
+        hard_mask = xpass < XPASS_HARD_COE_THRESHOLD
         hard_attempts = int(hard_mask.sum())
         hard_coe_pct = None
-        if hard_attempts >= 30:
+        if hard_attempts >= XPASS_HARD_COE_MIN_ATTEMPTS:
             hard_won = int(won[hard_mask].sum())
             hard_exp = float(xpass[hard_mask].sum())
             hard_coe_pct = (hard_won / hard_attempts) - (hard_exp / hard_attempts)
@@ -375,3 +377,25 @@ def load_xpass_player_bundle() -> dict:
     if not XPASS_PLAYERS_JSON.is_file():
         return {"meta": {}, "players": []}
     return json.loads(XPASS_PLAYERS_JSON.read_text(encoding="utf-8"))
+
+
+XP_PLAYER_MERGE_KEYS: tuple[str, ...] = (
+    "xpass_residual_p90",
+    "xpass_hard_coe_pct",
+    "xpass_coe_pct",
+    "xpass_expected_pct",
+    "pass_attempts",
+)
+
+
+def attach_xpass_metrics_to_players(players: list[dict]) -> None:
+    """Merge offline xPass execution metrics into xP player dicts by player_id."""
+    bundle = load_xpass_player_bundle()
+    by_id = {str(p["player_id"]): p for p in bundle.get("players", [])}
+    for player in players:
+        src = by_id.get(str(player.get("player_id")))
+        if not src:
+            continue
+        for key in XP_PLAYER_MERGE_KEYS:
+            if src.get(key) is not None:
+                player[key] = src[key]

@@ -1,6 +1,6 @@
 {
-  "version": "xpass_logistic_od12x8_dist_prog_lat_v2",
-  "model_type": "logistic_l2_balanced",
+  "version": "xpass_logistic_od12x8_dist_prog_lat_v3",
+  "model_type": "logistic_l2",
   "c": 0.08,
   "grid": "study_m3_m4",
   "n_passes_scored": 445226,

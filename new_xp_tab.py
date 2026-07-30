@@ -26,7 +26,7 @@ _NEW_XP_LEADERBOARDS: tuple[tuple[str, str, str, str], ...] = (
     (
         "xpass_hard_coe_pct",
         "COE em passes difíceis",
-        "Overperformance em tentativas com xP < 72% (passes de alto risco geométrico).",
+        "Overperformance em tentativas com xP < 65% (passes de alto risco geométrico).",
         "fa-fire",
     ),
     (

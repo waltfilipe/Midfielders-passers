@@ -180,16 +180,15 @@ xstats = _load_xp_stats_engine()
 from new_xp_tab import render_new_xp_tab
 IMPACT_PASS_ABBR = getattr(xstats, "IMPACT_PASS_ABBR", "I.P.")
 XP_ROUND_SERIES_KEY = getattr(xstats, "XP_ROUND_SERIES_KEY", "xp_round_series")
-XP_PROFILE_BAR_KEYS_RENDER: tuple[str, ...] = (
-    "xp_activity_display",
-    "xp_edge_display",
-)
+XP_PROFILE_BAR_KEYS_RENDER: tuple[str, ...] = xstats.XP_PROFILE_BAR_KEYS
 XP_PROFILE_BAR_ICONS: dict[str, str] = getattr(
     xstats,
     "XP_PROFILE_BAR_ICONS",
     {
         "xp_activity_display": "fa-chart-simple",
         "xp_edge_display": "fa-bolt",
+        "xp_execution_display": "fa-arrow-trend-up",
+        "xp_hard_precision_display": "fa-fire",
         "xp_consistency_display": "fa-wave-square",
     },
 )
@@ -197,8 +196,10 @@ XP_PROFILE_BAR_WEIGHTS: dict[str, float] = getattr(
     xstats,
     "XP_PROFILE_BAR_WEIGHTS",
     {
-        "xp_activity_display": 0.50,
-        "xp_edge_display": 0.50,
+        "xp_activity_display": 0.34,
+        "xp_edge_display": 0.24,
+        "xp_execution_display": 0.24,
+        "xp_hard_precision_display": 0.18,
     },
 )
 _xp_study_maps = _load_xp_study_maps()
@@ -4942,6 +4943,35 @@ st.markdown(
         justify-content: flex-start;
         min-height: 0;
     }
+    .pa-xp-profile-bars-quad {
+        gap: 0.34rem;
+        justify-content: space-between;
+    }
+    .pa-xp-profile-bars-quad .pa-xp-pillar {
+        padding: 0.34rem 0.48rem 0.38rem;
+        gap: 0.28rem;
+        border-radius: 10px;
+    }
+    .pa-xp-profile-bars-quad .pa-xp-pillar-icon {
+        width: 1.42rem;
+        height: 1.42rem;
+        font-size: 0.72rem;
+        border-radius: 7px;
+    }
+    .pa-xp-profile-bars-quad .pa-xp-pillar-label {
+        font-size: 0.76rem;
+    }
+    .pa-xp-profile-bars-quad .pa-xp-pillar-weight {
+        font-size: 0.58rem;
+        padding: 0.06rem 0.34rem;
+    }
+    .pa-xp-profile-bars-quad .pa-xp-gradient-bar-track {
+        height: 0.42rem;
+    }
+    .pa-xp-profile-bars-quad .pa-xp-gradient-bar-marker {
+        width: 0.52rem;
+        height: 0.52rem;
+    }
     .pa-xp-profile-eligibility-note {
         margin: 0;
         color: #94a3b8;
@@ -5021,9 +5051,18 @@ st.markdown(
         bottom: auto;
     }
     .pa-xp-index-wrap {
-        margin-top: 0.7rem;
-        padding-top: 0.6rem;
-        border-top: 1px solid rgba(51, 65, 85, 0.55);
+        margin-top: 0;
+        margin-bottom: 0.55rem;
+        padding-top: 0;
+        padding-bottom: 0.55rem;
+        border-top: none;
+        border-bottom: 1px solid rgba(51, 65, 85, 0.55);
+    }
+    .pa-pillars-card .pa-xp-index-row {
+        padding: 0.34rem 0.48rem;
+    }
+    .pa-pillars-card .pa-xp-index-list {
+        gap: 0.22rem;
     }
     .pa-xp-index-title {
         margin: 0 0 0.42rem 0;
@@ -7928,10 +7967,7 @@ def _xp_gradient_bar_metric_rank_html(xp_profile: dict, key: str) -> str:
     )
 
 
-_GRADIENT_BAR_TOOLTIP_NO_RANK_KEYS: frozenset[str] = frozenset({
-    "xp_activity_display",
-    "xp_edge_display",
-})
+_GRADIENT_BAR_TOOLTIP_NO_RANK_KEYS: frozenset[str] = frozenset(xstats.XP_PROFILE_BAR_KEYS)
 
 
 def _xp_gradient_bar_tooltip_html(xp_profile: dict, display_key: str) -> str:
@@ -7987,12 +8023,19 @@ _XP_BAR_TICKS_HTML = (
 def _xp_profile_pillar_head_html(display_key: str) -> str:
     label = xstats.XP_PROFILE_BAR_LABELS.get(display_key, display_key)
     icon = XP_PROFILE_BAR_ICONS.get(display_key, "fa-circle-dot")
+    weight = XP_PROFILE_BAR_WEIGHTS.get(display_key)
+    weight_html = (
+        f'<span class="pa-xp-pillar-weight">{int(round(weight * 100))}%</span>'
+        if weight is not None
+        else ""
+    )
     return (
         '<div class="pa-xp-pillar-head">'
         '<span class="pa-xp-pillar-icon">'
         f'<i class="fa-solid {html.escape(icon)}" aria-hidden="true"></i>'
         "</span>"
         f'<span class="pa-xp-pillar-label">{html.escape(label)}</span>'
+        f"{weight_html}"
         "</div>"
     )
 
@@ -8066,7 +8109,8 @@ def _xp_profile_bars_html(xp_profile: dict | None) -> str:
         _xp_profile_pillar_html(key, xp_profile)
         for key in XP_PROFILE_BAR_KEYS_RENDER
     )
-    return f'<div class="pa-xp-profile-bars">{rows}</div>'
+    quad_cls = " pa-xp-profile-bars-quad" if len(XP_PROFILE_BAR_KEYS_RENDER) >= 4 else ""
+    return f'<div class="pa-xp-profile-bars{quad_cls}">{rows}</div>'
 
 
 def _xp_index_row_inner_html(
@@ -8442,12 +8486,10 @@ def _xp_profile_score_column_html(
     if not xp_profile:
         return ""
     bars_html = _xp_profile_bars_html(xp_profile)
-    index_html = _xp_index_boxes_html(xp_profile, xp_passes_df)
     return (
         '<div class="player-card pa-xp-profile-card">'
         '<p class="pa-xp-profile-title">xP Profile</p>'
         f"{bars_html}"
-        f"{index_html}"
         "</div>"
     )
 
@@ -8994,11 +9036,14 @@ def _pa_regular_stats_panel_html(
 def _build_xp_stats_card_html(
     xp_profile: dict | None,
     player: dict | None = None,
+    xp_passes_df: pd.DataFrame | None = None,
 ) -> str:
+    index_html = _xp_index_boxes_html(xp_profile, xp_passes_df)
     regular_html = _pa_regular_stats_panel_html(player, xp_profile)
     return (
         '<div class="player-card pa-pillars-card">'
         '<div class="pa-pillars-stack"><div class="pa-pillar-group">'
+        f"{index_html}"
         f"{regular_html}"
         "</div></div>"
         "</div>"
@@ -9086,7 +9131,7 @@ def _build_player_analysis_layout_html(
         fmt_pct_fn=fmt_pct_fn,
         fmt_stat_fn=fmt_stat_fn,
     )
-    stats_card = _build_xp_stats_card_html(xp_profile, player)
+    stats_card = _build_xp_stats_card_html(xp_profile, player, xp_passes_df=xp_passes_df)
     return (
         f'<div class="pa-layout" style="{layout_style}">'
         f'<div class="pa-col pa-col-identity">{left_card}</div>'

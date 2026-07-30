@@ -764,10 +764,12 @@ XP_ARCHETYPE_RADAR_LABELS: dict[str, str] = {
     "xp_archetype_finisher_display": "Finisher-pass",
 }
 
-# The two pillars rendered as gradient bars in the xP Profile (grade drivers).
+# The four pillars rendered as gradient bars in the xP Profile (grade drivers).
 XP_PROFILE_BAR_KEYS: tuple[str, ...] = (
     "xp_activity_display",
     "xp_edge_display",
+    "xp_execution_display",
+    "xp_hard_precision_display",
 )
 
 # Axes used only to classify the xP profile archetype (not all are rendered).
@@ -781,6 +783,8 @@ XP_ARCHETYPE_AXIS_KEYS: tuple[str, ...] = (
 XP_PROFILE_BAR_LABELS: dict[str, str] = {
     "xp_activity_display": "Productivity",
     "xp_edge_display": "Effectiveness",
+    "xp_execution_display": "Entrega /90",
+    "xp_hard_precision_display": "Precisão difícil",
     "xp_quality_display": "Quality",
     "xp_consistency_display": "Consistency",
 }
@@ -788,6 +792,8 @@ XP_PROFILE_BAR_LABELS: dict[str, str] = {
 XP_PROFILE_BAR_ICONS: dict[str, str] = {
     "xp_activity_display": "fa-chart-simple",
     "xp_edge_display": "fa-bolt",
+    "xp_execution_display": "fa-arrow-trend-up",
+    "xp_hard_precision_display": "fa-fire",
     "xp_quality_display": "fa-arrow-trend-up",
     "xp_consistency_display": "fa-wave-square",
 }
@@ -795,6 +801,8 @@ XP_PROFILE_BAR_ICONS: dict[str, str] = {
 XP_PROFILE_BAR_METRICS: dict[str, tuple[str, ...]] = {
     "xp_activity_display": ("xp_per_90",),
     "xp_edge_display": ("xp_m4_per_pass",),
+    "xp_execution_display": ("xpass_residual_p90",),
+    "xp_hard_precision_display": ("xpass_hard_coe_pct",),
     "xp_quality_display": ("xp_residual_median",),
     "xp_consistency_display": ("xp_game_std_adj_score",),
 }
@@ -883,8 +891,14 @@ XP_COMPARE_METRIC_TOOLTIPS: dict[str, str] = {
 }
 
 XP_PROFILE_BAR_TOOLTIPS: dict[str, str] = {
-    "xp_activity_display": "How much xP the player generates per game — passing volume times value.",
-    "xp_edge_display": "Average xP per pass — how valuable each delivery is, regardless of volume.",
+    "xp_activity_display": "How much xPV the player generates per game — passing volume times destination value.",
+    "xp_edge_display": "Average xPV per completed pass — how valuable each delivery is, regardless of volume.",
+    "xp_execution_display": (
+        "Sum of (pass completed − xP probability) per 90 minutes — execution above the geometric model."
+    ),
+    "xp_hard_precision_display": (
+        "Completion over expected on passes with xP < 65% — accuracy on high-risk deliveries."
+    ),
     "xp_quality_display": "Median xP above the model's expectation — value that comes from surprise.",
     "xp_consistency_display": "How stable game-to-game xP delivery is.",
 }
@@ -955,19 +969,24 @@ XP_PROFILE_ARCHETYPE_FILTER_ALL = ""
 
 ACTIVITY_METRICS: tuple[str, ...] = ("xp_per_90",)
 EDGE_METRICS: tuple[str, ...] = ("xp_m4_per_pass",)
+EXECUTION_METRICS: tuple[str, ...] = ("xpass_residual_p90",)
+HARD_PRECISION_METRICS: tuple[str, ...] = ("xpass_hard_coe_pct",)
 
-# Grade = weighted arithmetic mean of Productivity (xP/game) and Effectiveness (xP/pass).
+# Grade = weighted mean of four pillars (z-scores within position group).
 XP_PASS_RATING_FEATURE_WEIGHTS: dict[str, float] = {
-    "xp_per_90": 0.50,
-    "xp_m4_per_pass": 0.50,
+    "xp_per_90": 0.34,
+    "xp_m4_per_pass": 0.24,
+    "xpass_residual_p90": 0.24,
+    "xpass_hard_coe_pct": 0.18,
 }
 XP_PASS_RATING_FEATURES: tuple[str, ...] = tuple(XP_PASS_RATING_FEATURE_WEIGHTS)
 
 # Weight each rendered pillar carries in the composite grade.
 XP_PROFILE_BAR_WEIGHTS: dict[str, float] = {
-    display_key: XP_PASS_RATING_FEATURE_WEIGHTS[metrics[0]]
-    for display_key, metrics in XP_PROFILE_BAR_METRICS.items()
-    if metrics and metrics[0] in XP_PASS_RATING_FEATURE_WEIGHTS
+    "xp_activity_display": XP_PASS_RATING_FEATURE_WEIGHTS["xp_per_90"],
+    "xp_edge_display": XP_PASS_RATING_FEATURE_WEIGHTS["xp_m4_per_pass"],
+    "xp_execution_display": XP_PASS_RATING_FEATURE_WEIGHTS["xpass_residual_p90"],
+    "xp_hard_precision_display": XP_PASS_RATING_FEATURE_WEIGHTS["xpass_hard_coe_pct"],
 }
 XP_PASS_RATING_TANH_SCALE = 1.25
 XP_PASS_RATING_TANH_AMPLITUDE = 1.15
@@ -1025,6 +1044,8 @@ CONSISTENCY_INVERT_METRICS: tuple[str, ...] = ()
 XP_PROFILE_BAR_SPECS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("xp_activity_index", "xp_activity_display", ACTIVITY_METRICS),
     ("xp_edge_index", "xp_edge_display", EDGE_METRICS),
+    ("xp_execution_index", "xp_execution_display", EXECUTION_METRICS),
+    ("xp_hard_precision_index", "xp_hard_precision_display", HARD_PRECISION_METRICS),
     ("xp_quality_index", "xp_quality_display", QUALITY_METRICS),
     ("xp_consistency_index", "xp_consistency_display", CONSISTENCY_METRICS),
 )
@@ -1142,6 +1163,8 @@ XP_PA_LABELS: dict[str, str] = {
     "xp_surprise_rate": "% above expected",
     "xp_game_std_adj_score": "Stability",
     "xp_games_above_median_pct": "% strong games",
+    "xpass_residual_p90": "Entrega /90",
+    "xpass_hard_coe_pct": "Precisão difícil",
 }
 
 XP_PA_TOOLTIPS: dict[str, str] = {
@@ -1160,6 +1183,8 @@ XP_PA_TOOLTIPS: dict[str, str] = {
     "xp_surprise_rate": "Share of passes with a positive residual — passes that beat expectations.",
     "xp_game_std_adj_score": "Delivery stability across games, adjusted for the player's average xP level.",
     "xp_games_above_median_pct": "Share of games where the player's xP was above their own median.",
+    "xpass_residual_p90": "Sum of (completed − xP) per 90 minutes.",
+    "xpass_hard_coe_pct": "Completion over expected on passes with xP below 65%.",
 }
 
 def iter_stats_metric_options() -> tuple[tuple[str, str], ...]:
@@ -1953,13 +1978,13 @@ def _attach_secondary_indices(eligible_rows: list[dict]) -> None:
 
 
 def _xp_pass_rating_shrink_sample(feature_key: str, player: dict) -> float:
-    if feature_key in {"xp_per_90", "threat_passes_p90"}:
+    if feature_key in {"xp_per_90", "threat_passes_p90", "xpass_residual_p90"}:
         return float(player.get("minutes") or 0.0)
     return float(player.get("passes_completed") or 0.0)
 
 
 def _xp_pass_rating_shrink_k(feature_key: str) -> float:
-    if feature_key in {"xp_per_90", "threat_passes_p90"}:
+    if feature_key in {"xp_per_90", "threat_passes_p90", "xpass_residual_p90"}:
         return float(pe.SHRINKAGE_MINUTES_K)
     return float(pe.SHRINKAGE_PASS_K)
 
@@ -2063,12 +2088,11 @@ def _xp_pass_rating_percentile_band_display(rank: int, pool_size: int) -> float:
 
 
 def attach_xp_pass_ratings(players: list[dict]) -> None:
-    """Attach xP pass rating (2-metric weighted mean + shrinkage) with blended display.
+    """Attach xP pass rating (4-metric weighted mean + shrinkage) with blended display.
 
-    The composite is a weighted arithmetic mean of within-position z-scores:
-    Productivity (xP/game, 50%) and Effectiveness (xP/pass, 50%). Players are ranked
-    by that composite; the displayed grade blends a probit rank curve with tanh(composite z)
-    (52/48), clipped to 4.5–8.48, then a light confidence pull toward 6.0.
+    Composite = weighted z-scores within position:
+    Productivity 34%, Effectiveness 24%, Entrega/90 24%, Precisão difícil 18%.
+    Display grade blends probit rank (52%) with tanh(composite z) (48%), then confidence pull.
     """
     if not players:
         return
@@ -2451,8 +2475,10 @@ def format_pa_stats_value(key: str, value: float | int | None) -> str:
         return f"{val:+.2f}"
     if key in {"xp_m4_per_pass", "xp_m4_per_threat_pass"}:
         return f"{val:.2f}"
-    if key in {"xp_per_90", "threat_passes_p90"}:
+    if key in {"xp_per_90", "threat_passes_p90", "xpass_residual_p90"}:
         return f"{val:.1f}"
+    if key == "xpass_hard_coe_pct":
+        return f"{val:+.1f} pp"
     return format_stats_value(key, value)
 
 
