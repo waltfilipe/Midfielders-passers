@@ -800,7 +800,7 @@ XP_PROFILE_BAR_METRICS: dict[str, tuple[str, ...]] = {
     "xp_edge_display": ("xp_m4_per_pass",),
     "xp_efficiency_display": ("xpass_residual_p90",),
     "xp_quality_display": ("xp_residual_median",),
-    "xp_consistency_display": ("xp_game_std_adj_score",),
+    "xp_consistency_display": ("xp_game_consistency_score",),
 }
 
 # Metrics that carry their own rank-based mini-bar in the comparison view.
@@ -816,7 +816,7 @@ XP_PROFILE_SUBMETRICS: tuple[str, ...] = (
 # (index_key, label, metrics, invert_metrics)
 XP_INDEX_ELITE_TOP_N = 10
 XP_INDEX_SPECS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...] = (
-    ("xp_idx_consistency", "Consistency", ("xp_game_std_adj_score",), ()),
+    ("xp_idx_consistency", "Consistency", ("xp_game_consistency_score",), ()),
     ("xp_idx_impact", "Impact", ("threat_passes_p90",), ()),
 )
 
@@ -828,7 +828,11 @@ XP_INDEX_TIER_LABELS: dict[str, str] = {
 }
 
 XP_INDEX_TOOLTIPS: dict[str, str] = {
-    "xp_idx_consistency": "Game-to-game xP stability — how consistent the player's delivery is.",
+    "xp_idx_consistency": (
+        "Each match gets a 3–9 grade from game xP vs. all peer matches in the position. "
+        "Consistency badge when the dispersion of those grades is low — measured by MAD "
+        "(median absolute deviation), which is robust to outlier games."
+    ),
     "xp_idx_impact": (
         "Impact passes combine high destination value, positive residual and forward "
         "progress — deliveries that meaningfully change expected threat."
@@ -893,7 +897,7 @@ XP_PROFILE_BAR_TOOLTIPS: dict[str, str] = {
         "Sum of (pass completed − xP probability) per 90 minutes — execution above the geometric model."
     ),
     "xp_quality_display": "Median xP above the model's expectation — value that comes from surprise.",
-    "xp_consistency_display": "How stable game-to-game xP delivery is.",
+    "xp_consistency_display": "How stable game-to-game delivery grades are (low MAD of per-match scores).",
 }
 
 XP_PROFILE_ARCHETYPE_KEYS: tuple[str, ...] = (
@@ -1028,7 +1032,7 @@ FINISHER_METRICS: tuple[str, ...] = (
     "special_cross_p90",
 )
 QUALITY_METRICS: tuple[str, ...] = ("xp_residual_median",)
-CONSISTENCY_METRICS: tuple[str, ...] = ("xp_game_std_adj_score",)
+CONSISTENCY_METRICS: tuple[str, ...] = ("xp_game_consistency_score",)
 CONSISTENCY_INVERT_METRICS: tuple[str, ...] = ()
 
 XP_PROFILE_BAR_SPECS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
@@ -1348,6 +1352,9 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
     "pass_completion_pct",
     "long_balls",
     "long_ball_completion_pct",
+    "xpass_coe_pct",
+    "xpass_long_coe_pct",
+    "xpass_coe_high_pct",
     "progressive_passes",
     "final_third_passes",
     "passes_to_box",
@@ -1355,8 +1362,8 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
     "long_pass_share_pct",
     "special_line_break_p90",
     "impact_passes_p90",
-    "ip_dest_first_two_thirds_p90",
-    "ip_dest_final_third_p90",
+    "pass_volume_index",
+    "pass_efficiency_index",
     "pass_buildup_index",
     "pass_chance_creation_index",
 )
@@ -1364,6 +1371,16 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
 # Regular-stats composite scores (winsorized within-position z-means).
 PASS_SCORE_WINSOR_LOWER_Q = 0.05
 PASS_SCORE_WINSOR_UPPER_Q = 0.95
+PASS_VOLUME_METRICS: tuple[str, ...] = (
+    "passes_total",
+    "long_balls",
+)
+PASS_EFFICIENCY_METRICS: tuple[str, ...] = (
+    "pass_completion_pct",
+    "long_ball_completion_pct",
+    "xpass_coe_pct",
+    "xpass_long_coe_pct",
+)
 PASS_BUILDUP_METRICS: tuple[str, ...] = (
     "progressive_passes",
     "final_third_passes",
@@ -1373,31 +1390,65 @@ PASS_BUILDUP_METRICS: tuple[str, ...] = (
 PASS_CHANCE_CREATION_METRICS: tuple[str, ...] = (
     "key_passes",
     "passes_to_box",
+    "xpass_coe_high_pct",
 )
 PASS_SCORE_SPECS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("pass_volume_index", "pass_volume_display", PASS_VOLUME_METRICS),
+    ("pass_efficiency_index", "pass_efficiency_display", PASS_EFFICIENCY_METRICS),
     ("pass_buildup_index", "pass_buildup_display", PASS_BUILDUP_METRICS),
     ("pass_chance_creation_index", "pass_chance_creation_display", PASS_CHANCE_CREATION_METRICS),
 )
 PASS_SCORE_LABELS: dict[str, str] = {
+    "pass_volume_index": "Volume",
+    "pass_volume_display": "Volume",
+    "pass_efficiency_index": "Efficiency",
+    "pass_efficiency_display": "Efficiency",
     "pass_buildup_index": "Build-up",
     "pass_buildup_display": "Build-up",
     "pass_chance_creation_index": "Chance creation",
     "pass_chance_creation_display": "Chance creation",
 }
 PASS_SCORE_TOOLTIPS: dict[str, str] = {
+    "pass_volume_index": (
+        "Within-position composite of passes and long passes per game."
+    ),
+    "pass_volume_display": (
+        "Within-position composite of passes and long passes per game."
+    ),
+    "pass_efficiency_index": (
+        "Within-position composite of completion rates and COE (completion over expected) "
+        "on all passes and long passes."
+    ),
+    "pass_efficiency_display": (
+        "Within-position composite of completion rates and COE (completion over expected) "
+        "on all passes and long passes."
+    ),
     "pass_buildup_index": (
         "Within-position composite of progressive passes, final-third entries, "
         "line-breaking passes and impact passes per game."
     ),
+    "pass_buildup_display": (
+        "Within-position composite of progressive passes, final-third entries, "
+        "line-breaking passes and impact passes per game."
+    ),
     "pass_chance_creation_index": (
-        "Within-position composite of key passes and passes into the box per game."
+        "Within-position composite of key passes, passes into the box and COEH "
+        "(COE on passes with xP below 60%)."
+    ),
+    "pass_chance_creation_display": (
+        "Within-position composite of key passes, passes into the box and COEH "
+        "(COE on passes with xP below 60%)."
     ),
 }
 PASS_SCORE_LETTER_KEYS: dict[str, str] = {
+    "pass_volume_display": "pass_volume_letter",
+    "pass_efficiency_display": "pass_efficiency_letter",
     "pass_buildup_display": "pass_buildup_letter",
     "pass_chance_creation_display": "pass_chance_creation_letter",
 }
 PASS_SCORE_INDEX_KEYS: dict[str, str] = {
+    "pass_volume_display": "pass_volume_index",
+    "pass_efficiency_display": "pass_efficiency_index",
     "pass_buildup_display": "pass_buildup_index",
     "pass_chance_creation_display": "pass_chance_creation_index",
 }
@@ -1528,7 +1579,8 @@ def _mean_winsorized_z_columns(
         if col in invert:
             z = -z
         parts.append(z)
-    return sum(parts) / len(parts)
+    frame = pd.concat(parts, axis=1)
+    return frame.mean(axis=1, skipna=True).fillna(0.0)
 
 
 def _rank_descending(values: pd.Series) -> pd.Series:
@@ -1652,6 +1704,46 @@ def _attach_game_std_adjusted(rows: list[dict]) -> None:
     for row, val in zip(rows, adjusted):
         row["xp_game_std_adj"] = float(val)
         row["xp_game_std_adj_score"] = float(-val)
+
+
+def _attach_game_grade_consistency(rows: list[dict]) -> None:
+    """Per-match grades from position game-xP pool; consistency = low MAD of those grades."""
+    import passes_engine as pe
+
+    if not rows:
+        return
+    pool_game_xps: dict[str, list[float]] = {}
+    for row in rows:
+        group = _metric_rank_pool_key(row)
+        series = row.get(XP_ROUND_SERIES_KEY) or ()
+        for point in series:
+            pool_game_xps.setdefault(group, []).append(float(point.get("xp") or 0.0))
+
+    for row in rows:
+        group = _metric_rank_pool_key(row)
+        pool = np.array(pool_game_xps.get(group, []), dtype=float)
+        series = row.get(XP_ROUND_SERIES_KEY) or ()
+        if len(series) < 3 or len(pool) < 10:
+            row["xp_game_consistency_score"] = 0.0
+            row["xp_game_grade_mad"] = None
+            row["xp_game_grade_mean"] = None
+            row["xp_game_grades"] = ()
+            continue
+
+        grades: list[float] = []
+        pool_size = len(pool)
+        for point in series:
+            xp_val = float(point.get("xp") or 0.0)
+            pseudo_rank = int(np.sum(pool > xp_val)) + 1
+            grades.append(float(pe.rank_to_display_score(pseudo_rank, pool_size)))
+
+        grades_arr = np.array(grades, dtype=float)
+        median_grade = float(np.median(grades_arr))
+        mad = float(np.median(np.abs(grades_arr - median_grade)))
+        row["xp_game_grade_mean"] = round(median_grade, 2)
+        row["xp_game_grade_mad"] = round(mad, 2)
+        row["xp_game_consistency_score"] = float(-mad)
+        row["xp_game_grades"] = tuple(round(g, 2) for g in grades)
 
 
 def _xp_profile_axis_medians(rows: list[dict]) -> dict[str, float]:
@@ -1841,7 +1933,7 @@ def attach_xp_profile_bar_eligibility(players: list[dict]) -> None:
 
 
 def attach_regular_pass_scores(players: list[dict]) -> None:
-    """Attach build-up and chance-creation scores from winsorized within-position z-means."""
+    """Attach volume, efficiency, build-up and chance-creation composite scores."""
     if not players:
         return
     pools: dict[str, list[dict]] = {}
@@ -1874,6 +1966,7 @@ def attach_composite_indices(players: list[dict]) -> None:
 
     for rows in pools.values():
         _attach_game_std_adjusted(rows)
+        _attach_game_grade_consistency(rows)
         df = pd.DataFrame(rows)
         position_group = str(rows[0].get("position_group") or "")
         eligible_rows = _attach_xp_profile_bar_eligibility_for_pool(rows)
@@ -2466,7 +2559,7 @@ def format_pa_stats_value(key: str, value: float | int | None) -> str:
         return f"{val:.2f}"
     if key in {"xp_per_90", "threat_passes_p90", "xpass_residual_p90"}:
         return f"{val:.1f}"
-    if key == "xpass_hard_coe_pct":
+    if key == "xpass_hard_coe_pct" or key == "xpass_coe_high_pct" or key == "xpass_coe_pct" or key == "xpass_long_coe_pct":
         return f"{val:+.1f} pp"
     return format_stats_value(key, value)
 

@@ -25,6 +25,7 @@ import xp_study_engine as xse
 
 XPASS_MODEL_VERSION = "xpass_logistic_od12x8_dist_prog_lat_v3"
 XPASS_HARD_COE_THRESHOLD = 0.65
+XPASS_COE_HIGH_THRESHOLD = 0.60
 XPASS_HARD_COE_MIN_ATTEMPTS = 25
 XPASS_COL = "xpass"
 XPASS_RESIDUAL_COL = "xpass_residual"
@@ -255,6 +256,14 @@ def aggregate_player_xpass_metrics(
             hard_exp = float(xpass[hard_mask].sum())
             hard_coe_pct = (hard_won / hard_attempts) - (hard_exp / hard_attempts)
 
+        high_mask = xpass < XPASS_COE_HIGH_THRESHOLD
+        high_attempts = int(high_mask.sum())
+        high_coe_pct = None
+        if high_attempts >= XPASS_HARD_COE_MIN_ATTEMPTS:
+            high_won = int(won[high_mask].sum())
+            high_exp = float(xpass[high_mask].sum())
+            high_coe_pct = (high_won / high_attempts) - (high_exp / high_attempts)
+
         long_mask = attempts["distance_band"].astype(str) == "long" if "distance_band" in attempts.columns else (
             attempts["pass_distance"].to_numpy(dtype=float) > xse.XP_DISTANCE_BAND_MAX_SHORT_M
         )
@@ -289,6 +298,7 @@ def aggregate_player_xpass_metrics(
             "xpass_residual_p90": round(_per90(residual_total, minutes) or 0.0, 3),
             "xpass_difficulty_mean": round(difficulty_mean, 4),
             "xpass_hard_coe_pct": round(hard_coe_pct * 100.0, 2) if hard_coe_pct is not None else None,
+            "xpass_coe_high_pct": round(high_coe_pct * 100.0, 2) if high_coe_pct is not None else None,
             "xpass_long_coe_pct": round(long_coe_pct * 100.0, 2) if long_coe_pct is not None else None,
             "xpass_attempts_p90": round(_per90(n_attempts, minutes) or 0.0, 1),
             "xpv_per_pass": round(xpv_per_pass, 4) if xpv_per_pass is not None else None,
@@ -312,6 +322,7 @@ def _attach_ranks(players: list[dict]) -> None:
     _rank("xpass_residual_total")
     _rank("xpass_residual_p90")
     _rank("xpass_hard_coe_pct")
+    _rank("xpass_coe_high_pct")
     _rank("xpass_difficulty_mean")
     _rank("xpv_per_pass")
     _rank("xpv_per_pass_p90")
@@ -382,7 +393,9 @@ def load_xpass_player_bundle() -> dict:
 XP_PLAYER_MERGE_KEYS: tuple[str, ...] = (
     "xpass_residual_p90",
     "xpass_hard_coe_pct",
+    "xpass_coe_high_pct",
     "xpass_coe_pct",
+    "xpass_long_coe_pct",
     "xpass_expected_pct",
     "pass_attempts",
 )

@@ -8456,10 +8456,12 @@ def _xp_profile_score_column_html(
     if not xp_profile:
         return ""
     bars_html = _xp_profile_bars_html(xp_profile)
+    index_html = _xp_index_boxes_html(xp_profile, xp_passes_df)
     return (
         '<div class="player-card pa-xp-profile-card">'
         '<p class="pa-xp-profile-title">xP Profile</p>'
         f"{bars_html}"
+        f"{index_html}"
         "</div>"
     )
 
@@ -8637,14 +8639,29 @@ def _xp_section_grade_accordion_html(
     )
 
 
-XP_PA_REGULAR_STAT_KEYS: tuple[str, ...] = (
-    "passes_total",
-    "pass_completion_pct",
-    "long_balls",
-    "long_ball_completion_pct",
-)
-
-XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
+    (
+        "pass_volume_display",
+        "pass_volume_index",
+        "pass_volume_letter",
+        "Volume",
+        (
+            "passes_total",
+            "long_balls",
+        ),
+    ),
+    (
+        "pass_efficiency_display",
+        "pass_efficiency_index",
+        "pass_efficiency_letter",
+        "Efficiency",
+        (
+            "pass_completion_pct",
+            "long_ball_completion_pct",
+            "xpass_coe_pct",
+            "xpass_long_coe_pct",
+        ),
+    ),
     (
         "pass_buildup_display",
         "pass_buildup_index",
@@ -8665,11 +8682,19 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         (
             "key_passes",
             "passes_to_box",
+            "xpass_coe_high_pct",
         ),
     ),
 )
 
 XP_PA_REGULAR_COMPONENT_LABELS: dict[str, str] = {
+    "passes_total": "Passes / game",
+    "long_balls": "Long passes / game",
+    "pass_completion_pct": "% Passes",
+    "long_ball_completion_pct": "% Long passes",
+    "xpass_coe_pct": "COE",
+    "xpass_long_coe_pct": "COE long passes",
+    "xpass_coe_high_pct": "COEH",
     "progressive_passes": "Progressive passes / game",
     "final_third_passes": "Passes into final third / game",
     "passes_to_box": "Passes into box / game",
@@ -8679,6 +8704,15 @@ XP_PA_REGULAR_COMPONENT_LABELS: dict[str, str] = {
 }
 
 XP_PA_REGULAR_COMPONENT_TOOLTIPS: dict[str, str] = {
+    "passes_total": "Passes attempted per 90 minutes.",
+    "long_balls": "Long passes (≥30 m) per 90 minutes.",
+    "pass_completion_pct": "Completed pass percentage.",
+    "long_ball_completion_pct": "Completed long-pass percentage.",
+    "xpass_coe_pct": "Completion over expected on all passes (percentage points).",
+    "xpass_long_coe_pct": "Completion over expected on long passes (percentage points).",
+    "xpass_coe_high_pct": (
+        "COE High — completion over expected on passes with xP below 60%."
+    ),
     "progressive_passes": (
         "Progressive passes completed per game (p90) — Wyscout criterion: "
         "advance ≥ 10 m toward goal, or ≥ 5 m inside the final third."
@@ -8700,6 +8734,13 @@ XP_PA_REGULAR_COMPONENT_TOOLTIPS: dict[str, str] = {
 }
 
 XP_PA_REGULAR_COMPONENT_KIND: dict[str, str] = {
+    "passes_total": "p90",
+    "long_balls": "p90",
+    "pass_completion_pct": "pct",
+    "long_ball_completion_pct": "pct",
+    "xpass_coe_pct": "pp",
+    "xpass_long_coe_pct": "pp",
+    "xpass_coe_high_pct": "pp",
     "progressive_passes": "p90",
     "final_third_passes": "p90",
     "passes_to_box": "p90",
@@ -8709,36 +8750,24 @@ XP_PA_REGULAR_COMPONENT_KIND: dict[str, str] = {
 }
 
 XP_PA_REGULAR_SCORE_TOOLTIPS: dict[str, str] = {
+    "pass_volume_display": (
+        "Within-position composite of passes and long passes per game. "
+        "Component z-scores are winsorized at P5–P95 before averaging."
+    ),
+    "pass_efficiency_display": (
+        "Within-position composite of completion rates and COE on all passes and long passes. "
+        "Component z-scores are winsorized at P5–P95 before averaging."
+    ),
     "pass_buildup_display": (
         "Within-position composite of progressive passes, final-third entries, "
         "line-breaking passes and impact passes per game. "
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
     "pass_chance_creation_display": (
-        "Within-position composite of key passes and passes into the box per game. "
+        "Within-position composite of key passes, passes into the box and COEH "
+        "(COE on passes with xP below 60%). "
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
-}
-
-XP_PA_REGULAR_STAT_LABELS: dict[str, str] = {
-    "passes_total": "Passes / game",
-    "pass_completion_pct": "% Passes certos",
-    "long_balls": "Long passes / game",
-    "long_ball_completion_pct": "% Completed long passes",
-}
-
-XP_PA_REGULAR_STAT_TOOLTIPS: dict[str, str] = {
-    "passes_total": "Passes attempted per 90 minutes.",
-    "pass_completion_pct": "Completed pass percentage.",
-    "long_balls": "Long passes (≥30 m) per 90 minutes.",
-    "long_ball_completion_pct": "Completed long-pass percentage.",
-}
-
-XP_PA_REGULAR_STAT_KIND: dict[str, str] = {
-    "passes_total": "p90",
-    "pass_completion_pct": "pct",
-    "long_balls": "p90",
-    "long_ball_completion_pct": "pct",
 }
 
 
@@ -8751,6 +8780,8 @@ def _pa_simple_stat_value(value: float | int | None, kind: str) -> str:
         return "—"
     if kind == "pct":
         return f"{val:.1f}%"
+    if kind == "pp":
+        return f"{val:+.1f} pp"
     if kind == "dist":
         return f"{val:.1f} m"
     if kind == "xp":
@@ -8759,24 +8790,16 @@ def _pa_simple_stat_value(value: float | int | None, kind: str) -> str:
 
 
 def _pa_regular_stat_value(source: dict, key: str) -> str:
-    kind = XP_PA_REGULAR_STAT_KIND.get(key) or XP_PA_REGULAR_COMPONENT_KIND.get(key, "p90")
+    kind = XP_PA_REGULAR_COMPONENT_KIND.get(key, "p90")
     return _pa_simple_stat_value(source.get(key), kind)
 
 
 def _pa_regular_stat_label(key: str) -> str:
-    return (
-        XP_PA_REGULAR_STAT_LABELS.get(key)
-        or XP_PA_REGULAR_COMPONENT_LABELS.get(key)
-        or key
-    )
+    return XP_PA_REGULAR_COMPONENT_LABELS.get(key, key)
 
 
 def _pa_regular_stat_tooltip(key: str) -> str:
-    return (
-        XP_PA_REGULAR_STAT_TOOLTIPS.get(key)
-        or XP_PA_REGULAR_COMPONENT_TOOLTIPS.get(key)
-        or ""
-    )
+    return XP_PA_REGULAR_COMPONENT_TOOLTIPS.get(key, "")
 
 
 def _pa_letter_grade_pill_html(display_score: float | None, letter: str | None = None) -> str:
@@ -8815,6 +8838,8 @@ def _pa_regular_score_summary_html(
     if score_val is not None:
         letter = source.get(letter_key) or xstats.display_score_letter_grade(score_val)
         index_key = {
+            "pass_volume_display": "pass_volume_index",
+            "pass_efficiency_display": "pass_efficiency_index",
             "pass_buildup_display": "pass_buildup_index",
             "pass_chance_creation_display": "pass_chance_creation_index",
         }.get(display_key, "")
@@ -8972,16 +8997,11 @@ def _pa_regular_stats_panel_html(
     player: dict | None,
     xp_profile: dict | None = None,
 ) -> str:
-    # xP profile owns p90 regular stats; player dict may still carry raw season totals.
     source = {**(player or {}), **(xp_profile or {})}
     metric_ranks = (
         player.get("metric_ranks")
         if isinstance((player or {}).get("metric_ranks"), dict)
         else {}
-    )
-    lines = "".join(
-        _pa_regular_stat_line_html(source, metric_ranks, key)
-        for key in XP_PA_REGULAR_STAT_KEYS
     )
     score_blocks = "".join(
         _pa_regular_score_accordion_html(
@@ -8996,9 +9016,8 @@ def _pa_regular_stats_panel_html(
         for display_key, index_key, letter_key, title, component_keys in XP_PA_REGULAR_SCORE_SPECS
     )
     return (
-        '<div class="pa-xp-section-panel">'
-        '<div class="pa-xp-section-title">Regular Stats</div>'
-        f'<div class="pa-xp-section-body">{lines}{score_blocks}</div>'
+        '<div class="pa-xp-section-panel pa-pass-score-panel">'
+        f'<div class="pa-xp-section-body pa-pass-score-accordions">{score_blocks}</div>'
         "</div>"
     )
 
@@ -9008,12 +9027,11 @@ def _build_xp_stats_card_html(
     player: dict | None = None,
     xp_passes_df: pd.DataFrame | None = None,
 ) -> str:
-    index_html = _xp_index_boxes_html(xp_profile, xp_passes_df)
+    _ = xp_passes_df
     regular_html = _pa_regular_stats_panel_html(player, xp_profile)
     return (
         '<div class="player-card pa-pillars-card">'
         '<div class="pa-pillars-stack"><div class="pa-pillar-group">'
-        f"{index_html}"
         f"{regular_html}"
         "</div></div>"
         "</div>"
