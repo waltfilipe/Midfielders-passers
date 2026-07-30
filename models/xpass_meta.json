@@ -1,0 +1,24 @@
+{
+  "version": "xpass_logistic_od12x8_dist_prog_lat_v2",
+  "model_type": "logistic_l2_balanced",
+  "c": 0.08,
+  "grid": "study_m3_m4",
+  "n_passes_scored": 445226,
+  "n_players": 522,
+  "cv_match_metrics": {
+    "brier_score": 0.09152341117729405,
+    "log_loss": 0.30191284736844115,
+    "roc_auc": 0.8686326970513369,
+    "completion_rate": 0.8386841738802316,
+    "mean_predicted": 0.8387878357088762
+  },
+  "full_sample_metrics": {
+    "brier_score": 0.09131668017785848,
+    "log_loss": 0.30127807189072725,
+    "roc_auc": 0.8691600896016921,
+    "completion_rate": 0.8386841738802316,
+    "mean_predicted": 0.8387747611148342
+  },
+  "min_player_passes": 100,
+  "min_minutes": 450
+}

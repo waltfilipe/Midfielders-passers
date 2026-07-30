@@ -99,6 +99,24 @@ def _load_xp_stats_engine():
     return module
 
 
+def _load_xpass_engine():
+    """Load local xpass_engine.py explicitly (avoids path/shadowing on Streamlit Cloud)."""
+    import importlib.util
+
+    module_path = _APP_ROOT / "xpass_engine.py"
+    if not module_path.is_file():
+        raise ImportError(f"File not found: {module_path}")
+    module_name = "passes_xt_xpass_engine"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sys.modules[module_name] = module
+    sys.modules["xpass_engine"] = module
+    return module
+
+
 def _load_xp_study_maps():
     """Load local xp_study_maps.py explicitly (avoids stale/shadowed module on Streamlit Cloud)."""
     import importlib.util
@@ -157,7 +175,9 @@ from progression_maps import (
 )
 xpe = _load_xp_study_engine()
 xe = _load_xp_engine()
+xpass = _load_xpass_engine()
 xstats = _load_xp_stats_engine()
+from new_xp_tab import render_new_xp_tab
 IMPACT_PASS_ABBR = getattr(xstats, "IMPACT_PASS_ABBR", "I.P.")
 XP_ROUND_SERIES_KEY = getattr(xstats, "XP_ROUND_SERIES_KEY", "xp_round_series")
 XP_PROFILE_BAR_KEYS_RENDER: tuple[str, ...] = (
@@ -12602,8 +12622,8 @@ def _render_similarity_results_tab(
 
 
 def main() -> None:
-    tab_pres, tab_profile, tab_compare, tab_xp_maps = st.tabs(
-        ["Overview", "Player Profile", "Compare", "xP - Maps Analysis"]
+    tab_pres, tab_profile, tab_compare, tab_new_xp, tab_xp_maps = st.tabs(
+        ["Overview", "Player Profile", "Compare", "New xP", "xP - Maps Analysis"]
     )
     with tab_pres:
         render_presentation_tab([], {}, {}, {}, rated=[], xp_players=[])
@@ -12653,6 +12673,8 @@ def main() -> None:
                 _cmp_players_by_id,
                 xp_by_id=cmp_xp_by_id,
             )
+    with tab_new_xp:
+        render_new_xp_tab()
     with tab_xp_maps:
         render_xp_maps_analysis_tab()
 
