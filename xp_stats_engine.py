@@ -1355,6 +1355,7 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
     "xpass_coe_pct",
     "xpass_long_coe_pct",
     "xpass_coe_high_pct",
+    "xpass_high_difficulty_p90",
     "progressive_passes",
     "final_third_passes",
     "passes_to_box",
@@ -1366,6 +1367,7 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
     "pass_efficiency_index",
     "pass_buildup_index",
     "pass_chance_creation_index",
+    "pass_impact_index",
 )
 
 # Regular-stats composite scores (winsorized within-position z-means).
@@ -1383,11 +1385,14 @@ PASS_BUILDUP_METRICS: tuple[str, ...] = (
     "progressive_passes",
     "final_third_passes",
     "special_line_break_p90",
-    "threat_passes_p90",
 )
 PASS_CHANCE_CREATION_METRICS: tuple[str, ...] = (
     "key_passes",
     "passes_to_box",
+)
+PASS_IMPACT_METRICS: tuple[str, ...] = (
+    "threat_passes_p90",
+    "xpass_high_difficulty_p90",
     "xpass_coe_high_pct",
 )
 PASS_SCORE_SPECS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
@@ -1395,6 +1400,7 @@ PASS_SCORE_SPECS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("pass_efficiency_index", "pass_efficiency_display", PASS_EFFICIENCY_METRICS),
     ("pass_buildup_index", "pass_buildup_display", PASS_BUILDUP_METRICS),
     ("pass_chance_creation_index", "pass_chance_creation_display", PASS_CHANCE_CREATION_METRICS),
+    ("pass_impact_index", "pass_impact_display", PASS_IMPACT_METRICS),
 )
 PASS_SCORE_LABELS: dict[str, str] = {
     "pass_volume_index": "Volume",
@@ -1405,6 +1411,8 @@ PASS_SCORE_LABELS: dict[str, str] = {
     "pass_buildup_display": "Build-up",
     "pass_chance_creation_index": "Chance creation",
     "pass_chance_creation_display": "Chance creation",
+    "pass_impact_index": "Impact",
+    "pass_impact_display": "Impact",
 }
 PASS_SCORE_TOOLTIPS: dict[str, str] = {
     "pass_volume_index": (
@@ -1422,20 +1430,26 @@ PASS_SCORE_TOOLTIPS: dict[str, str] = {
         "and long passes."
     ),
     "pass_buildup_index": (
-        "Within-position composite of progressive passes, final-third entries, "
-        "line-breaking passes and impact passes per game."
+        "Within-position composite of progressive passes, final-third entries "
+        "and line-breaking passes per game."
     ),
     "pass_buildup_display": (
-        "Within-position composite of progressive passes, final-third entries, "
-        "line-breaking passes and impact passes per game."
+        "Within-position composite of progressive passes, final-third entries "
+        "and line-breaking passes per game."
     ),
     "pass_chance_creation_index": (
-        "Within-position composite of key passes, passes into the box and COEH "
-        "(COE on passes with xP below 60%)."
+        "Within-position composite of key passes and passes into the box per game."
     ),
     "pass_chance_creation_display": (
-        "Within-position composite of key passes, passes into the box and COEH "
-        "(COE on passes with xP below 60%)."
+        "Within-position composite of key passes and passes into the box per game."
+    ),
+    "pass_impact_index": (
+        "Within-position composite of impact passes, high-difficulty pass volume "
+        "(xP below 50%) and COEH per game."
+    ),
+    "pass_impact_display": (
+        "Within-position composite of impact passes, high-difficulty pass volume "
+        "(xP below 50%) and COEH per game."
     ),
 }
 PASS_SCORE_LETTER_KEYS: dict[str, str] = {
@@ -1443,12 +1457,14 @@ PASS_SCORE_LETTER_KEYS: dict[str, str] = {
     "pass_efficiency_display": "pass_efficiency_letter",
     "pass_buildup_display": "pass_buildup_letter",
     "pass_chance_creation_display": "pass_chance_creation_letter",
+    "pass_impact_display": "pass_impact_letter",
 }
 PASS_SCORE_INDEX_KEYS: dict[str, str] = {
     "pass_volume_display": "pass_volume_index",
     "pass_efficiency_display": "pass_efficiency_index",
     "pass_buildup_display": "pass_buildup_index",
     "pass_chance_creation_display": "pass_chance_creation_index",
+    "pass_impact_display": "pass_impact_index",
 }
 # Letter grades from within-pool rank percentile (strict: ~top 22% → B).
 RANK_PERCENTILE_LETTER_TIERS: tuple[tuple[float, str], ...] = (
@@ -2559,6 +2575,8 @@ def format_pa_stats_value(key: str, value: float | int | None) -> str:
         return f"{val:.1f}"
     if key == "xpass_hard_coe_pct" or key == "xpass_coe_high_pct" or key == "xpass_coe_pct" or key == "xpass_long_coe_pct":
         return f"{val:+.1f} pp"
+    if key == "xpass_high_difficulty_p90":
+        return f"{val:.2f}"
     return format_stats_value(key, value)
 
 

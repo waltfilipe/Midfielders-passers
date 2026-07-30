@@ -4171,7 +4171,7 @@ st.markdown(
         flex-direction: column;
         gap: 0.5rem;
         min-height: var(--pa-card-h);
-        height: auto;
+        height: 100%;
         overflow: visible;
         box-sizing: border-box;
     }
@@ -4200,7 +4200,7 @@ st.markdown(
         padding: 0.75rem 0.7rem 0.7rem;
         margin-bottom: 0;
         min-height: var(--pa-card-h);
-        height: auto;
+        height: 100%;
         overflow: visible;
         box-sizing: border-box;
     }
@@ -8668,7 +8668,6 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...
             "progressive_passes",
             "final_third_passes",
             "special_line_break_p90",
-            "threat_passes_p90",
         ),
     ),
     (
@@ -8679,6 +8678,16 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...
         (
             "key_passes",
             "passes_to_box",
+        ),
+    ),
+    (
+        "pass_impact_display",
+        "pass_impact_index",
+        "pass_impact_letter",
+        "Impact",
+        (
+            "threat_passes_p90",
+            "xpass_high_difficulty_p90",
             "xpass_coe_high_pct",
         ),
     ),
@@ -8692,6 +8701,7 @@ XP_PA_REGULAR_COMPONENT_LABELS: dict[str, str] = {
     "xpass_coe_pct": "COE",
     "xpass_long_coe_pct": "COE long passes",
     "xpass_coe_high_pct": "COEH",
+    "xpass_high_difficulty_p90": "High difficulty passes / game",
     "progressive_passes": "Progressive passes / game",
     "final_third_passes": "Passes into final third / game",
     "passes_to_box": "Passes into box / game",
@@ -8709,6 +8719,9 @@ XP_PA_REGULAR_COMPONENT_TOOLTIPS: dict[str, str] = {
     "xpass_long_coe_pct": "Completion over expected on long passes (percentage points).",
     "xpass_coe_high_pct": (
         "COE High — completion over expected on passes with xP below 60%."
+    ),
+    "xpass_high_difficulty_p90": (
+        "Passes attempted per game with completion xP below 50%."
     ),
     "progressive_passes": (
         "Progressive passes completed per game (p90) — Wyscout criterion: "
@@ -8738,6 +8751,7 @@ XP_PA_REGULAR_COMPONENT_KIND: dict[str, str] = {
     "xpass_coe_pct": "pp",
     "xpass_long_coe_pct": "pp",
     "xpass_coe_high_pct": "pp",
+    "xpass_high_difficulty_p90": "p90",
     "progressive_passes": "p90",
     "final_third_passes": "p90",
     "passes_to_box": "p90",
@@ -8756,13 +8770,17 @@ XP_PA_REGULAR_SCORE_TOOLTIPS: dict[str, str] = {
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
     "pass_buildup_display": (
-        "Within-position composite of progressive passes, final-third entries, "
-        "line-breaking passes and impact passes per game. "
+        "Within-position composite of progressive passes, final-third entries "
+        "and line-breaking passes per game. "
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
     "pass_chance_creation_display": (
-        "Within-position composite of key passes, passes into the box and COEH "
-        "(COE on passes with xP below 60%). "
+        "Within-position composite of key passes and passes into the box per game. "
+        "Component z-scores are winsorized at P5–P95 before averaging."
+    ),
+    "pass_impact_display": (
+        "Within-position composite of impact passes, high-difficulty pass volume "
+        "(xP below 50%) and COEH per game. "
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
 }
@@ -8839,6 +8857,7 @@ def _pa_regular_score_summary_html(
             "pass_efficiency_display": "pass_efficiency_index",
             "pass_buildup_display": "pass_buildup_index",
             "pass_chance_creation_display": "pass_chance_creation_index",
+            "pass_impact_display": "pass_impact_index",
         }.get(display_key, "")
         rank = source.get(f"{index_key}_rank_in_group") if index_key else None
         total = source.get(f"{index_key}_rank_pool_in_group") if index_key else None
