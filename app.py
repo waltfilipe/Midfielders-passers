@@ -1996,7 +1996,7 @@ APP_NAME = "World Cup"
 APP_LEAGUE = "xP (Expected Passes) Analysis"
 PRES_DEMO_KEY = "pres_active_demo"
 FONT_AWESOME_CDN = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-PLAYER_ANALYSIS_CARD_HEIGHT_PX = 620
+PLAYER_ANALYSIS_CARD_HEIGHT_PX = 680
 
 st.set_page_config(page_title=f"{APP_NAME} | {APP_LEAGUE}", layout="wide", initial_sidebar_state="collapsed")
 
@@ -4225,14 +4225,13 @@ st.markdown(
         margin-left: 0.25rem;
     }
     .pa-identity-card {
-        padding: 0.9rem 1rem 0.8rem;
+        padding: 0.9rem 1rem 0.85rem;
         margin-bottom: 0;
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
-        height: var(--pa-card-h);
+        gap: 0.55rem;
+        height: 100%;
         min-height: var(--pa-card-h);
-        max-height: var(--pa-card-h);
         overflow: hidden;
         box-sizing: border-box;
     }
@@ -8656,8 +8655,6 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...
         "pass_efficiency_letter",
         "Efficiency",
         (
-            "pass_completion_pct",
-            "long_ball_completion_pct",
             "xpass_coe_pct",
             "xpass_long_coe_pct",
         ),
@@ -8755,7 +8752,7 @@ XP_PA_REGULAR_SCORE_TOOLTIPS: dict[str, str] = {
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
     "pass_efficiency_display": (
-        "Within-position composite of completion rates and COE on all passes and long passes. "
+        "Within-position composite of COE on all passes and long passes. "
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
     "pass_buildup_display": (

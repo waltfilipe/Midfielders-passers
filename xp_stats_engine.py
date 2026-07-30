@@ -767,8 +767,8 @@ XP_ARCHETYPE_RADAR_LABELS: dict[str, str] = {
 # The three pillars rendered as gradient bars in the xP Profile (grade drivers).
 XP_PROFILE_BAR_KEYS: tuple[str, ...] = (
     "xp_activity_display",
-    "xp_edge_display",
     "xp_efficiency_display",
+    "xp_edge_display",
 )
 
 # Axes used only to classify the xP profile archetype (not all are rendered).
@@ -1376,8 +1376,6 @@ PASS_VOLUME_METRICS: tuple[str, ...] = (
     "long_balls",
 )
 PASS_EFFICIENCY_METRICS: tuple[str, ...] = (
-    "pass_completion_pct",
-    "long_ball_completion_pct",
     "xpass_coe_pct",
     "xpass_long_coe_pct",
 )
@@ -1416,12 +1414,12 @@ PASS_SCORE_TOOLTIPS: dict[str, str] = {
         "Within-position composite of passes and long passes per game."
     ),
     "pass_efficiency_index": (
-        "Within-position composite of completion rates and COE (completion over expected) "
-        "on all passes and long passes."
+        "Within-position composite of COE (completion over expected) on all passes "
+        "and long passes."
     ),
     "pass_efficiency_display": (
-        "Within-position composite of completion rates and COE (completion over expected) "
-        "on all passes and long passes."
+        "Within-position composite of COE (completion over expected) on all passes "
+        "and long passes."
     ),
     "pass_buildup_index": (
         "Within-position composite of progressive passes, final-third entries, "
