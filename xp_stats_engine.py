@@ -183,7 +183,9 @@ MAPS_REGULAR_PASS_OPTIONS: tuple[tuple[str, str], ...] = (
     ("into_box", "Passes into Box"),
 )
 MAPS_SPECIAL_PASS_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("xp_threat_all", f"xP {IMPACT_PASS_ABBR}"),
+    ("xp_threat_all", "Impact Passes"),
+    ("high_difficulty_50", "High difficulty passes <50%"),
+    ("high_difficulty_60", "High difficulty passes <60%"),
     (
         "xp_threat_short",
         f"xP {IMPACT_PASS_ABBR} · Short ({DISTANCE_BAND_LABELS['short']})",
@@ -195,6 +197,9 @@ MAPS_SPECIAL_PASS_OPTIONS: tuple[tuple[str, str], ...] = (
     ("diagonal_long", "Long Diagonal"),
     ("line_break", "Line Break"),
     ("top_residual", "Top Residual"),
+)
+MAPS_HIGH_DIFFICULTY_PASS_KEYS: frozenset[str] = frozenset(
+    {"high_difficulty_50", "high_difficulty_60"}
 )
 MAPS_TOP_RESIDUAL_PASS_KEY = "top_residual"
 MAPS_TOP_RESIDUAL_N = 20
@@ -243,6 +248,27 @@ def _xp_threat_map_band(filter_key: str) -> str | None:
 
 def is_maps_xp_threat_pass(filter_key: str) -> bool:
     return _xp_threat_map_band(filter_key) is not None
+
+
+def is_maps_high_difficulty_pass(filter_key: str) -> bool:
+    return str(filter_key or "").strip() in MAPS_HIGH_DIFFICULTY_PASS_KEYS
+
+
+def maps_high_difficulty_threshold(filter_key: str) -> float | None:
+    key = str(filter_key or "").strip()
+    if key == "high_difficulty_50":
+        return 0.50
+    if key == "high_difficulty_60":
+        return 0.60
+    return None
+
+
+def prepare_high_difficulty_map_passes(passes: pd.DataFrame) -> pd.DataFrame:
+    """Add inverted completion xP for map coloring (harder = higher)."""
+    work = passes.copy()
+    if "xpass" in work.columns:
+        work["xpass_difficulty"] = 1.0 - work["xpass"].astype(float)
+    return work
 
 
 def is_maps_top_residual_pass(filter_key: str) -> bool:
@@ -321,6 +347,10 @@ def filter_passes_for_map(passes: pd.DataFrame, filter_key: str) -> pd.DataFrame
     threat_band = _xp_threat_map_band(key)
     if threat_band is not None:
         return filter_passes_by_threat_type(work, threat_band)
+    high_thr = maps_high_difficulty_threshold(key)
+    if high_thr is not None:
+        import xpass_engine as xpass_mod
+        return xpass_mod.filter_passes_by_completion_xpass_threshold(passes, high_thr)
     if key == "into_final_third":
         x_end = work["x_end"].to_numpy(dtype=float)
         return work.loc[x_end >= pe.FINAL_THIRD_LINE_X].copy()

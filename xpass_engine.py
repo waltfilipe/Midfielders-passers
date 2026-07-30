@@ -404,6 +404,42 @@ def load_xpass_player_bundle() -> dict:
     return json.loads(XPASS_PLAYERS_JSON.read_text(encoding="utf-8"))
 
 
+_XPASS_MODEL_CACHE: Pipeline | None = None
+
+
+def get_xpass_model() -> Pipeline:
+    global _XPASS_MODEL_CACHE
+    if _XPASS_MODEL_CACHE is None:
+        _XPASS_MODEL_CACHE = joblib.load(XPASS_MODEL_PATH)
+    return _XPASS_MODEL_CACHE
+
+
+def attach_xpass_to_passes(passes: pd.DataFrame) -> pd.DataFrame:
+    """Score completion xP on a pass frame when not already present."""
+    if passes is None or passes.empty:
+        return passes
+    if XPASS_COL in passes.columns and passes[XPASS_COL].notna().any():
+        return passes
+    return score_passes_xpass(passes, get_xpass_model())
+
+
+def filter_passes_by_completion_xpass_threshold(
+    passes: pd.DataFrame,
+    threshold: float,
+) -> pd.DataFrame:
+    """Completed passes whose completion xP is below the threshold."""
+    work = attach_xpass_to_passes(passes)
+    if work is None or work.empty or XPASS_COL not in work.columns:
+        return work.iloc[0:0].copy() if work is not None else pd.DataFrame()
+    scored = work[work[XPASS_COL].notna()].copy()
+    mask = (
+        (scored[XPASS_COL].astype(float) < float(threshold))
+        & scored["is_won"].astype(bool)
+        & scored["has_end"].astype(bool)
+    )
+    return scored.loc[mask].copy()
+
+
 XP_PLAYER_MERGE_KEYS: tuple[str, ...] = (
     "xpass_residual_p90",
     "xpass_hard_coe_pct",

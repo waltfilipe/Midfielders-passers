@@ -10012,6 +10012,26 @@ def _render_pass_map_figures(
             pass_caption = (
                 f"Top {len(work)} passes by residual · color = Δ (xP real − esperado)"
             )
+    elif xstats.is_maps_high_difficulty_pass(map_filter_key):
+        map_work = xstats.prepare_high_difficulty_map_passes(work)
+        fig_passes = draw_special_passes_season_map(
+            map_work,
+            player_name=player_name,
+            season_label=season_label,
+            category_label=map_category_label,
+            xp_col="xpass_difficulty",
+            highlight_index=None,
+            show_labels=False,
+            cmap=_CMAP_XP_GRAY_RED,
+        )
+        if captions_language == "pt":
+            pass_caption = (
+                f"{len(work)} passes · cor = dificuldade (xP de conclusão mais baixo → mais forte)"
+            )
+        else:
+            pass_caption = (
+                f"{len(work)} passes · color = difficulty (lower completion xP → stronger)"
+            )
     else:
         fig_passes = draw_special_passes_season_map(
             work,
