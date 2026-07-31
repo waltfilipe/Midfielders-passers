@@ -10045,7 +10045,7 @@ def _render_pass_map_figures(
         )
         if captions_language == "pt":
             pass_kind = (
-                "Test Impact"
+                xstats.maps_test_impact_pass_label(map_filter_key)
                 if xstats.is_maps_test_impact_pass(map_filter_key)
                 else (
                     f"xP {IMPACT_PASS_ABBR}"
@@ -10056,7 +10056,7 @@ def _render_pass_map_figures(
             pass_caption = f"{len(work)} {pass_kind} · cor = xP (cinza → vermelho forte)"
         else:
             pass_kind = (
-                "Test Impact"
+                xstats.maps_test_impact_pass_label(map_filter_key)
                 if xstats.is_maps_test_impact_pass(map_filter_key)
                 else (
                     f"xP {IMPACT_PASS_ABBR}"

@@ -48,6 +48,12 @@ TEST_IMPACT_PASS_LABEL = (
     "Test Impact: composite score ≥ P90 per distance band, progress_ratio ≥ P65 per band, "
     "and completion xP < 65%"
 )
+TEST_IMPACT_V2_SCORE_PERCENTILE = 0.89
+TEST_IMPACT_V2_XPASS_THRESHOLD = 0.67
+TEST_IMPACT_V2_PASS_LABEL = (
+    "Test Impact v2: composite score ≥ P89 per distance band, progress_ratio ≥ P65 per band, "
+    "and completion xP < 67%"
+)
 XP_COL = "xp_m4"
 XP_SPATIAL_COL = "xp_hier_od"
 XP_ACCESSIBILITY_MULT_COL = "xp_accessibility_mult"
@@ -468,8 +474,13 @@ def _composite_impact_pass_flags(
     return ((impact_score >= score_cut) & (work["progress_ratio"] >= prog_cut)).to_numpy(dtype=bool)
 
 
-def filter_test_impact_passes(passes: pd.DataFrame) -> pd.DataFrame:
-    """Test Impact = P90 composite impact rule ∩ completion xP below 65%."""
+def _filter_test_impact_passes(
+    passes: pd.DataFrame,
+    *,
+    score_percentile: float,
+    xpass_threshold: float,
+) -> pd.DataFrame:
+    """Experimental impact rule: composite score cutoff ∩ completion xP below threshold."""
     import xpass_engine as xpass_mod
 
     if passes is None or passes.empty:
@@ -493,7 +504,7 @@ def filter_test_impact_passes(passes: pd.DataFrame) -> pd.DataFrame:
 
     impact_mask = _composite_impact_pass_flags(
         work,
-        score_percentile=TEST_IMPACT_SCORE_PERCENTILE,
+        score_percentile=score_percentile,
     )
     work = work.loc[impact_mask].copy()
     if work.empty:
@@ -502,8 +513,26 @@ def filter_test_impact_passes(passes: pd.DataFrame) -> pd.DataFrame:
     work = xpass_mod.attach_xpass_to_passes(work)
     if xpass_mod.XPASS_COL not in work.columns:
         return work.iloc[0:0].copy()
-    hard_mask = work[xpass_mod.XPASS_COL].astype(float) < TEST_IMPACT_XPASS_THRESHOLD
+    hard_mask = work[xpass_mod.XPASS_COL].astype(float) < float(xpass_threshold)
     return work.loc[hard_mask].copy()
+
+
+def filter_test_impact_passes(passes: pd.DataFrame) -> pd.DataFrame:
+    """Test Impact = P90 composite impact rule ∩ completion xP below 65%."""
+    return _filter_test_impact_passes(
+        passes,
+        score_percentile=TEST_IMPACT_SCORE_PERCENTILE,
+        xpass_threshold=TEST_IMPACT_XPASS_THRESHOLD,
+    )
+
+
+def filter_test_impact_v2_passes(passes: pd.DataFrame) -> pd.DataFrame:
+    """Test Impact v2 = P89 composite impact rule ∩ completion xP below 67%."""
+    return _filter_test_impact_passes(
+        passes,
+        score_percentile=TEST_IMPACT_V2_SCORE_PERCENTILE,
+        xpass_threshold=TEST_IMPACT_V2_XPASS_THRESHOLD,
+    )
 
 
 def apply_expected_and_threat(passes: pd.DataFrame) -> pd.DataFrame:
