@@ -1810,6 +1810,61 @@ def _compare_player_column_html(
     )
 
 
+def _compare_radar_embedded_styles_html() -> str:
+    """Self-contained styles so radar charts render inside st.html iframes."""
+    return (
+        "<style>"
+        ".cmp-radar-column{background:linear-gradient(160deg,#151b2b 0%,#101522 100%);"
+        "border:1px solid #2a3550;border-radius:14px;padding:.95rem .85rem 1rem;"
+        "display:flex;flex-direction:column;gap:.75rem;min-width:0;}"
+        ".cmp-radar-legend{display:flex;justify-content:center;gap:1rem;font-size:.72rem;"
+        "font-weight:600;color:#94a3b8;margin-bottom:.15rem;}"
+        ".cmp-radar-legend span::before{content:'';display:inline-block;width:.55rem;height:.55rem;"
+        "border-radius:999px;margin-right:.3rem;vertical-align:middle;}"
+        ".pa-compare-legend-primary::before,.cmp-radar-legend .pa-compare-legend-primary::before{background:#a78bfa;}"
+        ".pa-compare-legend-secondary::before,.cmp-radar-legend .pa-compare-legend-secondary::before{background:#86efac;}"
+        ".cmp-radar-card{display:flex;flex-direction:column;gap:.45rem;}"
+        ".cmp-radar-card+.cmp-radar-card{padding-top:.55rem;border-top:1px solid rgba(51,65,85,.45);}"
+        ".cmp-radar-card-title{color:#93c5fd;font-size:.66rem;font-weight:700;letter-spacing:.06em;"
+        "text-transform:uppercase;text-align:center;}"
+        ".cmp-radar-stage{position:relative;width:100%;max-width:300px;margin:0 auto;min-height:260px;}"
+        ".cmp-radar-svg{width:100%;height:auto;display:block;overflow:visible;}"
+        ".cmp-radar-axis-layer{position:absolute;inset:0;pointer-events:none;}"
+        ".cmp-radar-axis{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;z-index:2;}"
+        ".cmp-radar-axis-left{transform:translate(0,-50%);text-align:left;}"
+        ".cmp-radar-axis-right{transform:translate(-100%,-50%);text-align:right;}"
+        ".cmp-radar-axis-label{display:inline-block;color:#cbd5e1;font-size:.62rem;font-weight:700;"
+        "padding:.2rem .35rem;border-radius:6px;background:rgba(15,23,42,.72);white-space:nowrap;"
+        "cursor:default;transition:color .14s,border-color .14s,background .14s;border:1px solid transparent;}"
+        ".cmp-radar-axis:hover .cmp-radar-axis-label,.cmp-radar-axis:focus-within .cmp-radar-axis-label"
+        "{color:#f8fafc;border-color:rgba(148,163,184,.35);background:rgba(15,23,42,.92);}"
+        ".cmp-radar-tip{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);"
+        "min-width:11.5rem;max-width:15rem;padding:.55rem .62rem;border-radius:10px;"
+        "border:1px solid rgba(100,116,139,.45);background:rgba(15,23,42,.96);"
+        "box-shadow:0 10px 28px rgba(2,6,23,.45);opacity:0;visibility:hidden;pointer-events:none;"
+        "transition:opacity .14s,transform .14s,visibility .14s;z-index:12;}"
+        ".cmp-radar-axis-left .cmp-radar-tip{left:0;transform:translateX(0) translateY(4px);}"
+        ".cmp-radar-axis-right .cmp-radar-tip{left:auto;right:0;transform:translateX(0) translateY(4px);}"
+        ".cmp-radar-axis:hover .cmp-radar-tip,.cmp-radar-axis:focus-within .cmp-radar-tip"
+        "{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);}"
+        ".cmp-radar-axis-left:hover .cmp-radar-tip,.cmp-radar-axis-left:focus-within .cmp-radar-tip"
+        "{transform:translateX(0) translateY(0);}"
+        ".cmp-radar-axis-right:hover .cmp-radar-tip,.cmp-radar-axis-right:focus-within .cmp-radar-tip"
+        "{transform:translateX(0) translateY(0);}"
+        ".cmp-radar-tip-title{color:#e2e8f0;font-size:.68rem;font-weight:800;letter-spacing:.03em;"
+        "text-transform:uppercase;margin-bottom:.42rem;}"
+        ".cmp-radar-tip-rows{display:flex;flex-direction:column;gap:.3rem;}"
+        ".cmp-radar-tip-row{display:grid;grid-template-columns:.45rem minmax(0,1fr) auto;"
+        "align-items:center;gap:.38rem;font-size:.68rem;}"
+        ".cmp-radar-tip-dot{width:.45rem;height:.45rem;border-radius:999px;display:inline-block;}"
+        ".cmp-radar-tip-primary .cmp-radar-tip-dot{background:#a78bfa;}"
+        ".cmp-radar-tip-secondary .cmp-radar-tip-dot{background:#86efac;}"
+        ".cmp-radar-tip-name{color:#94a3b8;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}"
+        ".cmp-radar-tip-val{color:#f8fafc;font-weight:800;font-variant-numeric:tabular-nums;}"
+        "</style>"
+    )
+
+
 def _compare_radar_metric_value(source: dict, key: str) -> float | None:
     if key in xstats.XP_PROFILE_BAR_KEYS and not source.get("xp_profile_bars_eligible", True):
         return None
@@ -1918,15 +1973,16 @@ def _compare_interactive_radar_html(
         ring_vals = [level] * count
         ring_pts = _compare_radar_polygon_points(ring_vals, cx=cx, cy=cy, max_r=max_r)
         grid_rings.append(
-            f'<polygon class="cmp-radar-grid-ring" points="{ring_pts}" />'
+            f'<polygon points="{ring_pts}" fill="none" stroke="rgba(100,116,139,0.42)" '
+            f'stroke-width="0.8"></polygon>'
         )
 
     spokes: list[str] = []
     for idx in range(count):
         x_end, y_end = _compare_radar_xy(COMPARE_RADAR_MAX, idx, count, cx=cx, cy=cy, max_r=max_r)
         spokes.append(
-            f'<line class="cmp-radar-spoke" x1="{cx:.2f}" y1="{cy:.2f}" '
-            f'x2="{x_end:.2f}" y2="{y_end:.2f}" />'
+            f'<line x1="{cx:.2f}" y1="{cy:.2f}" x2="{x_end:.2f}" y2="{y_end:.2f}" '
+            f'stroke="rgba(100,116,139,0.38)" stroke-width="0.8"></line>'
         )
 
     dots_a: list[str] = []
@@ -1934,14 +1990,14 @@ def _compare_interactive_radar_html(
     for idx, value in enumerate(values_a):
         x_pt, y_pt = _compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)
         dots_a.append(
-            f'<circle class="cmp-radar-dot cmp-radar-dot-primary" cx="{x_pt:.2f}" '
-            f'cy="{y_pt:.2f}" r="4.2" />'
+            f'<circle cx="{x_pt:.2f}" cy="{y_pt:.2f}" r="4.2" fill="{PA_COMPARE_PRIMARY_COLOR}" '
+            f'stroke="#0f172a" stroke-width="0.8"></circle>'
         )
     for idx, value in enumerate(values_b):
         x_pt, y_pt = _compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)
         dots_b.append(
-            f'<circle class="cmp-radar-dot cmp-radar-dot-secondary" cx="{x_pt:.2f}" '
-            f'cy="{y_pt:.2f}" r="4.2" />'
+            f'<circle cx="{x_pt:.2f}" cy="{y_pt:.2f}" r="4.2" fill="{PA_COMPARE_SECONDARY_COLOR}" '
+            f'stroke="#0f172a" stroke-width="0.8"></circle>'
         )
 
     axis_hits: list[str] = []
@@ -1981,12 +2037,15 @@ def _compare_interactive_radar_html(
         '<div class="cmp-radar-card">'
         f'<div class="cmp-radar-card-title">{html.escape(title)}</div>'
         '<div class="cmp-radar-stage">'
-        '<svg class="cmp-radar-svg" viewBox="0 0 300 300" role="img" '
+        '<svg class="cmp-radar-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" '
+        'width="300" height="300" role="img" preserveAspectRatio="xMidYMid meet" '
         f'aria-label="{html.escape(title)} comparison radar">'
         f"{''.join(grid_rings)}"
         f"{''.join(spokes)}"
-        f'<polygon class="cmp-radar-poly cmp-radar-poly-secondary" points="{poly_b}" />'
-        f'<polygon class="cmp-radar-poly cmp-radar-poly-primary" points="{poly_a}" />'
+        f'<polygon points="{poly_b}" fill="rgba(134,239,172,0.14)" stroke="{PA_COMPARE_SECONDARY_COLOR}" '
+        f'stroke-width="2.2" stroke-linejoin="round"></polygon>'
+        f'<polygon points="{poly_a}" fill="rgba(167,139,250,0.18)" stroke="{PA_COMPARE_PRIMARY_COLOR}" '
+        f'stroke-width="2.2" stroke-linejoin="round"></polygon>'
         f"{''.join(dots_b)}"
         f"{''.join(dots_a)}"
         "</svg>"
@@ -2027,7 +2086,8 @@ def _build_compare_radars_html(
         name_b=name_b,
     )
     return (
-        '<div class="cmp-radar-column player-card">'
+        _compare_radar_embedded_styles_html()
+        + '<div class="cmp-radar-column">'
         f"{legend}"
         f"{radar_xp}"
         f"{radar_pass}"
@@ -4020,28 +4080,25 @@ st.markdown(
         width: 100%;
         align-items: flex-start;
     }
-    .st-key-cmp_layout_row [data-testid="column"]:first-child {
-        flex: 0 0 268px !important;
-        width: 268px !important;
-        min-width: 268px !important;
-        max-width: 268px !important;
-    }
-    .st-key-cmp_layout_row [data-testid="column"]:not(:first-child) {
+    .st-key-cmp_layout_row [data-testid="column"] {
         flex: 1 1 0 !important;
         min-width: 0 !important;
-    }
-    .st-key-cmp_layout_row [data-testid="column"] {
         padding-left: 0 !important;
         padding-right: 0 !important;
     }
     .st-key-cmp_filter_card {
-        background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
-        border: 1px solid #2a3550;
-        border-radius: 14px;
-        padding: 0.85rem 0.9rem 1rem;
-        box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
+        background: linear-gradient(180deg, rgba(30,41,59,0.55) 0%, rgba(15,23,42,0.35) 100%);
+        border: 1px solid rgba(148,163,184,0.18);
+        border-radius: 16px;
+        padding: 0.95rem 1.2rem 0.8rem 1.2rem;
+        box-shadow: 0 6px 22px rgba(2,6,23,0.28);
+        margin-bottom: 0.85rem;
+        max-width: 1520px;
+        margin-left: auto;
+        margin-right: auto;
     }
-    .st-key-cmp_filter_card [data-testid="stVerticalBlock"] { gap: 0.45rem; }
+    .st-key-cmp_filter_card [data-testid="stHorizontalBlock"] { align-items: flex-end; }
+    .st-key-cmp_filter_card [data-testid="stVerticalBlock"] { gap: 0.3rem; }
     .st-key-cmp_filter_card label[data-testid="stWidgetLabel"] p {
         font-size: 0.76rem !important;
         font-weight: 700 !important;
@@ -4049,39 +4106,18 @@ st.markdown(
         letter-spacing: 0.04em;
         color: #93a4bc !important;
     }
-    .cmp-filter-head {
-        display: flex;
-        flex-direction: column;
-        gap: 0.22rem;
-        margin-bottom: 0.7rem;
-        padding-bottom: 0.65rem;
-        border-bottom: 1px solid #243049;
+    .st-key-cmp_player_a_slicer,
+    .st-key-cmp_player_b_slicer {
+        margin-bottom: 0.55rem;
     }
-    .cmp-filter-title {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        color: #f1f5f9;
-        font-size: 0.92rem;
-        font-weight: 800;
-        letter-spacing: 0.02em;
+    .st-key-cmp_player_a_slicer label[data-testid="stWidgetLabel"] p,
+    .st-key-cmp_player_b_slicer label[data-testid="stWidgetLabel"] p {
+        font-size: 0.72rem !important;
+        font-weight: 800 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #93c5fd !important;
     }
-    .cmp-filter-title .cmp-filter-ic { color: #60a5fa; }
-    .cmp-filter-sub {
-        color: #94a3b8;
-        font-size: 0.74rem;
-        line-height: 1.35;
-        margin: 0;
-    }
-    .cmp-filter-count {
-        margin-top: 0.55rem;
-        padding-top: 0.55rem;
-        border-top: 1px dashed rgba(148, 163, 184, 0.22);
-        color: #cbd5e1;
-        font-size: 0.76rem;
-        font-weight: 600;
-    }
-    .cmp-filter-count strong { color: #38bdf8; }
     .cmp-player-pane {
         min-width: 0;
         width: 100%;
@@ -11718,103 +11754,120 @@ def _render_pa_filter_card(
     return player_id, show_scatter, show_maps
 
 
-def _render_compare_filter_card(
+def _compare_pool_options(
     all_players: list[dict],
     progression_by_id: dict[str, dict],
     *,
     xp_by_id: dict[str, dict] | None,
-) -> tuple[str | None, str | None]:
-    """Vertical filter card for the Compare tab: league, field, age and two player picks."""
+    league: str,
+    field: str,
+    age_min: int,
+    age_max: int,
+) -> list[tuple]:
+    pool = _filter_pa_pool(
+        all_players,
+        progression_by_id,
+        league=league,
+        field=field,
+        age_min=age_min,
+        age_max=age_max,
+    )
+    all_codes, all_groups = _all_position_filters()
+    return _player_analysis_options(
+        pool,
+        progression_by_id,
+        position_codes=all_codes,
+        position_groups=all_groups,
+        xp_by_id=xp_by_id,
+        sort_by="xp_pass_rating",
+    )
+
+
+def _render_compare_filter_header(
+    all_players: list[dict],
+    progression_by_id: dict[str, dict],
+    *,
+    xp_by_id: dict[str, dict] | None,
+) -> list[tuple]:
+    """Full-width horizontal filter bar for Compare (league, field, age only)."""
     with st.container(key="cmp_filter_card"):
         st.markdown(
-            '<div class="cmp-filter-head">'
-            '<span class="cmp-filter-title">'
-            '<span class="cmp-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
-            '<span class="cmp-filter-sub">Refine o grupo e escolha os dois jogadores a comparar.</span>'
+            '<div class="pa-filter-head">'
+            '<span class="pa-filter-title">'
+            '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
+            '<span class="pa-filter-sub">Refine o grupo de meio-campistas e compare dois jogadores '
+            "com radares sobrepostos.</span>"
             "</div>",
             unsafe_allow_html=True,
         )
 
-        league_labels = dict(PA_LEAGUE_OPTIONS)
-        league = st.selectbox(
-            "Liga",
-            options=[key for key, _ in PA_LEAGUE_OPTIONS],
-            format_func=lambda key: league_labels[key],
-            key=PA_COMPARE_FILTER_LEAGUE_KEY,
-        )
+        col_league, col_field, col_age = st.columns([1.0, 1.15, 1.0], gap="medium")
 
-        field_labels = dict(PA_FIELD_OPTIONS)
-        field = st.selectbox(
-            "Campo de atuação",
-            options=[key for key, _ in PA_FIELD_OPTIONS],
-            format_func=lambda key: field_labels[key],
-            key=PA_COMPARE_FILTER_FIELD_KEY,
-            help=(
-                "Origem das ações: ofensivo = maioria dos passes começa no campo de ataque; "
-                "defensivo = maioria começa no campo de defesa."
-            ),
-        )
+        with col_league:
+            league_labels = dict(PA_LEAGUE_OPTIONS)
+            league = st.selectbox(
+                "Liga",
+                options=[key for key, _ in PA_LEAGUE_OPTIONS],
+                format_func=lambda key: league_labels[key],
+                key=PA_COMPARE_FILTER_LEAGUE_KEY,
+            )
 
-        age_key = st.selectbox(
-            "Faixa etária",
-            options=[key for key, _, _ in PA_AGE_OPTIONS],
-            format_func=lambda key: PA_AGE_LABELS[key],
-            key=PA_COMPARE_FILTER_AGE_KEY,
-            help="Idade via base pública; jogadores sem idade ficam fora das faixas filtradas.",
-        )
+        with col_field:
+            field_labels = dict(PA_FIELD_OPTIONS)
+            field = st.selectbox(
+                "Campo de atuação",
+                options=[key for key, _ in PA_FIELD_OPTIONS],
+                format_func=lambda key: field_labels[key],
+                key=PA_COMPARE_FILTER_FIELD_KEY,
+                help=(
+                    "Origem das ações: ofensivo = maioria dos passes começa no campo de ataque; "
+                    "defensivo = maioria começa no campo de defesa."
+                ),
+            )
+
+        with col_age:
+            age_key = st.selectbox(
+                "Faixa etária",
+                options=[key for key, _, _ in PA_AGE_OPTIONS],
+                format_func=lambda key: PA_AGE_LABELS[key],
+                key=PA_COMPARE_FILTER_AGE_KEY,
+                help="Idade via base pública; jogadores sem idade ficam fora das faixas filtradas.",
+            )
         age_min, age_max = dict((key, (lo, hi)) for key, lo, hi in PA_AGE_OPTIONS)[age_key]
 
-        pool = _filter_pa_pool(
-            all_players,
-            progression_by_id,
-            league=league,
-            field=field,
-            age_min=age_min,
-            age_max=age_max,
-        )
-        all_codes, all_groups = _all_position_filters()
-        options = _player_analysis_options(
-            pool,
-            progression_by_id,
-            position_codes=all_codes,
-            position_groups=all_groups,
-            xp_by_id=xp_by_id,
-            sort_by="xp_pass_rating",
-        )
+    return _compare_pool_options(
+        all_players,
+        progression_by_id,
+        xp_by_id=xp_by_id,
+        league=league,
+        field=field,
+        age_min=age_min,
+        age_max=age_max,
+    )
 
-        player_a_id: str | None = None
-        player_b_id: str | None = None
+
+def _render_compare_player_slicer(
+    options: list[tuple],
+    *,
+    widget_key: str,
+    label: str,
+    slicer_key: str,
+) -> str | None:
+    """Player selectbox slicer shown above each compare column."""
+    with st.container(key=slicer_key):
         if not options:
-            st.selectbox("Jogador 1", options=["—"], disabled=True, key="cmp_player_a_empty")
-            st.selectbox("Jogador 2", options=["—"], disabled=True, key="cmp_player_b_empty")
-            return None, None
-
+            st.selectbox(label, options=["—"], disabled=True, key=f"{widget_key}_empty")
+            return None
         labels = [opt[3] for opt in options]
         id_by_label = {opt[3]: opt[0] for opt in options}
-        if st.session_state.get(PA_COMPARE_PLAYER_A_KEY) not in labels:
-            st.session_state[PA_COMPARE_PLAYER_A_KEY] = labels[0]
-        selected_a_label = st.selectbox(
-            "Jogador 1",
+        if st.session_state.get(widget_key) not in labels:
+            st.session_state[widget_key] = labels[0]
+        selected_label = st.selectbox(
+            label,
             options=labels,
-            key=PA_COMPARE_PLAYER_A_KEY,
+            key=widget_key,
         )
-        player_a_id = id_by_label.get(selected_a_label)
-
-        options_b = [opt for opt in options if opt[0] != player_a_id]
-        if not options_b:
-            options_b = options
-        labels_b = [opt[3] for opt in options_b]
-        id_by_label_b = {opt[3]: opt[0] for opt in options_b}
-        if st.session_state.get(PA_COMPARE_PLAYER_B_KEY) not in labels_b:
-            st.session_state[PA_COMPARE_PLAYER_B_KEY] = labels_b[min(1, len(labels_b) - 1)]
-        selected_b_label = st.selectbox(
-            "Jogador 2",
-            options=labels_b,
-            key=PA_COMPARE_PLAYER_B_KEY,
-        )
-        player_b_id = id_by_label_b.get(selected_b_label)
-
-    return player_a_id, player_b_id
+        return id_by_label.get(selected_label)
 
 
 def render_compare_section(
@@ -11826,7 +11879,7 @@ def render_compare_section(
     xp_by_id: dict[str, dict] | None = None,
     fmt_pct_fn=pg_fmt_pct,
 ) -> None:
-    """Compare tab: vertical filters on the left, two player cards side by side."""
+    """Compare tab: filter header + three columns (player, radars, player)."""
     if not all_players:
         st.info("No players available.")
         return
@@ -11846,17 +11899,41 @@ def render_compare_section(
         unsafe_allow_html=True,
     )
 
+    options = _render_compare_filter_header(
+        all_players,
+        progression_by_id,
+        xp_by_id=xp_by_id,
+    )
+    if not options:
+        st.info("Nenhum jogador disponível para os filtros selecionados.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
     with st.container(key="cmp_layout_row"):
-        col_filter, col_a, col_radar, col_b = st.columns([1.0, 1.2, 1.45, 1.2], gap="medium")
-        with col_filter:
-            player_a_id, player_b_id = _render_compare_filter_card(
-                all_players,
-                progression_by_id,
-                xp_by_id=xp_by_id,
+        col_a, col_radar, col_b = st.columns([1.2, 1.45, 1.2], gap="medium")
+
+        with col_a:
+            player_a_id = _render_compare_player_slicer(
+                options,
+                widget_key=PA_COMPARE_PLAYER_A_KEY,
+                label="Jogador 1",
+                slicer_key="cmp_player_a_slicer",
+            )
+
+        options_b = [opt for opt in options if opt[0] != player_a_id]
+        if not options_b:
+            options_b = options
+
+        with col_b:
+            player_b_id = _render_compare_player_slicer(
+                options_b,
+                widget_key=PA_COMPARE_PLAYER_B_KEY,
+                label="Jogador 2",
+                slicer_key="cmp_player_b_slicer",
             )
 
         if not player_a_id or not player_b_id:
-            st.info("Selecione dois jogadores nos filtros para comparar.")
+            st.info("Selecione dois jogadores para comparar.")
             st.markdown("</div>", unsafe_allow_html=True)
             return
         if player_a_id == player_b_id:
