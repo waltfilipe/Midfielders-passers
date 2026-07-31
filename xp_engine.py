@@ -42,6 +42,12 @@ IMPACT_PASS_RULE_LABEL = (
     "composite score (45% destination xP + 35% residual + 20% progress) ≥ P92.5 per distance band "
     "and progress_ratio ≥ P65 per band"
 )
+TEST_IMPACT_SCORE_PERCENTILE = 0.90
+TEST_IMPACT_XPASS_THRESHOLD = 0.65
+TEST_IMPACT_PASS_LABEL = (
+    "Test Impact: composite score ≥ P90 per distance band, progress_ratio ≥ P65 per band, "
+    "and completion xP < 65%"
+)
 XP_COL = "xp_m4"
 XP_SPATIAL_COL = "xp_hier_od"
 XP_ACCESSIBILITY_MULT_COL = "xp_accessibility_mult"
@@ -429,11 +435,16 @@ def _robust_zscore_by_band(series: pd.Series, bands: pd.Series) -> pd.Series:
     return out
 
 
-def _composite_impact_pass_flags(sub: pd.DataFrame) -> np.ndarray:
+def _composite_impact_pass_flags(
+    sub: pd.DataFrame,
+    *,
+    score_percentile: float | None = None,
+) -> np.ndarray:
     """Hybrid impact pass: weighted robust-z score + forward-progress gate per band."""
     if sub.empty:
         return np.zeros(0, dtype=bool)
 
+    score_pct = IMPACT_SCORE_PERCENTILE if score_percentile is None else float(score_percentile)
     work = sub.copy()
     if "progress_ratio" not in work.columns:
         work["progress_ratio"] = _progress_ratio_array(work)
@@ -449,12 +460,50 @@ def _composite_impact_pass_flags(sub: pd.DataFrame) -> np.ndarray:
     )
 
     score_cut = impact_score.groupby(bands, sort=False).transform(
-        lambda s: s.quantile(IMPACT_SCORE_PERCENTILE)
+        lambda s, pct=score_pct: s.quantile(pct)
     )
     prog_cut = work["progress_ratio"].groupby(bands, sort=False).transform(
         lambda s: s.quantile(IMPACT_PROGRESS_PERCENTILE)
     )
     return ((impact_score >= score_cut) & (work["progress_ratio"] >= prog_cut)).to_numpy(dtype=bool)
+
+
+def filter_test_impact_passes(passes: pd.DataFrame) -> pd.DataFrame:
+    """Test Impact = P90 composite impact rule ∩ completion xP below 65%."""
+    import xpass_engine as xpass_mod
+
+    if passes is None or passes.empty:
+        return pd.DataFrame()
+    mask = passes["is_won"].astype(bool) & passes["has_end"].astype(bool)
+    work = passes.loc[mask].copy()
+    if work.empty:
+        return work
+
+    if XP_RESIDUAL_COL not in work.columns:
+        if {XP_COL, XP_EXPECTED_COL}.issubset(work.columns):
+            work[XP_RESIDUAL_COL] = work[XP_COL].astype(float) - work[XP_EXPECTED_COL].astype(float)
+        else:
+            work = apply_expected_and_threat(work)
+    elif work[XP_RESIDUAL_COL].isna().any():
+        if {XP_COL, XP_EXPECTED_COL}.issubset(work.columns):
+            missing = work[XP_RESIDUAL_COL].isna()
+            work.loc[missing, XP_RESIDUAL_COL] = (
+                work.loc[missing, XP_COL].astype(float) - work.loc[missing, XP_EXPECTED_COL].astype(float)
+            )
+
+    impact_mask = _composite_impact_pass_flags(
+        work,
+        score_percentile=TEST_IMPACT_SCORE_PERCENTILE,
+    )
+    work = work.loc[impact_mask].copy()
+    if work.empty:
+        return work
+
+    work = xpass_mod.attach_xpass_to_passes(work)
+    if xpass_mod.XPASS_COL not in work.columns:
+        return work.iloc[0:0].copy()
+    hard_mask = work[xpass_mod.XPASS_COL].astype(float) < TEST_IMPACT_XPASS_THRESHOLD
+    return work.loc[hard_mask].copy()
 
 
 def apply_expected_and_threat(passes: pd.DataFrame) -> pd.DataFrame:

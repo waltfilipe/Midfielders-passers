@@ -182,8 +182,10 @@ MAPS_REGULAR_PASS_OPTIONS: tuple[tuple[str, str], ...] = (
     ("into_final_third", "Passes into Final Third"),
     ("into_box", "Passes into Box"),
 )
+MAPS_TEST_IMPACT_PASS_KEY = "test_impact"
 MAPS_SPECIAL_PASS_OPTIONS: tuple[tuple[str, str], ...] = (
     ("xp_threat_all", "Impact Passes"),
+    (MAPS_TEST_IMPACT_PASS_KEY, "Test Impact"),
     ("high_difficulty_50", "High difficulty passes <50%"),
     ("high_difficulty_60", "High difficulty passes <60%"),
     (
@@ -252,6 +254,10 @@ def is_maps_xp_threat_pass(filter_key: str) -> bool:
 
 def is_maps_high_difficulty_pass(filter_key: str) -> bool:
     return str(filter_key or "").strip() in MAPS_HIGH_DIFFICULTY_PASS_KEYS
+
+
+def is_maps_test_impact_pass(filter_key: str) -> bool:
+    return str(filter_key or "").strip() == MAPS_TEST_IMPACT_PASS_KEY
 
 
 def maps_high_difficulty_threshold(filter_key: str) -> float | None:
@@ -344,6 +350,9 @@ def filter_passes_for_map(passes: pd.DataFrame, filter_key: str) -> pd.DataFrame
     key = str(filter_key or "").strip()
     if key == MAPS_TOP_RESIDUAL_PASS_KEY:
         return filter_top_residual_passes(passes)
+    if key == MAPS_TEST_IMPACT_PASS_KEY:
+        import xp_engine as xe_mod
+        return xe_mod.filter_test_impact_passes(passes)
     threat_band = _xp_threat_map_band(key)
     if threat_band is not None:
         return filter_passes_by_threat_type(work, threat_band)

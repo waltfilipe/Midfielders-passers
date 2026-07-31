@@ -10045,16 +10045,24 @@ def _render_pass_map_figures(
         )
         if captions_language == "pt":
             pass_kind = (
-                f"xP {IMPACT_PASS_ABBR}"
-                if xstats.is_maps_xp_threat_pass(map_filter_key)
-                else "passes completos"
+                "Test Impact"
+                if xstats.is_maps_test_impact_pass(map_filter_key)
+                else (
+                    f"xP {IMPACT_PASS_ABBR}"
+                    if xstats.is_maps_xp_threat_pass(map_filter_key)
+                    else "passes completos"
+                )
             )
             pass_caption = f"{len(work)} {pass_kind} · cor = xP (cinza → vermelho forte)"
         else:
             pass_kind = (
-                f"xP {IMPACT_PASS_ABBR}"
-                if xstats.is_maps_xp_threat_pass(map_filter_key)
-                else "completed passes"
+                "Test Impact"
+                if xstats.is_maps_test_impact_pass(map_filter_key)
+                else (
+                    f"xP {IMPACT_PASS_ABBR}"
+                    if xstats.is_maps_xp_threat_pass(map_filter_key)
+                    else "completed passes"
+                )
             )
             pass_caption = f"{len(work)} {pass_kind} · pass color = xP (gray → strong red)"
     fig_dest = draw_passes_destination_heatmap(
