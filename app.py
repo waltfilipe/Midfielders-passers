@@ -4876,22 +4876,29 @@ st.markdown(
         border-top-width: 1.5px;
     }
     .pa-origin-heatmap-wrap {
-        flex: 1;
-        min-height: 148px;
-        max-height: 210px;
+        flex: 1 1 auto;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-top: 0.15rem;
+        width: 100%;
+        min-height: 0;
+        margin-top: 0.1rem;
+        padding: 0.38rem 0.42rem;
+        border-radius: 10px;
+        background: rgba(9, 14, 27, 0.58);
+        border: 1px solid rgba(51, 65, 85, 0.55);
         overflow: hidden;
+        box-sizing: border-box;
     }
     .pa-origin-heatmap {
-        width: 104%;
-        max-width: 104%;
+        display: block;
+        width: 100%;
+        height: 100%;
+        max-width: 100%;
         max-height: 100%;
         object-fit: contain;
-        border-radius: 8px;
-        display: block;
+        object-position: center;
+        border-radius: 6px;
     }
     .pa-left-card-body {
         display: flex;
