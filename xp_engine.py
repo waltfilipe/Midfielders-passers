@@ -50,9 +50,12 @@ TEST_IMPACT_PASS_LABEL = (
 )
 TEST_IMPACT_V2_SCORE_PERCENTILE = 0.89
 TEST_IMPACT_V2_XPASS_THRESHOLD = 0.67
+TEST_IMPACT_V2_BYLINE_ORIGIN_X_MIN = 95.0
+TEST_IMPACT_V2_BYLINE_MAX_DISTANCE_M = 10.0
+TEST_IMPACT_V2_BYLINE_LATERAL_SHARE = 0.15
 TEST_IMPACT_V2_PASS_LABEL = (
     "Test Impact v2: composite score ≥ P89 per distance band, progress_ratio ≥ P65 per band, "
-    "and completion xP < 67%"
+    "completion xP < 67%, excluding byline short passes (x ≥ 95, lateral, < 10 m)"
 )
 XP_COL = "xp_m4"
 XP_SPATIAL_COL = "xp_hier_od"
@@ -517,6 +520,20 @@ def _filter_test_impact_passes(
     return work.loc[hard_mask].copy()
 
 
+def _test_impact_v2_byline_exclusion_mask(work: pd.DataFrame) -> pd.Series:
+    """Exclude short lateral byline probes in the attacking third."""
+    if work.empty:
+        return pd.Series(dtype=bool)
+    y_start = work["y_start"].astype(float)
+    margin = pe.FIELD_Y * TEST_IMPACT_V2_BYLINE_LATERAL_SHARE
+    lateral = (y_start < margin) | (y_start > pe.FIELD_Y - margin)
+    return (
+        (work["x_start"].astype(float) >= TEST_IMPACT_V2_BYLINE_ORIGIN_X_MIN)
+        & lateral
+        & (work["pass_distance"].astype(float) < TEST_IMPACT_V2_BYLINE_MAX_DISTANCE_M)
+    )
+
+
 def filter_test_impact_passes(passes: pd.DataFrame) -> pd.DataFrame:
     """Test Impact = P90 composite impact rule ∩ completion xP below 65%."""
     return _filter_test_impact_passes(
@@ -527,12 +544,15 @@ def filter_test_impact_passes(passes: pd.DataFrame) -> pd.DataFrame:
 
 
 def filter_test_impact_v2_passes(passes: pd.DataFrame) -> pd.DataFrame:
-    """Test Impact v2 = P89 composite impact rule ∩ completion xP below 67%."""
-    return _filter_test_impact_passes(
+    """Test Impact v2 = P89 composite impact rule ∩ completion xP below 67%, minus byline shorts."""
+    work = _filter_test_impact_passes(
         passes,
         score_percentile=TEST_IMPACT_V2_SCORE_PERCENTILE,
         xpass_threshold=TEST_IMPACT_V2_XPASS_THRESHOLD,
     )
+    if work.empty:
+        return work
+    return work.loc[~_test_impact_v2_byline_exclusion_mask(work)].copy()
 
 
 def apply_expected_and_threat(passes: pd.DataFrame) -> pd.DataFrame:
