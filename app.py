@@ -1810,61 +1810,6 @@ def _compare_player_column_html(
     )
 
 
-def _compare_radar_embedded_styles_html() -> str:
-    """Self-contained styles so radar charts render inside st.html iframes."""
-    return (
-        "<style>"
-        ".cmp-radar-column{background:linear-gradient(160deg,#151b2b 0%,#101522 100%);"
-        "border:1px solid #2a3550;border-radius:14px;padding:.95rem .85rem 1rem;"
-        "display:flex;flex-direction:column;gap:.75rem;min-width:0;}"
-        ".cmp-radar-legend{display:flex;justify-content:center;gap:1rem;font-size:.72rem;"
-        "font-weight:600;color:#94a3b8;margin-bottom:.15rem;}"
-        ".cmp-radar-legend span::before{content:'';display:inline-block;width:.55rem;height:.55rem;"
-        "border-radius:999px;margin-right:.3rem;vertical-align:middle;}"
-        ".pa-compare-legend-primary::before,.cmp-radar-legend .pa-compare-legend-primary::before{background:#a78bfa;}"
-        ".pa-compare-legend-secondary::before,.cmp-radar-legend .pa-compare-legend-secondary::before{background:#86efac;}"
-        ".cmp-radar-card{display:flex;flex-direction:column;gap:.45rem;}"
-        ".cmp-radar-card+.cmp-radar-card{padding-top:.55rem;border-top:1px solid rgba(51,65,85,.45);}"
-        ".cmp-radar-card-title{color:#93c5fd;font-size:.66rem;font-weight:700;letter-spacing:.06em;"
-        "text-transform:uppercase;text-align:center;}"
-        ".cmp-radar-stage{position:relative;width:100%;max-width:300px;margin:0 auto;min-height:260px;}"
-        ".cmp-radar-svg{width:100%;height:auto;display:block;overflow:visible;}"
-        ".cmp-radar-axis-layer{position:absolute;inset:0;pointer-events:none;}"
-        ".cmp-radar-axis{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;z-index:2;}"
-        ".cmp-radar-axis-left{transform:translate(0,-50%);text-align:left;}"
-        ".cmp-radar-axis-right{transform:translate(-100%,-50%);text-align:right;}"
-        ".cmp-radar-axis-label{display:inline-block;color:#cbd5e1;font-size:.62rem;font-weight:700;"
-        "padding:.2rem .35rem;border-radius:6px;background:rgba(15,23,42,.72);white-space:nowrap;"
-        "cursor:default;transition:color .14s,border-color .14s,background .14s;border:1px solid transparent;}"
-        ".cmp-radar-axis:hover .cmp-radar-axis-label,.cmp-radar-axis:focus-within .cmp-radar-axis-label"
-        "{color:#f8fafc;border-color:rgba(148,163,184,.35);background:rgba(15,23,42,.92);}"
-        ".cmp-radar-tip{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);"
-        "min-width:11.5rem;max-width:15rem;padding:.55rem .62rem;border-radius:10px;"
-        "border:1px solid rgba(100,116,139,.45);background:rgba(15,23,42,.96);"
-        "box-shadow:0 10px 28px rgba(2,6,23,.45);opacity:0;visibility:hidden;pointer-events:none;"
-        "transition:opacity .14s,transform .14s,visibility .14s;z-index:12;}"
-        ".cmp-radar-axis-left .cmp-radar-tip{left:0;transform:translateX(0) translateY(4px);}"
-        ".cmp-radar-axis-right .cmp-radar-tip{left:auto;right:0;transform:translateX(0) translateY(4px);}"
-        ".cmp-radar-axis:hover .cmp-radar-tip,.cmp-radar-axis:focus-within .cmp-radar-tip"
-        "{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);}"
-        ".cmp-radar-axis-left:hover .cmp-radar-tip,.cmp-radar-axis-left:focus-within .cmp-radar-tip"
-        "{transform:translateX(0) translateY(0);}"
-        ".cmp-radar-axis-right:hover .cmp-radar-tip,.cmp-radar-axis-right:focus-within .cmp-radar-tip"
-        "{transform:translateX(0) translateY(0);}"
-        ".cmp-radar-tip-title{color:#e2e8f0;font-size:.68rem;font-weight:800;letter-spacing:.03em;"
-        "text-transform:uppercase;margin-bottom:.42rem;}"
-        ".cmp-radar-tip-rows{display:flex;flex-direction:column;gap:.3rem;}"
-        ".cmp-radar-tip-row{display:grid;grid-template-columns:.45rem minmax(0,1fr) auto;"
-        "align-items:center;gap:.38rem;font-size:.68rem;}"
-        ".cmp-radar-tip-dot{width:.45rem;height:.45rem;border-radius:999px;display:inline-block;}"
-        ".cmp-radar-tip-primary .cmp-radar-tip-dot{background:#a78bfa;}"
-        ".cmp-radar-tip-secondary .cmp-radar-tip-dot{background:#86efac;}"
-        ".cmp-radar-tip-name{color:#94a3b8;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}"
-        ".cmp-radar-tip-val{color:#f8fafc;font-weight:800;font-variant-numeric:tabular-nums;}"
-        "</style>"
-    )
-
-
 def _compare_radar_metric_value(source: dict, key: str) -> float | None:
     if key in xstats.XP_PROFILE_BAR_KEYS and not source.get("xp_profile_bars_eligible", True):
         return None
@@ -1877,78 +1822,18 @@ def _compare_radar_metric_display(source: dict, key: str) -> str:
     return xstats.format_pa_stats_value(key, source.get(key))
 
 
-def _compare_radar_axis_angle(index: int, count: int) -> float:
-    return -math.pi / 2 - (2 * math.pi * index / count)
+def _compare_radar_values(
+    source: dict,
+    metric_specs: tuple[tuple[str, str], ...],
+) -> list[float]:
+    values: list[float] = []
+    for key, _ in metric_specs:
+        raw = _compare_radar_metric_value(source, key)
+        values.append(COMPARE_RADAR_MIN if raw is None else float(raw))
+    return values
 
 
-def _compare_radar_radius(value: float | None, max_r: float) -> float:
-    score = COMPARE_RADAR_MIN if value is None else float(value)
-    score = max(COMPARE_RADAR_MIN, min(COMPARE_RADAR_MAX, score))
-    span = COMPARE_RADAR_MAX - COMPARE_RADAR_MIN
-    return max_r * (score - COMPARE_RADAR_MIN) / span
-
-
-def _compare_radar_xy(
-    value: float | None,
-    index: int,
-    count: int,
-    *,
-    cx: float,
-    cy: float,
-    max_r: float,
-) -> tuple[float, float]:
-    angle = _compare_radar_axis_angle(index, count)
-    radius = _compare_radar_radius(value, max_r)
-    return cx + radius * math.cos(angle), cy + radius * math.sin(angle)
-
-
-def _compare_radar_polygon_points(
-    values: list[float | None],
-    *,
-    cx: float,
-    cy: float,
-    max_r: float,
-) -> str:
-    count = len(values)
-    points = [
-        f"{_compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)[0]:.2f},"
-        f"{_compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)[1]:.2f}"
-        for idx, value in enumerate(values)
-    ]
-    return " ".join(points)
-
-
-def _compare_radar_axis_tip_html(
-    label: str,
-    key: str,
-    *,
-    name_a: str,
-    name_b: str,
-    source_a: dict,
-    source_b: dict,
-) -> str:
-    val_a = html.escape(_compare_radar_metric_display(source_a, key))
-    val_b = html.escape(_compare_radar_metric_display(source_b, key))
-    return (
-        '<div class="cmp-radar-tip" role="tooltip">'
-        f'<div class="cmp-radar-tip-title">{html.escape(label)}</div>'
-        '<div class="cmp-radar-tip-rows">'
-        '<div class="cmp-radar-tip-row cmp-radar-tip-primary">'
-        '<span class="cmp-radar-tip-dot" aria-hidden="true"></span>'
-        f'<span class="cmp-radar-tip-name">{html.escape(name_a)}</span>'
-        f'<span class="cmp-radar-tip-val">{val_a}</span>'
-        "</div>"
-        '<div class="cmp-radar-tip-row cmp-radar-tip-secondary">'
-        '<span class="cmp-radar-tip-dot" aria-hidden="true"></span>'
-        f'<span class="cmp-radar-tip-name">{html.escape(name_b)}</span>'
-        f'<span class="cmp-radar-tip-val">{val_b}</span>'
-        "</div>"
-        "</div>"
-        "</div>"
-    )
-
-
-def _compare_interactive_radar_html(
+def build_compare_radar_figure(
     title: str,
     metric_specs: tuple[tuple[str, str], ...],
     *,
@@ -1956,143 +1841,145 @@ def _compare_interactive_radar_html(
     source_b: dict,
     name_a: str,
     name_b: str,
-) -> str:
-    count = len(metric_specs)
-    if count < 3:
-        return ""
+):
+    """Interactive overlaid polar chart for the Compare tab."""
+    import plotly.graph_objects as go
 
-    cx, cy, max_r = 150.0, 150.0, 96.0
-    values_a = [_compare_radar_metric_value(source_a, key) for key, _ in metric_specs]
-    values_b = [_compare_radar_metric_value(source_b, key) for key, _ in metric_specs]
-    poly_a = _compare_radar_polygon_points(values_a, cx=cx, cy=cy, max_r=max_r)
-    poly_b = _compare_radar_polygon_points(values_b, cx=cx, cy=cy, max_r=max_r)
-
-    grid_levels = (4.0, 5.0, 6.0, 7.0, 8.0)
-    grid_rings: list[str] = []
-    for level in grid_levels:
-        ring_vals = [level] * count
-        ring_pts = _compare_radar_polygon_points(ring_vals, cx=cx, cy=cy, max_r=max_r)
-        grid_rings.append(
-            f'<polygon points="{ring_pts}" fill="none" stroke="rgba(100,116,139,0.42)" '
-            f'stroke-width="0.8"></polygon>'
-        )
-
-    spokes: list[str] = []
-    for idx in range(count):
-        x_end, y_end = _compare_radar_xy(COMPARE_RADAR_MAX, idx, count, cx=cx, cy=cy, max_r=max_r)
-        spokes.append(
-            f'<line x1="{cx:.2f}" y1="{cy:.2f}" x2="{x_end:.2f}" y2="{y_end:.2f}" '
-            f'stroke="rgba(100,116,139,0.38)" stroke-width="0.8"></line>'
-        )
-
-    dots_a: list[str] = []
-    dots_b: list[str] = []
-    for idx, value in enumerate(values_a):
-        x_pt, y_pt = _compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)
-        dots_a.append(
-            f'<circle cx="{x_pt:.2f}" cy="{y_pt:.2f}" r="4.2" fill="{PA_COMPARE_PRIMARY_COLOR}" '
-            f'stroke="#0f172a" stroke-width="0.8"></circle>'
-        )
-    for idx, value in enumerate(values_b):
-        x_pt, y_pt = _compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)
-        dots_b.append(
-            f'<circle cx="{x_pt:.2f}" cy="{y_pt:.2f}" r="4.2" fill="{PA_COMPARE_SECONDARY_COLOR}" '
-            f'stroke="#0f172a" stroke-width="0.8"></circle>'
-        )
-
-    axis_hits: list[str] = []
-    for idx, (key, label) in enumerate(metric_specs):
-        label_x, label_y = _compare_radar_xy(
-            COMPARE_RADAR_MAX + 0.55,
-            idx,
-            count,
-            cx=cx,
-            cy=cy,
-            max_r=max_r,
-        )
-        left_pct = max(2.0, min(98.0, (label_x / 300.0) * 100.0))
-        top_pct = max(2.0, min(98.0, (label_y / 300.0) * 100.0))
-        anchor = "center"
-        if left_pct < 28:
-            anchor = "left"
-        elif left_pct > 72:
-            anchor = "right"
-        tip_html = _compare_radar_axis_tip_html(
-            label,
-            key,
-            name_a=name_a,
-            name_b=name_b,
-            source_a=source_a,
-            source_b=source_b,
-        )
-        axis_hits.append(
-            f'<div class="cmp-radar-axis cmp-radar-axis-{anchor}" tabindex="0" '
-            f'style="left:{left_pct:.2f}%;top:{top_pct:.2f}%;">'
-            f'<span class="cmp-radar-axis-label">{html.escape(label)}</span>'
-            f"{tip_html}"
-            "</div>"
-        )
-
-    return (
-        '<div class="cmp-radar-card">'
-        f'<div class="cmp-radar-card-title">{html.escape(title)}</div>'
-        '<div class="cmp-radar-stage">'
-        '<svg class="cmp-radar-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" '
-        'width="300" height="300" role="img" preserveAspectRatio="xMidYMid meet" '
-        f'aria-label="{html.escape(title)} comparison radar">'
-        f"{''.join(grid_rings)}"
-        f"{''.join(spokes)}"
-        f'<polygon points="{poly_b}" fill="rgba(134,239,172,0.14)" stroke="{PA_COMPARE_SECONDARY_COLOR}" '
-        f'stroke-width="2.2" stroke-linejoin="round"></polygon>'
-        f'<polygon points="{poly_a}" fill="rgba(167,139,250,0.18)" stroke="{PA_COMPARE_PRIMARY_COLOR}" '
-        f'stroke-width="2.2" stroke-linejoin="round"></polygon>'
-        f"{''.join(dots_b)}"
-        f"{''.join(dots_a)}"
-        "</svg>"
-        f'<div class="cmp-radar-axis-layer">{"".join(axis_hits)}</div>'
-        "</div>"
-        "</div>"
+    categories = [label for _, label in metric_specs]
+    values_a = _compare_radar_values(source_a, metric_specs)
+    values_b = _compare_radar_values(source_b, metric_specs)
+    displays_a = [_compare_radar_metric_display(source_a, key) for key, _ in metric_specs]
+    displays_b = [_compare_radar_metric_display(source_b, key) for key, _ in metric_specs]
+    compare_tip = (
+        "<b>%{theta}</b><br>"
+        f"{name_a}: %{{customdata[0]}}<br>"
+        f"{name_b}: %{{customdata[1]}}"
+        "<extra></extra>"
     )
+    custom_a = list(zip(displays_a, displays_b))
+    custom_b = list(zip(displays_a, displays_b))
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatterpolar(
+            r=values_b,
+            theta=categories,
+            name=name_b,
+            fill="toself",
+            fillcolor="rgba(134, 239, 172, 0.13)",
+            line=dict(color=PA_COMPARE_SECONDARY_COLOR, width=2.2),
+            marker=dict(
+                size=7,
+                color=PA_COMPARE_SECONDARY_COLOR,
+                line=dict(width=1, color="#0f172a"),
+            ),
+            customdata=custom_b,
+            hovertemplate=compare_tip,
+        )
+    )
+    fig.add_trace(
+        go.Scatterpolar(
+            r=values_a,
+            theta=categories,
+            name=name_a,
+            fill="toself",
+            fillcolor="rgba(167, 139, 250, 0.17)",
+            line=dict(color=PA_COMPARE_PRIMARY_COLOR, width=2.2),
+            marker=dict(
+                size=7,
+                color=PA_COMPARE_PRIMARY_COLOR,
+                line=dict(width=1, color="#0f172a"),
+            ),
+            customdata=custom_a,
+            hovertemplate=compare_tip,
+        )
+    )
+    chart_h = 292 if len(categories) <= 3 else 318
+    fig.update_layout(
+        title=dict(
+            text=title.upper(),
+            x=0.5,
+            xanchor="center",
+            font=dict(size=11, color="#93c5fd"),
+        ),
+        height=chart_h,
+        margin=dict(l=52, r=52, t=42, b=36),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+        polar=dict(
+            bgcolor="rgba(0,0,0,0)",
+            radialaxis=dict(
+                range=[COMPARE_RADAR_MIN, COMPARE_RADAR_MAX],
+                tickvals=[4, 5, 6, 7, 8],
+                tickfont=dict(size=9, color="#64748b"),
+                gridcolor="rgba(100, 116, 139, 0.34)",
+                linecolor="rgba(100, 116, 139, 0.34)",
+                angle=90,
+            ),
+            angularaxis=dict(
+                tickfont=dict(size=10, color="#cbd5e1"),
+                gridcolor="rgba(100, 116, 139, 0.34)",
+                linecolor="rgba(100, 116, 139, 0.34)",
+                direction="clockwise",
+            ),
+        ),
+        font=dict(color="#cbd5e1", size=10),
+        hoverlabel=dict(
+            bgcolor="rgba(15, 23, 42, 0.96)",
+            bordercolor="rgba(100, 116, 139, 0.45)",
+            font=dict(size=12, color="#f8fafc"),
+        ),
+        hovermode="closest",
+    )
+    return fig
 
 
-def _build_compare_radars_html(
+def _render_compare_radars(
     player_a: dict,
     source_a: dict,
     player_b: dict,
     source_b: dict,
-) -> str:
+) -> None:
+    """Render the two comparison radar charts in the center column."""
     name_a = str(player_a.get("player_name") or "Player 1")
     name_b = str(player_b.get("player_name") or "Player 2")
-    legend = (
+    st.markdown(
+        '<div class="cmp-radar-column">'
         '<div class="pa-compare-legend cmp-radar-legend">'
         f'<span class="pa-compare-legend-primary">{html.escape(name_a)}</span>'
         f'<span class="pa-compare-legend-secondary">{html.escape(name_b)}</span>'
-        "</div>"
+        "</div>",
+        unsafe_allow_html=True,
     )
-    radar_xp = _compare_interactive_radar_html(
-        "xP pillars",
-        COMPARE_RADAR_XP_SPECS,
-        source_a=source_a,
-        source_b=source_b,
-        name_a=name_a,
-        name_b=name_b,
+    plot_cfg = {"displayModeBar": False, "responsive": True}
+    st.plotly_chart(
+        build_compare_radar_figure(
+            "xP pillars",
+            COMPARE_RADAR_XP_SPECS,
+            source_a=source_a,
+            source_b=source_b,
+            name_a=name_a,
+            name_b=name_b,
+        ),
+        use_container_width=True,
+        config=plot_cfg,
+        key="cmp_radar_xp",
     )
-    radar_pass = _compare_interactive_radar_html(
-        "Pass profile",
-        COMPARE_RADAR_PASS_SPECS,
-        source_a=source_a,
-        source_b=source_b,
-        name_a=name_a,
-        name_b=name_b,
+    st.plotly_chart(
+        build_compare_radar_figure(
+            "Pass profile",
+            COMPARE_RADAR_PASS_SPECS,
+            source_a=source_a,
+            source_b=source_b,
+            name_a=name_a,
+            name_b=name_b,
+        ),
+        use_container_width=True,
+        config=plot_cfg,
+        key="cmp_radar_pass",
     )
-    return (
-        _compare_radar_embedded_styles_html()
-        + '<div class="cmp-radar-column">'
-        f"{legend}"
-        f"{radar_xp}"
-        f"{radar_pass}"
-        "</div>"
-    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _build_pa_compare_layout_html(
@@ -4167,201 +4054,25 @@ st.markdown(
         background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
         border: 1px solid #2a3550;
         border-radius: 14px;
-        padding: 0.95rem 0.85rem 1rem;
+        padding: 0.85rem 0.75rem 0.65rem;
         box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
         min-width: 0;
     }
     .cmp-radar-legend {
-        margin-bottom: 0.15rem;
+        margin-bottom: 0.35rem;
     }
-    .cmp-radar-card {
-        display: flex;
-        flex-direction: column;
-        gap: 0.45rem;
-        min-width: 0;
+    .cmp-radar-column [data-testid="stPlotlyChart"] {
+        margin: 0;
+        padding: 0;
     }
-    .cmp-radar-card + .cmp-radar-card {
-        padding-top: 0.55rem;
+    .cmp-radar-column [data-testid="stPlotlyChart"] + [data-testid="stPlotlyChart"] {
+        margin-top: -0.15rem;
+        padding-top: 0.35rem;
         border-top: 1px solid rgba(51, 65, 85, 0.45);
     }
-    .cmp-radar-card-title {
-        color: #93c5fd;
-        font-size: 0.66rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        text-align: center;
-    }
-    .cmp-radar-stage {
-        position: relative;
-        width: 100%;
-        max-width: 320px;
-        margin: 0 auto;
-        aspect-ratio: 1 / 1;
-    }
-    .cmp-radar-svg {
-        width: 100%;
-        height: 100%;
-        display: block;
-        overflow: visible;
-    }
-    .cmp-radar-grid-ring {
-        fill: none;
-        stroke: rgba(51, 65, 85, 0.55);
-        stroke-width: 0.8;
-    }
-    .cmp-radar-spoke {
-        stroke: rgba(51, 65, 85, 0.45);
-        stroke-width: 0.8;
-    }
-    .cmp-radar-poly {
-        stroke-width: 2.2;
-        stroke-linejoin: round;
-        vector-effect: non-scaling-stroke;
-    }
-    .cmp-radar-poly-primary {
-        fill: rgba(167, 139, 250, 0.16);
-        stroke: #a78bfa;
-    }
-    .cmp-radar-poly-secondary {
-        fill: rgba(134, 239, 172, 0.12);
-        stroke: #86efac;
-    }
-    .cmp-radar-dot {
-        stroke: #0f172a;
-        stroke-width: 0.8;
-        vector-effect: non-scaling-stroke;
-    }
-    .cmp-radar-dot-primary { fill: #a78bfa; }
-    .cmp-radar-dot-secondary { fill: #86efac; }
-    .cmp-radar-axis-layer {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-    }
-    .cmp-radar-axis {
-        position: absolute;
-        transform: translate(-50%, -50%);
-        pointer-events: auto;
-        z-index: 2;
-    }
-    .cmp-radar-axis-center { text-align: center; }
-    .cmp-radar-axis-left {
-        transform: translate(0, -50%);
-        text-align: left;
-    }
-    .cmp-radar-axis-right {
-        transform: translate(-100%, -50%);
-        text-align: right;
-    }
-    .cmp-radar-axis-label {
-        display: inline-block;
-        color: #cbd5e1;
-        font-size: 0.62rem;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-        line-height: 1.2;
-        padding: 0.2rem 0.35rem;
-        border-radius: 6px;
-        background: rgba(15, 23, 42, 0.72);
-        border: 1px solid transparent;
-        cursor: default;
-        transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
-        white-space: nowrap;
-        max-width: 7.5rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .cmp-radar-axis:hover .cmp-radar-axis-label,
-    .cmp-radar-axis:focus-within .cmp-radar-axis-label {
-        color: #f8fafc;
-        border-color: rgba(148, 163, 184, 0.35);
-        background: rgba(15, 23, 42, 0.92);
-    }
-    .cmp-radar-tip {
-        position: absolute;
-        left: 50%;
-        bottom: calc(100% + 8px);
-        transform: translateX(-50%) translateY(4px);
-        min-width: 11.5rem;
-        max-width: 15rem;
-        padding: 0.55rem 0.62rem;
-        border-radius: 10px;
-        border: 1px solid rgba(100, 116, 139, 0.45);
-        background: rgba(15, 23, 42, 0.96);
-        box-shadow: 0 10px 28px rgba(2, 6, 23, 0.45);
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-        transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s ease;
-        z-index: 12;
-    }
-    .cmp-radar-axis-left .cmp-radar-tip {
-        left: 0;
-        transform: translateX(0) translateY(4px);
-    }
-    .cmp-radar-axis-right .cmp-radar-tip {
-        left: auto;
-        right: 0;
-        transform: translateX(0) translateY(4px);
-    }
-    .cmp-radar-axis:hover .cmp-radar-tip,
-    .cmp-radar-axis:focus-within .cmp-radar-tip {
-        opacity: 1;
-        visibility: visible;
-        transform: translateX(-50%) translateY(0);
-    }
-    .cmp-radar-axis-left:hover .cmp-radar-tip,
-    .cmp-radar-axis-left:focus-within .cmp-radar-tip {
-        transform: translateX(0) translateY(0);
-    }
-    .cmp-radar-axis-right:hover .cmp-radar-tip,
-    .cmp-radar-axis-right:focus-within .cmp-radar-tip {
-        transform: translateX(0) translateY(0);
-    }
-    .cmp-radar-tip-title {
-        color: #e2e8f0;
-        font-size: 0.68rem;
-        font-weight: 800;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-        margin-bottom: 0.42rem;
-    }
-    .cmp-radar-tip-rows {
-        display: flex;
-        flex-direction: column;
-        gap: 0.3rem;
-    }
-    .cmp-radar-tip-row {
-        display: grid;
-        grid-template-columns: 0.45rem minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 0.38rem;
-        font-size: 0.68rem;
-        line-height: 1.25;
-    }
-    .cmp-radar-tip-dot {
-        width: 0.45rem;
-        height: 0.45rem;
-        border-radius: 999px;
-        display: inline-block;
-    }
-    .cmp-radar-tip-primary .cmp-radar-tip-dot { background: #a78bfa; }
-    .cmp-radar-tip-secondary .cmp-radar-tip-dot { background: #86efac; }
-    .cmp-radar-tip-name {
-        color: #94a3b8;
-        font-weight: 600;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .cmp-radar-tip-val {
-        color: #f8fafc;
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
+    .cmp-radar-column .js-plotly-plot,
+    .cmp-radar-column .plot-container.plotly {
+        background: transparent !important;
     }
     .st-key-pa_filter_card label[data-testid="stWidgetLabel"] p {
         font-size: 0.78rem !important;
@@ -11981,12 +11692,7 @@ def render_compare_section(
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col_radar:
-            st.markdown('<div class="cmp-radar-pane">', unsafe_allow_html=True)
-            st.html(
-                _build_compare_radars_html(player_a, source_a, player_b, source_b),
-                width="stretch",
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+            _render_compare_radars(player_a, source_a, player_b, source_b)
 
         with col_b:
             st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
