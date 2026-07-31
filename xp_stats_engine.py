@@ -911,9 +911,8 @@ XP_PLAYER_ANALYSIS_BLOCKS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "threat_passes_p90",
     )),
     ("Effectiveness", (
-        "xp_m4_per_pass",
-        "xp_m4_per_threat_pass",
-        "xp_m4_threat_rate",
+        "xpv_per_pass",
+        "test_impact_v2_p90",
     )),
     ("Quality", (
         "xp_residual_median",
@@ -981,7 +980,7 @@ XP_PROFILE_BAR_ICONS: dict[str, str] = {
 
 XP_PROFILE_BAR_METRICS: dict[str, tuple[str, ...]] = {
     "xp_activity_display": ("xp_per_90",),
-    "xp_edge_display": ("xp_m4_per_pass",),
+    "xp_edge_display": ("xpv_per_pass", "test_impact_v2_p90"),
     "xp_efficiency_display": ("xpass_residual_p90",),
     "xp_quality_display": ("xp_residual_median",),
     "xp_consistency_display": ("xp_game_consistency_score",),
@@ -991,7 +990,8 @@ XP_PROFILE_BAR_METRICS: dict[str, tuple[str, ...]] = {
 XP_PROFILE_SUBMETRICS: tuple[str, ...] = (
     "xp_per_90",
     "threat_passes_p90",
-    "xp_m4_per_pass",
+    "xpv_per_pass",
+    "test_impact_v2_p90",
     "xp_m4_per_threat_pass",
     "xp_residual_median",
 )
@@ -1055,8 +1055,8 @@ XP_COMPARE_COLUMN_TOOLTIPS: dict[str, str] = {
         "produces per game."
     ),
     "xp_edge_display": (
-        "Average xP per pass — measures the efficiency of each delivery, "
-        "independent of volume."
+        "50% xPV per completed pass and 50% Pass Impact v2 per game — "
+        "destination value plus high-progression, difficult deliveries."
     ),
     "passes_total": "Passes attempted per game (p90).",
 }
@@ -1076,7 +1076,10 @@ XP_COMPARE_METRIC_TOOLTIPS: dict[str, str] = {
 
 XP_PROFILE_BAR_TOOLTIPS: dict[str, str] = {
     "xp_activity_display": "How much xPV the player generates per game — passing volume times destination value.",
-    "xp_edge_display": "Average xPV per completed pass — how valuable each delivery is, regardless of volume.",
+    "xp_edge_display": (
+        "Blend of xPV per completed pass and Pass Impact v2 per game (50/50) — "
+        "quality of each delivery plus selective high-impact progression."
+    ),
     "xp_efficiency_display": (
         "Sum of (pass completed − xP probability) per 90 minutes — execution above the geometric model."
     ),
@@ -1149,13 +1152,14 @@ XP_PROFILE_ARCHETYPE_ICONS: dict[str, str] = {
 XP_PROFILE_ARCHETYPE_FILTER_ALL = ""
 
 ACTIVITY_METRICS: tuple[str, ...] = ("xp_per_90",)
-EDGE_METRICS: tuple[str, ...] = ("xp_m4_per_pass",)
+EDGE_METRICS: tuple[str, ...] = ("xpv_per_pass", "test_impact_v2_p90")
 EFFICIENCY_METRICS: tuple[str, ...] = ("xpass_residual_p90",)
 
 # Grade = weighted mean of three pillars (z-scores within position group).
 XP_PASS_RATING_FEATURE_WEIGHTS: dict[str, float] = {
     "xp_per_90": 0.35,
-    "xp_m4_per_pass": 0.30,
+    "xpv_per_pass": 0.15,
+    "test_impact_v2_p90": 0.15,
     "xpass_residual_p90": 0.35,
 }
 XP_PASS_RATING_FEATURES: tuple[str, ...] = tuple(XP_PASS_RATING_FEATURE_WEIGHTS)
@@ -1163,7 +1167,10 @@ XP_PASS_RATING_FEATURES: tuple[str, ...] = tuple(XP_PASS_RATING_FEATURE_WEIGHTS)
 # Weight each rendered pillar carries in the composite grade.
 XP_PROFILE_BAR_WEIGHTS: dict[str, float] = {
     "xp_activity_display": XP_PASS_RATING_FEATURE_WEIGHTS["xp_per_90"],
-    "xp_edge_display": XP_PASS_RATING_FEATURE_WEIGHTS["xp_m4_per_pass"],
+    "xp_edge_display": (
+        XP_PASS_RATING_FEATURE_WEIGHTS["xpv_per_pass"]
+        + XP_PASS_RATING_FEATURE_WEIGHTS["test_impact_v2_p90"]
+    ),
     "xp_efficiency_display": XP_PASS_RATING_FEATURE_WEIGHTS["xpass_residual_p90"],
 }
 XP_PASS_RATING_TANH_SCALE = 1.25
@@ -1268,6 +1275,8 @@ XP_STATS_LABELS: dict[str, str] = {
     "xp_m4_threat_passes": f"{IMPACT_PASS_ABBR} Total",
     "xp_m4_threat_passes_p90": f"xP {IMPACT_PASS_ABBR} (Per game)",
     "xp_m4_per_pass": "xP/Pass",
+    "xpv_per_pass": "xPV/Pass",
+    "test_impact_v2_p90": "Pass Impact v2 / game",
     "xp_m4_per_threat_pass": f"xP/{IMPACT_PASS_ABBR}",
     "xp_m4_threat_rate": f"% {IMPACT_PASS_ABBR}",
     "xp_m4_per_pass_short": "xP/Pass",
@@ -1334,6 +1343,8 @@ XP_PA_LABELS: dict[str, str] = {
     "xp_per_90": "xP / game",
     "threat_passes_p90": f"{IMPACT_PASS_ABBR} / game",
     "xp_m4_per_pass": "xP / pass",
+    "xpv_per_pass": "xPV / pass",
+    "test_impact_v2_p90": "Pass Impact v2 / game",
     "xp_m4_per_threat_pass": f"xP / {IMPACT_PASS_ABBR}",
     "xp_m4_threat_rate": f"% {IMPACT_PASS_ABBR}",
     "xp_residual_median": "Median residual",
@@ -1351,6 +1362,11 @@ XP_PA_TOOLTIPS: dict[str, str] = {
         "positive residual and forward progress relative to peers."
     ),
     "xp_m4_per_pass": "Average xP per pass — measures the efficiency of each delivery.",
+    "xpv_per_pass": "Average xPV on completed passes — destination value per delivery.",
+    "test_impact_v2_p90": (
+        "Pass Impact v2 per game — completed passes with high composite impact, "
+        "xPass below 67%, strong progression and outside the byline."
+    ),
     "xp_m4_per_threat_pass": f"Average xP on {IMPACT_PASS_ABBR} (surprise + high value for distance).",
     "xp_m4_threat_rate": f"Share of passes classified as {IMPACT_PASS_ABBR}.",
     "xp_residual_median": (
@@ -2374,7 +2390,7 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
     """Attach xP pass rating (3-metric weighted mean + shrinkage) with blended display.
 
     Composite = weighted z-scores within position:
-    Productivity 35%, Effectiveness 30%, Efficiency 35%.
+    Productivity 35%, Effectiveness 30% (xPV/pass + Pass Impact v2/game), Efficiency 35%.
     Display grade blends probit rank (52%) with tanh(composite z) (48%), then confidence pull.
     """
     if not players:
@@ -2756,7 +2772,7 @@ def format_pa_stats_value(key: str, value: float | int | None) -> str:
         return _format_residual_display(val)
     if key in {"xp_game_std_adj", "xp_game_std_adj_score"}:
         return f"{val:+.2f}"
-    if key in {"xp_m4_per_pass", "xp_m4_per_threat_pass"}:
+    if key in {"xp_m4_per_pass", "xp_m4_per_threat_pass", "xpv_per_pass"}:
         return f"{val:.2f}"
     if key in {"xp_per_90", "threat_passes_p90", "xpass_residual_p90", "test_impact_v2_p90"}:
         return f"{val:.1f}"

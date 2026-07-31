@@ -12302,7 +12302,8 @@ def render_presentation_tab(
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-bolt"></i></span>'
         "<h5>Effectiveness</h5>"
-        "<p>xP per pass — how much value each delivery carries, regardless of volume.</p></div>"
+        "<p>50% xPV per pass and 50% Pass Impact v2 per game — destination value plus "
+        "selective high-progression deliveries.</p></div>"
         "</div>",
         unsafe_allow_html=True,
     )

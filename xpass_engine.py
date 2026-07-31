@@ -441,6 +441,7 @@ def filter_passes_by_completion_xpass_threshold(
 
 
 XP_PLAYER_MERGE_KEYS: tuple[str, ...] = (
+    "xpv_per_pass",
     "xpass_residual_p90",
     "xpass_hard_coe_pct",
     "xpass_coe_high_pct",
