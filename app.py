@@ -4213,14 +4213,14 @@ st.markdown(
     .pa-pillars-column {
         display: flex;
         flex-direction: column;
-        gap: 0.42rem;
+        gap: 0.35rem;
         height: 100%;
         box-sizing: border-box;
     }
     .pa-pillars-card {
         display: flex;
         flex-direction: column;
-        padding: 0.58rem 0.65rem 0.62rem;
+        padding: 0.5rem 0.58rem 0.5rem;
         margin-bottom: 0;
         flex: 1 1 auto;
         min-height: 0;
@@ -4228,7 +4228,7 @@ st.markdown(
         box-sizing: border-box;
     }
     .pa-stats-title {
-        margin: 0 0 0.35rem 0;
+        margin: 0 0 0.22rem 0;
         color: #93c5fd;
         font-size: 0.68rem;
         font-weight: 700;
@@ -4257,25 +4257,25 @@ st.markdown(
         margin-left: 0.25rem;
     }
     .pa-identity-card {
-        padding: 0.72rem 0.88rem 0.68rem;
+        padding: 0.66rem 0.82rem 0.62rem;
         margin-bottom: 0;
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
+        gap: 0.34rem;
         height: 100%;
         overflow: hidden;
         box-sizing: border-box;
     }
     .pa-identity-header {
         display: flex;
-        gap: 0.75rem;
+        gap: 0.58rem;
         align-items: flex-start;
     }
     .pa-identity-photo-wrap {
         flex-shrink: 0;
-        width: 68px;
-        height: 68px;
-        border-radius: 10px;
+        width: 58px;
+        height: 58px;
+        border-radius: 9px;
         overflow: hidden;
         border: 1px solid #334155;
         background: #0f172a;
@@ -4293,7 +4293,7 @@ st.markdown(
         width: 100%;
         height: 100%;
         color: #475569;
-        font-size: 1.45rem;
+        font-size: 1.2rem;
         font-weight: 800;
         letter-spacing: -0.03em;
     }
@@ -4312,7 +4312,7 @@ st.markdown(
     .pa-identity-title {
         margin: 0;
         color: #f8fafc;
-        font-size: 1.35rem;
+        font-size: 1.22rem;
         font-weight: 800;
         letter-spacing: -0.02em;
         line-height: 1.15;
@@ -4877,7 +4877,8 @@ st.markdown(
     }
     .pa-origin-heatmap-wrap {
         flex: 1;
-        min-height: 168px;
+        min-height: 148px;
+        max-height: 210px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -4885,8 +4886,8 @@ st.markdown(
         overflow: hidden;
     }
     .pa-origin-heatmap {
-        width: 108%;
-        max-width: 108%;
+        width: 104%;
+        max-width: 104%;
         max-height: 100%;
         object-fit: contain;
         border-radius: 8px;
@@ -4902,10 +4903,41 @@ st.markdown(
     .pa-pillars-stack {
         display: flex;
         flex-direction: column;
-        gap: 0.34rem;
+        gap: 0.22rem;
         flex: 1 1 auto;
         min-height: 0;
         overflow-y: auto;
+    }
+    .pa-pass-score-panel {
+        margin-bottom: 0;
+        padding: 0;
+        border: none;
+        border-radius: 0;
+        background: transparent;
+    }
+    .pa-pass-score-panel .pa-xp-section-body .pa-regular-score-accordion {
+        margin-top: 0.2rem;
+    }
+    .pa-pass-score-panel .pa-xp-section-body .pa-regular-score-accordion:first-child {
+        margin-top: 0;
+    }
+    .pa-pass-score-panel .pa-xp-section-body .pa-regular-score-accordion summary {
+        padding: 0.36rem 0.46rem;
+    }
+    .pa-pass-score-panel .pa-xp-section-body .pa-regular-score-accordion .grade-card-title {
+        font-size: 0.76rem;
+    }
+    .pa-pass-score-panel .pa-xp-section-body .pa-regular-score-accordion .grade-accordion-body {
+        padding: 0 0.46rem 0.12rem;
+    }
+    .pa-pass-score-panel .pa-xp-section-body .pa-regular-score-accordion .grade-accordion-body .metric-line {
+        padding: 0.3rem 0;
+        font-size: 0.78rem;
+    }
+    .pa-pass-score-panel .pa-letter-grade-pill {
+        font-size: 0.72rem;
+        min-width: 40px;
+        padding: 2px 7px;
     }
     .pa-pillar-group-label {
         margin: 0 0 0.55rem 0;
@@ -5330,12 +5362,12 @@ st.markdown(
         font-style: italic;
     }
     .pa-pass-mix-card {
-        padding: 0.55rem 0.65rem 0.6rem;
+        padding: 0.46rem 0.56rem 0.5rem;
         margin-bottom: 0;
         flex: 0 0 auto;
         display: flex;
         flex-direction: column;
-        gap: 0.45rem;
+        gap: 0.34rem;
         overflow: visible;
     }
     .pa-pass-mix-head {
@@ -5384,7 +5416,7 @@ st.markdown(
     }
     .pa-pass-mix-track {
         position: relative;
-        height: 0.68rem;
+        height: 0.58rem;
         border-radius: 999px;
         overflow: visible;
         background: linear-gradient(
@@ -5828,20 +5860,20 @@ st.markdown(
         margin-bottom: 0;
     }
     .pa-pillars-stack .grade-accordion summary {
-        padding: 0.5rem 0.6rem;
+        padding: 0.38rem 0.48rem;
     }
     .pa-pillars-stack .grade-card-title {
-        font-size: 0.8rem;
-        line-height: 1.2;
+        font-size: 0.76rem;
+        line-height: 1.15;
     }
     .pa-pillars-stack .grade-card-rank {
-        margin-top: 0.12rem;
-        font-size: 0.68rem;
+        margin-top: 0.08rem;
+        font-size: 0.64rem;
     }
     .pa-pillars-stack .section-rating-pill {
-        font-size: 0.76rem;
-        min-width: 44px;
-        padding: 3px 8px;
+        font-size: 0.72rem;
+        min-width: 40px;
+        padding: 2px 7px;
     }
     .pa-panel {
         background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
