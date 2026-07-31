@@ -574,6 +574,8 @@ PA_XP_RADAR_LINE_COLOR = "#a855f7"
 PA_XP_RADAR_FILL_COLOR = "#a855f7"
 PA_COMPARE_PRIMARY_COLOR = "#a78bfa"
 PA_COMPARE_SECONDARY_COLOR = "#86efac"
+CMP_RADAR_NEON_A = "#00E5FF"
+CMP_RADAR_NEON_B = "#B24BF3"
 COMPARE_RADAR_MIN = 3.0
 COMPARE_RADAR_MAX = 9.0
 COMPARE_RADAR_XP_SPECS: tuple[tuple[str, str], ...] = (
@@ -1833,6 +1835,57 @@ def _compare_radar_values(
     return values
 
 
+def _compare_radar_hex_rgba(hex_color: str, alpha: float) -> str:
+    color = str(hex_color).lstrip("#")
+    red = int(color[0:2], 16)
+    green = int(color[2:4], 16)
+    blue = int(color[4:6], 16)
+    return f"rgba({red},{green},{blue},{alpha})"
+
+
+def _add_neon_polar_trace(
+    fig,
+    *,
+    values: list[float],
+    categories: list[str],
+    color: str,
+    name: str,
+    customdata: list[tuple[str, str]],
+    hovertemplate: str,
+) -> None:
+    """Glow outline + filled polygon + bright vertex markers."""
+    import plotly.graph_objects as go
+
+    fig.add_trace(
+        go.Scatterpolar(
+            r=values,
+            theta=categories,
+            mode="lines",
+            line=dict(color=_compare_radar_hex_rgba(color, 0.42), width=11),
+            fill="none",
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+    fig.add_trace(
+        go.Scatterpolar(
+            r=values,
+            theta=categories,
+            name=name,
+            fill="toself",
+            fillcolor=_compare_radar_hex_rgba(color, 0.13),
+            line=dict(color=color, width=2.8),
+            marker=dict(
+                size=10,
+                color=color,
+                line=dict(width=2.2, color="#f8fafc"),
+            ),
+            customdata=customdata,
+            hovertemplate=hovertemplate,
+        )
+    )
+
+
 def build_compare_radar_figure(
     title: str,
     metric_specs: tuple[tuple[str, str], ...],
@@ -1845,7 +1898,7 @@ def build_compare_radar_figure(
     """Interactive overlaid polar chart for the Compare tab."""
     import plotly.graph_objects as go
 
-    categories = [label for _, label in metric_specs]
+    categories = [label.upper() for _, label in metric_specs]
     values_a = _compare_radar_values(source_a, metric_specs)
     values_b = _compare_radar_values(source_b, metric_specs)
     displays_a = [_compare_radar_metric_display(source_a, key) for key, _ in metric_specs]
@@ -1856,83 +1909,81 @@ def build_compare_radar_figure(
         f"{name_b}: %{{customdata[1]}}"
         "<extra></extra>"
     )
-    custom_a = list(zip(displays_a, displays_b))
-    custom_b = list(zip(displays_a, displays_b))
+    custom_pairs = list(zip(displays_a, displays_b))
 
     fig = go.Figure()
-    fig.add_trace(
-        go.Scatterpolar(
-            r=values_b,
-            theta=categories,
-            name=name_b,
-            fill="toself",
-            fillcolor="rgba(134, 239, 172, 0.13)",
-            line=dict(color=PA_COMPARE_SECONDARY_COLOR, width=2.2),
-            marker=dict(
-                size=7,
-                color=PA_COMPARE_SECONDARY_COLOR,
-                line=dict(width=1, color="#0f172a"),
-            ),
-            customdata=custom_b,
-            hovertemplate=compare_tip,
-        )
+    _add_neon_polar_trace(
+        fig,
+        values=values_b,
+        categories=categories,
+        color=CMP_RADAR_NEON_B,
+        name=name_b,
+        customdata=custom_pairs,
+        hovertemplate=compare_tip,
     )
-    fig.add_trace(
-        go.Scatterpolar(
-            r=values_a,
-            theta=categories,
-            name=name_a,
-            fill="toself",
-            fillcolor="rgba(167, 139, 250, 0.17)",
-            line=dict(color=PA_COMPARE_PRIMARY_COLOR, width=2.2),
-            marker=dict(
-                size=7,
-                color=PA_COMPARE_PRIMARY_COLOR,
-                line=dict(width=1, color="#0f172a"),
-            ),
-            customdata=custom_a,
-            hovertemplate=compare_tip,
-        )
+    _add_neon_polar_trace(
+        fig,
+        values=values_a,
+        categories=categories,
+        color=CMP_RADAR_NEON_A,
+        name=name_a,
+        customdata=custom_pairs,
+        hovertemplate=compare_tip,
     )
-    chart_h = 292 if len(categories) <= 3 else 318
+    chart_h = 308 if len(categories) <= 3 else 334
     fig.update_layout(
         title=dict(
             text=title.upper(),
             x=0.5,
             xanchor="center",
-            font=dict(size=11, color="#93c5fd"),
+            font=dict(size=10.5, color="#8fdcff", family="inherit"),
         ),
         height=chart_h,
-        margin=dict(l=52, r=52, t=42, b=36),
+        margin=dict(l=54, r=54, t=44, b=34),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         showlegend=False,
         polar=dict(
-            bgcolor="rgba(0,0,0,0)",
+            bgcolor="rgba(10, 10, 20, 0.42)",
+            gridshape="linear",
             radialaxis=dict(
                 range=[COMPARE_RADAR_MIN, COMPARE_RADAR_MAX],
                 tickvals=[4, 5, 6, 7, 8],
-                tickfont=dict(size=9, color="#64748b"),
-                gridcolor="rgba(100, 116, 139, 0.34)",
-                linecolor="rgba(100, 116, 139, 0.34)",
+                tickfont=dict(size=8, color="rgba(148, 163, 184, 0.5)"),
+                gridcolor="rgba(132, 108, 196, 0.24)",
+                linecolor="rgba(132, 108, 196, 0.24)",
                 angle=90,
+                showline=False,
             ),
             angularaxis=dict(
-                tickfont=dict(size=10, color="#cbd5e1"),
-                gridcolor="rgba(100, 116, 139, 0.34)",
-                linecolor="rgba(100, 116, 139, 0.34)",
+                tickfont=dict(size=9.5, color="#f8fafc"),
+                gridcolor="rgba(132, 108, 196, 0.24)",
+                linecolor="rgba(132, 108, 196, 0.24)",
                 direction="clockwise",
             ),
         ),
         font=dict(color="#cbd5e1", size=10),
         hoverlabel=dict(
-            bgcolor="rgba(15, 23, 42, 0.96)",
-            bordercolor="rgba(100, 116, 139, 0.45)",
+            bgcolor="rgba(12, 12, 24, 0.96)",
+            bordercolor="rgba(142, 36, 255, 0.42)",
             font=dict(size=12, color="#f8fafc"),
         ),
         hovermode="closest",
     )
     return fig
+
+
+def _cmp_radar_legend_html(name_a: str, name_b: str) -> str:
+    return (
+        '<div class="cmp-radar-legend">'
+        '<span class="cmp-radar-legend-item cmp-radar-legend-a">'
+        '<span class="cmp-radar-legend-ring" aria-hidden="true"></span>'
+        f"{html.escape(name_a)}</span>"
+        '<span class="cmp-radar-legend-item cmp-radar-legend-b">'
+        '<span class="cmp-radar-legend-ring" aria-hidden="true"></span>'
+        f"{html.escape(name_b)}</span>"
+        "</div>"
+    )
 
 
 def _render_compare_radars(
@@ -1946,10 +1997,7 @@ def _render_compare_radars(
     name_b = str(player_b.get("player_name") or "Player 2")
     st.markdown(
         '<div class="cmp-radar-column">'
-        '<div class="pa-compare-legend cmp-radar-legend">'
-        f'<span class="pa-compare-legend-primary">{html.escape(name_a)}</span>'
-        f'<span class="pa-compare-legend-secondary">{html.escape(name_b)}</span>'
-        "</div>",
+        f"{_cmp_radar_legend_html(name_a, name_b)}",
         unsafe_allow_html=True,
     )
     plot_cfg = {"displayModeBar": False, "responsive": True}
@@ -4051,24 +4099,61 @@ st.markdown(
         width: 100%;
     }
     .cmp-radar-column {
-        background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
-        border: 1px solid #2a3550;
-        border-radius: 14px;
-        padding: 0.85rem 0.75rem 0.65rem;
-        box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
+        background: radial-gradient(ellipse at 50% 36%, #1a1830 0%, #12121f 52%, #0b0b15 100%);
+        border: 1px solid rgba(142, 36, 255, 0.24);
+        border-radius: 16px;
+        padding: 0.9rem 0.75rem 0.7rem;
+        box-shadow:
+            inset 0 1px 0 rgba(0, 229, 255, 0.08),
+            0 14px 34px rgba(0, 0, 0, 0.38);
         min-width: 0;
     }
     .cmp-radar-legend {
-        margin-bottom: 0.35rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1.35rem;
+        margin-bottom: 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #e2e8f0;
     }
+    .cmp-radar-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        letter-spacing: 0.02em;
+    }
+    .cmp-radar-legend-ring {
+        position: relative;
+        width: 0.62rem;
+        height: 0.62rem;
+        border-radius: 999px;
+        border: 2px solid currentColor;
+        box-shadow: 0 0 9px currentColor;
+        flex: 0 0 auto;
+    }
+    .cmp-radar-legend-ring::after {
+        content: "";
+        position: absolute;
+        width: 0.22rem;
+        height: 0.22rem;
+        border-radius: 999px;
+        background: #ffffff;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+    .cmp-radar-legend-a { color: #00e5ff; }
+    .cmp-radar-legend-b { color: #b24bf3; }
     .cmp-radar-column [data-testid="stPlotlyChart"] {
         margin: 0;
         padding: 0;
     }
     .cmp-radar-column [data-testid="stPlotlyChart"] + [data-testid="stPlotlyChart"] {
-        margin-top: -0.15rem;
-        padding-top: 0.35rem;
-        border-top: 1px solid rgba(51, 65, 85, 0.45);
+        margin-top: -0.1rem;
+        padding-top: 0.4rem;
+        border-top: 1px solid rgba(142, 36, 255, 0.18);
     }
     .cmp-radar-column .js-plotly-plot,
     .cmp-radar-column .plot-container.plotly {
