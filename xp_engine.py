@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 import passes_engine as pe
 import xp_study_engine as xse
 
-XP_DATA_CACHE_VERSION = 63
+XP_DATA_CACHE_VERSION = 64
 XP_POSITION_RANK_METRICS: tuple[str, ...] = (
     "xp_m4_total",
     "xp_m4_per_pass",
@@ -852,6 +852,7 @@ def build_xp_analytics(
 
     registry = pe.build_player_registry(frame)
     minutes_info = pe._load_minutes_info(frame)
+    ti_v2_progress_cutoffs = xstats.test_impact_v2_attempt_progress_cutoffs(season)
     players: list[dict] = []
 
     for player in registry:
@@ -862,7 +863,10 @@ def build_xp_analytics(
         if grp.empty:
             continue
         mins = minutes_info.get(pid, {})
-        metrics = xstats.compute_extended_xp_stats(grp)
+        metrics = xstats.compute_extended_xp_stats(
+            grp,
+            test_impact_v2_progress_cutoffs=ti_v2_progress_cutoffs,
+        )
         if not metrics:
             continue
         minutes = mins.get("minutes")
@@ -921,6 +925,7 @@ def build_european_league_xp_analytics(
         )
     registry = pe.build_player_registry(season)
     raw_pass_frame = pe._filter_pass_frame_to_midfielders(pe._load_european_league_pass_frame())
+    ti_v2_progress_cutoffs = xstats.test_impact_v2_attempt_progress_cutoffs(season)
     players: list[dict] = []
     registry_by_id = {str(p["code"]): p for p in registry}
 
@@ -933,7 +938,10 @@ def build_european_league_xp_analytics(
         if completed < min_passes:
             continue
         mins = minutes_info.get(pid, {})
-        metrics = xstats.compute_extended_xp_stats(grp)
+        metrics = xstats.compute_extended_xp_stats(
+            grp,
+            test_impact_v2_progress_cutoffs=ti_v2_progress_cutoffs,
+        )
         if not metrics:
             continue
         minutes = mins.get("minutes")

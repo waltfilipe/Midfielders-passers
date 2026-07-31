@@ -8686,9 +8686,9 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...
         "pass_impact_letter",
         "Impact",
         (
-            "threat_passes_p90",
-            "xpass_high_difficulty_p90",
-            "xpass_coe_high_pct",
+            "test_impact_v2_p90",
+            "test_impact_v2_attempt_completion_pct",
+            "test_impact_v2_attempt_coe_pct",
         ),
     ),
 )
@@ -8707,7 +8707,9 @@ XP_PA_REGULAR_COMPONENT_LABELS: dict[str, str] = {
     "passes_to_box": "Passes into box / game",
     "key_passes": "Key passes / game",
     "special_line_break_p90": "Line breaking passes / game",
-    "threat_passes_p90": "Impact passes / game",
+    "test_impact_v2_p90": "Test Impact v2 / game",
+    "test_impact_v2_attempt_completion_pct": "Attempt pool completion %",
+    "test_impact_v2_attempt_coe_pct": "Attempt pool COE",
 }
 
 XP_PA_REGULAR_COMPONENT_TOOLTIPS: dict[str, str] = {
@@ -8737,9 +8739,16 @@ XP_PA_REGULAR_COMPONENT_TOOLTIPS: dict[str, str] = {
         "destination outside the outer 15%, forward angle ≤ 50°, distance 20–30 m "
         "(origin 30–60 m), 15–30 m (60–80 m), or 10–30 m (80–120 m)."
     ),
-    "threat_passes_p90": (
-        "Impact passes per game — deliveries that combine high destination value, "
-        "positive residual and forward progress relative to peers."
+    "test_impact_v2_p90": (
+        "Completed Test Impact v2 passes per game — P89 composite score, completion xP below 67%, "
+        "excluding byline short passes."
+    ),
+    "test_impact_v2_attempt_completion_pct": (
+        "Completion rate on the attempt pool: xPass below 67%, progress at or above P65 per "
+        "distance band, excluding byline short passes."
+    ),
+    "test_impact_v2_attempt_coe_pct": (
+        "Completion over expected on the same attempt pool (percentage points)."
     ),
 }
 
@@ -8757,7 +8766,9 @@ XP_PA_REGULAR_COMPONENT_KIND: dict[str, str] = {
     "passes_to_box": "p90",
     "key_passes": "p90",
     "special_line_break_p90": "p90",
-    "threat_passes_p90": "p90",
+    "test_impact_v2_p90": "p90",
+    "test_impact_v2_attempt_completion_pct": "pct",
+    "test_impact_v2_attempt_coe_pct": "pp",
 }
 
 XP_PA_REGULAR_SCORE_TOOLTIPS: dict[str, str] = {
@@ -8779,9 +8790,8 @@ XP_PA_REGULAR_SCORE_TOOLTIPS: dict[str, str] = {
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
     "pass_impact_display": (
-        "Within-position composite of impact passes, high-difficulty pass volume "
-        "(xP below 50%) and COEH per game. "
-        "Component z-scores are winsorized at P5–P95 before averaging."
+        "Within-position composite of Test Impact v2 volume, attempt-pool completion "
+        "and attempt-pool COE. Component z-scores are winsorized at P5–P95 before averaging."
     ),
 }
 

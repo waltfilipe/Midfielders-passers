@@ -317,6 +317,120 @@ def filter_top_residual_passes(
     return work.sort_values(RESIDUAL_COL, ascending=False).head(int(n)).reset_index(drop=True)
 
 
+TEST_IMPACT_V2_ATTEMPT_PROGRESS_PERCENTILE = 0.65
+
+
+def test_impact_v2_attempt_progress_cutoffs(passes: pd.DataFrame) -> dict[str, float]:
+    """League-wide progress_ratio P65 cutoffs per distance band for TI v2 attempt pool."""
+    if passes is None or passes.empty:
+        return {}
+    work = passes.loc[passes["has_end"].astype(bool)].copy()
+    if work.empty:
+        return {}
+    if "progress_ratio" not in work.columns:
+        work["progress_ratio"] = xse._progress_ratio_series(work)
+    if "distance_band" not in work.columns:
+        work["distance_band"] = xse._distance_band_series(work["pass_distance"])
+    bands = work["distance_band"].astype(str)
+    return {
+        str(band): float(work.loc[bands == band, "progress_ratio"].quantile(
+            TEST_IMPACT_V2_ATTEMPT_PROGRESS_PERCENTILE
+        ))
+        for band in BANDS
+        if (bands == band).any()
+    }
+
+
+def test_impact_v2_attempt_pool_mask(
+    passes: pd.DataFrame,
+    *,
+    progress_cutoffs: dict[str, float] | None = None,
+) -> pd.Series:
+    """Attempt pool: xPass < 67%, progress ≥ P65 per band, minus byline shorts."""
+    import xp_engine as xe_mod
+    import xpass_engine as xpass_mod
+
+    if passes is None or passes.empty:
+        return pd.Series(dtype=bool)
+    work = passes.loc[passes["has_end"].astype(bool)].copy()
+    if work.empty:
+        return pd.Series(False, index=passes.index, dtype=bool)
+    if "progress_ratio" not in work.columns:
+        work["progress_ratio"] = xse._progress_ratio_series(work)
+    if "distance_band" not in work.columns:
+        work["distance_band"] = xse._distance_band_series(work["pass_distance"])
+    if xpass_mod.XPASS_COL not in work.columns:
+        work = xpass_mod.attach_xpass_to_passes(work)
+    bands = work["distance_band"].astype(str)
+    if progress_cutoffs:
+        prog_min = bands.map(progress_cutoffs).astype(float)
+    else:
+        prog_min = work.groupby(bands, sort=False)["progress_ratio"].transform(
+            lambda s: s.quantile(TEST_IMPACT_V2_ATTEMPT_PROGRESS_PERCENTILE)
+        )
+    pool = (
+        (work[xpass_mod.XPASS_COL].astype(float) < xe_mod.TEST_IMPACT_V2_XPASS_THRESHOLD)
+        & (work["progress_ratio"].astype(float) >= prog_min)
+        & ~xe_mod._test_impact_v2_byline_exclusion_mask(work)
+    )
+    out = pd.Series(False, index=passes.index, dtype=bool)
+    out.loc[work.index] = pool
+    return out
+
+
+def compute_test_impact_v2_attempt_metrics(
+    grp: pd.DataFrame,
+    *,
+    progress_cutoffs: dict[str, float] | None = None,
+) -> dict[str, float | int | None]:
+    """Test Impact v2 volume plus attempt-pool completion and COE."""
+    import xp_engine as xe_mod
+
+    empty: dict[str, float | int | None] = {
+        "test_impact_v2_count": 0,
+        "test_impact_v2_attempts": 0,
+        "test_impact_v2_attempt_completion_pct": None,
+        "test_impact_v2_attempt_coe_pct": None,
+    }
+    if grp is None or grp.empty:
+        return empty
+
+    pool_mask = test_impact_v2_attempt_pool_mask(grp, progress_cutoffs=progress_cutoffs)
+    pool = grp.loc[pool_mask]
+    ti_v2 = xe_mod.filter_test_impact_v2_passes(grp)
+    attempts = int(pool_mask.sum())
+    if attempts <= 0:
+        return {**empty, "test_impact_v2_count": int(len(ti_v2))}
+
+    import xpass_engine as xpass_mod
+    if xpass_mod.XPASS_COL not in pool.columns:
+        pool = xpass_mod.attach_xpass_to_passes(pool)
+    won = int(pool["is_won"].astype(bool).sum())
+    xpass_mean = float(pool[xpass_mod.XPASS_COL].astype(float).mean())
+    completion_pct = 100.0 * won / attempts
+    coe_pp = 100.0 * (won / attempts - xpass_mean)
+    return {
+        "test_impact_v2_count": int(len(ti_v2)),
+        "test_impact_v2_attempts": attempts,
+        "test_impact_v2_attempt_completion_pct": round(completion_pct, 1),
+        "test_impact_v2_attempt_coe_pct": round(coe_pp, 1),
+    }
+
+
+def estimate_match_minutes_from_passes(passes: pd.DataFrame) -> dict[int, int]:
+    """Estimate minutes played per match from relative pass volume."""
+    if passes is None or passes.empty or "event_id" not in passes.columns:
+        return {}
+    counts = passes.groupby(passes["event_id"].astype(int)).size()
+    if counts.empty:
+        return {}
+    median = float(counts.median()) or 1.0
+    return {
+        int(event_id): int(round(min(90.0, max(1.0, (count / median) * 90.0))))
+        for event_id, count in counts.items()
+    }
+
+
 def filter_passes_by_map_round(passes: pd.DataFrame, round_key: str) -> pd.DataFrame:
     """Filter completed passes to one match (rodada) or keep all when round_key is 'all'."""
     if passes is None or passes.empty:
@@ -344,14 +458,16 @@ def map_round_options(passes: pd.DataFrame) -> tuple[list[str], dict[str, str]]:
         agg["home_team"] = "first"
     if "away_team" in work.columns:
         agg["away_team"] = "first"
+    minutes_by_event = estimate_match_minutes_from_passes(work)
     matches = work.groupby("event_id", as_index=False).agg(agg).sort_values("match_date")
     for idx, row in enumerate(matches.itertuples(index=False), start=1):
         event_id = int(getattr(row, "event_id"))
-        date_txt = str(getattr(row, "match_date", "") or "—")[:10]
         home = str(getattr(row, "home_team", "") or "—")
         away = str(getattr(row, "away_team", "") or "—")
+        minutes = minutes_by_event.get(event_id)
+        minutes_txt = f"{minutes}'" if minutes is not None else "—"
         key = f"event:{event_id}"
-        labels[key] = f"Rodada {idx} · {date_txt} · {home} vs {away}"
+        labels[key] = f"Rodada {idx} · {home} vs {away} · {minutes_txt}"
         keys.append(key)
     return keys, labels
 
@@ -548,7 +664,11 @@ def round_production_series(scored: pd.DataFrame) -> tuple[dict[str, float | int
     )
 
 
-def compute_extended_xp_stats(grp: pd.DataFrame) -> dict[str, float | int]:
+def compute_extended_xp_stats(
+    grp: pd.DataFrame,
+    *,
+    test_impact_v2_progress_cutoffs: dict[str, float] | None = None,
+) -> dict[str, float | int]:
     """Compute full xP stat bundle for one player's season passes."""
     import xp_engine as xe
 
@@ -651,6 +771,12 @@ def compute_extended_xp_stats(grp: pd.DataFrame) -> dict[str, float | int]:
         out["xp_games_above_median_pct"] = 0.0
         out[XP_ROUND_SERIES_KEY] = ()
 
+    out.update(
+        compute_test_impact_v2_attempt_metrics(
+            grp,
+            progress_cutoffs=test_impact_v2_progress_cutoffs,
+        )
+    )
     return out
 
 
@@ -717,6 +843,7 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
         metrics["xp_per_90"] = 0.0
         metrics["threat_passes_p90"] = 0.0
         metrics["impact_passes_p90"] = 0.0
+        metrics["test_impact_v2_p90"] = 0.0
         metrics["ip_dest_first_two_thirds_p90"] = 0.0
         metrics["ip_dest_final_third_p90"] = 0.0
         for sp_key in SPECIAL_PASS_COUNT_KEYS:
@@ -730,6 +857,7 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
     threat_count = int(metrics.get("xp_m4_threat_passes", 0))
     metrics["threat_passes_p90"] = float(threat_count) * factor
     metrics["impact_passes_p90"] = metrics["threat_passes_p90"]
+    metrics["test_impact_v2_p90"] = float(metrics.get("test_impact_v2_count", 0) or 0) * factor
     metrics["ip_dest_first_two_thirds_p90"] = float(
         int(metrics.get("ip_dest_first_two_thirds_count", 0))
     ) * factor
@@ -1419,6 +1547,9 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
     "long_pass_share_pct",
     "special_line_break_p90",
     "impact_passes_p90",
+    "test_impact_v2_p90",
+    "test_impact_v2_attempt_completion_pct",
+    "test_impact_v2_attempt_coe_pct",
     "pass_volume_index",
     "pass_efficiency_index",
     "pass_buildup_index",
@@ -1447,9 +1578,9 @@ PASS_CHANCE_CREATION_METRICS: tuple[str, ...] = (
     "passes_to_box",
 )
 PASS_IMPACT_METRICS: tuple[str, ...] = (
-    "threat_passes_p90",
-    "xpass_high_difficulty_p90",
-    "xpass_coe_high_pct",
+    "test_impact_v2_p90",
+    "test_impact_v2_attempt_completion_pct",
+    "test_impact_v2_attempt_coe_pct",
 )
 PASS_SCORE_SPECS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("pass_volume_index", "pass_volume_display", PASS_VOLUME_METRICS),
@@ -1500,12 +1631,12 @@ PASS_SCORE_TOOLTIPS: dict[str, str] = {
         "Within-position composite of key passes and passes into the box per game."
     ),
     "pass_impact_index": (
-        "Within-position composite of impact passes, high-difficulty pass volume "
-        "(xP below 50%) and COEH per game."
+        "Within-position composite of Test Impact v2 volume, attempt-pool completion "
+        "and attempt-pool COE."
     ),
     "pass_impact_display": (
-        "Within-position composite of impact passes, high-difficulty pass volume "
-        "(xP below 50%) and COEH per game."
+        "Within-position composite of Test Impact v2 volume, attempt-pool completion "
+        "and attempt-pool COE."
     ),
 }
 PASS_SCORE_LETTER_KEYS: dict[str, str] = {
@@ -2627,10 +2758,18 @@ def format_pa_stats_value(key: str, value: float | int | None) -> str:
         return f"{val:+.2f}"
     if key in {"xp_m4_per_pass", "xp_m4_per_threat_pass"}:
         return f"{val:.2f}"
-    if key in {"xp_per_90", "threat_passes_p90", "xpass_residual_p90"}:
+    if key in {"xp_per_90", "threat_passes_p90", "xpass_residual_p90", "test_impact_v2_p90"}:
         return f"{val:.1f}"
-    if key == "xpass_hard_coe_pct" or key == "xpass_coe_high_pct" or key == "xpass_coe_pct" or key == "xpass_long_coe_pct":
+    if (
+        key == "xpass_hard_coe_pct"
+        or key == "xpass_coe_high_pct"
+        or key == "xpass_coe_pct"
+        or key == "xpass_long_coe_pct"
+        or key == "test_impact_v2_attempt_coe_pct"
+    ):
         return f"{val:+.1f} pp"
+    if key == "test_impact_v2_attempt_completion_pct":
+        return f"{val:.1f}%"
     if key == "xpass_high_difficulty_p90":
         return f"{val:.2f}"
     return format_stats_value(key, value)
