@@ -1792,6 +1792,39 @@ def _compare_column_html(
     )
 
 
+def _compare_player_card_styles_html() -> str:
+    """Embedded styles so compare player cards fill the slicer column in st.html."""
+    return (
+        "<style>"
+        ".cmp-player-card-shell{width:100%;max-width:none;margin:0;box-sizing:border-box;}"
+        ".cmp-player-card-shell .pa-compare-player-card{"
+        "width:100%;max-width:none;margin:0;min-height:600px;"
+        "display:flex;flex-direction:column;border-radius:14px;"
+        "border:1px solid #2a3550;background:linear-gradient(160deg,#151b2b 0%,#101522 100%);"
+        "overflow:hidden;box-sizing:border-box;}"
+        ".cmp-player-card-shell .pa-compare-player-card-primary{"
+        "box-shadow:inset 0 1px 0 rgba(167,139,250,0.14);}"
+        ".cmp-player-card-shell .pa-compare-player-card-secondary{"
+        "box-shadow:inset 0 1px 0 rgba(134,239,172,0.12);}"
+        ".cmp-player-card-shell .pa-compare-col-visual{"
+        "flex:1;display:flex;flex-direction:column;min-height:0;}"
+        ".cmp-player-card-shell .pa-compare-col-heatmap{"
+        "flex:1;max-height:none;min-height:340px;aspect-ratio:auto;"
+        "width:calc(100% - 1.6rem);margin:0 auto 0.65rem;}"
+        ".cmp-player-card-shell .pa-compare-heatmap{"
+        "width:100%;height:100%;min-height:320px;object-fit:contain;}"
+        ".cmp-player-card-shell .pa-compare-col-head{padding:1.05rem 1.15rem 0.95rem;}"
+        ".cmp-player-card-shell .pa-compare-profile-list{"
+        "padding-left:1.15rem;padding-right:1.15rem;}"
+        ".cmp-player-card-shell .cmp-xp-index-wrap{"
+        "margin:0.6rem 1.15rem 0.5rem;padding-bottom:0.6rem;}"
+        ".cmp-player-card-shell .pa-compare-photo-wrap .pa-identity-photo,"
+        ".cmp-player-card-shell .pa-compare-photo-wrap .pa-identity-photo-placeholder{"
+        "width:62px;height:62px;}"
+        "</style>"
+    )
+
+
 def _compare_player_column_html(
     player: dict,
     source: dict,
@@ -1802,10 +1835,13 @@ def _compare_player_column_html(
 ) -> str:
     """Compare tab player pane: identity, heatmap, indices and pass-length mix only."""
     return (
+        _compare_player_card_styles_html()
+        + '<div class="cmp-player-card-shell">'
         f'<div class="player-card pa-compare-player-card pa-compare-player-card-{html.escape(variant)} cmp-player-card-full">'
         f"{_compare_column_head_html(player, variant=variant)}"
         f"{_compare_column_facts_html(player, fmt_pct_fn=fmt_pct_fn)}"
         f"{_compare_column_visual_html(source, heatmap_b64=heatmap_b64)}"
+        "</div>"
         "</div>"
     )
 
@@ -4028,14 +4064,37 @@ st.markdown(
         color: #93a4bc !important;
     }
     .st-key-cmp_player_a_slicer,
-    .st-key-cmp_player_b_slicer {
+    .st-key-cmp_player_b_slicer,
+    .st-key-cmp_player_a_card,
+    .st-key-cmp_player_b_card {
         background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
         border: 1px solid #2a3550;
         border-radius: 14px;
-        padding: 0.72rem 0.95rem 0.62rem;
-        margin-bottom: 0.62rem;
         box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
         width: 100%;
+        box-sizing: border-box;
+    }
+    .st-key-cmp_player_a_slicer,
+    .st-key-cmp_player_b_slicer {
+        padding: 0.72rem 0.95rem 0.62rem;
+        margin-bottom: 0.62rem;
+    }
+    .st-key-cmp_player_a_card,
+    .st-key-cmp_player_b_card {
+        padding: 0;
+        overflow: hidden;
+        min-height: 600px;
+    }
+    .st-key-cmp_player_a_card [data-testid="stHtml"],
+    .st-key-cmp_player_b_card [data-testid="stHtml"] {
+        width: 100%;
+    }
+    .st-key-cmp_player_a_card iframe,
+    .st-key-cmp_player_b_card iframe {
+        width: 100% !important;
+        min-height: 600px;
+        border: 0;
+        display: block;
     }
     .st-key-cmp_player_a_slicer label[data-testid="stWidgetLabel"] p,
     .st-key-cmp_player_b_slicer label[data-testid="stWidgetLabel"] p {
@@ -4045,65 +4104,10 @@ st.markdown(
         letter-spacing: 0.05em;
         color: #93c5fd !important;
     }
-    .cmp-player-pane {
-        min-width: 0;
-        width: 100%;
-    }
-    .cmp-player-pane .pa-compare-player-card,
-    .cmp-player-pane .cmp-player-card-full {
-        max-width: none;
-        width: 100%;
-        justify-self: stretch;
-        margin: 0;
-        min-height: 540px;
+    .st-key-cmp_layout_row [data-testid="column"]:first-child,
+    .st-key-cmp_layout_row [data-testid="column"]:last-child {
         display: flex;
         flex-direction: column;
-    }
-    .cmp-player-pane .pa-compare-col-visual {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-    }
-    .cmp-player-pane .pa-compare-col-heatmap {
-        flex: 1;
-        max-height: none;
-        min-height: 300px;
-        display: flex;
-        align-items: stretch;
-    }
-    .cmp-player-pane .pa-compare-heatmap {
-        width: 100%;
-        height: 100%;
-        min-height: 300px;
-        object-fit: contain;
-    }
-    .cmp-player-pane .pa-compare-col-head {
-        padding: 1rem 1.1rem 0.9rem;
-    }
-    .cmp-player-pane .pa-compare-profile-list {
-        padding-left: 1.1rem;
-        padding-right: 1.1rem;
-    }
-    .cmp-player-pane .pa-compare-col-metrics,
-    .cmp-player-pane .pa-compare-col-scores {
-        padding-left: 1.1rem;
-        padding-right: 1.1rem;
-    }
-    .cmp-player-pane .pa-compare-col-section {
-        padding-left: 1.1rem;
-        padding-right: 1.1rem;
-    }
-    .cmp-player-pane .cmp-xp-index-wrap {
-        margin: 0.55rem 1.1rem 0.45rem;
-        padding-bottom: 0.55rem;
-        border-bottom: 1px solid rgba(51, 65, 85, 0.45);
-    }
-    .cmp-player-pane .cmp-xp-index-wrap .pa-xp-index-row {
-        padding: 0.34rem 0.48rem;
-    }
-    .cmp-player-pane .cmp-xp-index-wrap .pa-xp-index-list {
-        gap: 0.22rem;
     }
     .cmp-viz-column {
         background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
@@ -11678,7 +11682,7 @@ def _render_compare_filter_header(
             '<span class="pa-filter-title">'
             '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
             '<span class="pa-filter-sub">Refine o grupo de meio-campistas e compare dois jogadores '
-            "com radares sobrepostos.</span>"
+            "lado a lado.</span>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -11761,7 +11765,7 @@ def render_compare_section(
     xp_by_id: dict[str, dict] | None = None,
     fmt_pct_fn=pg_fmt_pct,
 ) -> None:
-    """Compare tab: filter header + three columns (player, radars, player)."""
+    """Compare tab: filter header + three columns (player, metrics, player)."""
     if not all_players:
         st.info("No players available.")
         return
@@ -11849,18 +11853,17 @@ def render_compare_section(
         )
 
         with col_a:
-            st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
-            st.html(
-                _compare_player_column_html(
-                    player_a,
-                    source_a,
-                    heatmap_b64=heatmap_a,
-                    variant="primary",
-                    fmt_pct_fn=fmt_pct_fn,
-                ),
-                width="stretch",
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container(key="cmp_player_a_card"):
+                st.html(
+                    _compare_player_column_html(
+                        player_a,
+                        source_a,
+                        heatmap_b64=heatmap_a,
+                        variant="primary",
+                        fmt_pct_fn=fmt_pct_fn,
+                    ),
+                    width="stretch",
+                )
 
         with col_radar:
             _render_compare_visuals(
@@ -11871,18 +11874,17 @@ def render_compare_section(
             )
 
         with col_b:
-            st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
-            st.html(
-                _compare_player_column_html(
-                    player_b,
-                    source_b,
-                    heatmap_b64=heatmap_b,
-                    variant="secondary",
-                    fmt_pct_fn=fmt_pct_fn,
-                ),
-                width="stretch",
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container(key="cmp_player_b_card"):
+                st.html(
+                    _compare_player_column_html(
+                        player_b,
+                        source_b,
+                        heatmap_b64=heatmap_b,
+                        variant="secondary",
+                        fmt_pct_fn=fmt_pct_fn,
+                    ),
+                    width="stretch",
+                )
 
     st.markdown("</div>", unsafe_allow_html=True)
 
