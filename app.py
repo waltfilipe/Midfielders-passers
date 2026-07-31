@@ -1614,24 +1614,16 @@ def _compare_pass_mix_list_html(xp_profile: dict | None) -> str:
 
 
 def _pa_pass_mix_markers_html(xp_profile: dict, share: float) -> str:
-    """Player marker plus optional top-volume median reference at bar center."""
+    """Player marker plus fixed reference line at the league long-share midpoint."""
+    _ = xp_profile
     player_pos = max(4.0, min(96.0, share))
-    parts: list[str] = []
-    ref = xp_profile.get("long_pass_share_peer_avg_pct")
-    if ref is not None:
-        ref = float(ref)
-        ref_pos = max(4.0, min(96.0, ref))
-        ref_count = xp_profile.get("long_pass_share_peer_count")
-        ref_note = f" (top {int(ref_count)} by passes)" if ref_count else ""
-        parts.append(
-            f'<span class="pa-pass-mix-center" style="left:{ref_pos:.1f}%" '
-            f'title="Median long share{ref_note}: {ref:.1f}%"></span>'
-        )
-    parts.append(
+    ref_pos = max(4.0, min(96.0, PASS_LENGTH_MIX_CENTER_PCT))
+    return (
+        f'<span class="pa-pass-mix-center" style="left:{ref_pos:.1f}%" '
+        f'title="Reference long share: {PASS_LENGTH_MIX_CENTER_PCT:.1f}%"></span>'
         f'<span class="pa-pass-mix-marker" style="left:{player_pos:.1f}%" '
         f'title="Player long share: {share:.1f}%"></span>'
     )
-    return "".join(parts)
 
 
 def _compare_xp_indices_list_html(xp_profile: dict | None) -> str:
@@ -2014,7 +2006,8 @@ APP_NAME = "World Cup"
 APP_LEAGUE = "xP (Expected Passes) Analysis"
 PRES_DEMO_KEY = "pres_active_demo"
 FONT_AWESOME_CDN = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-PLAYER_ANALYSIS_CARD_HEIGHT_PX = 680
+PLAYER_ANALYSIS_CARD_HEIGHT_PX = 700
+PASS_LENGTH_MIX_CENTER_PCT = 11.4
 
 st.set_page_config(page_title=f"{APP_NAME} | {APP_LEAGUE}", layout="wide", initial_sidebar_state="collapsed")
 
@@ -4178,11 +4171,19 @@ st.markdown(
     }
     @media (max-width: 1100px) {
         .pa-layout { grid-template-columns: 1fr; }
-        .pa-col { display: flex; flex-direction: column; }
     }
     .pa-col {
-        display: contents;
+        display: flex;
+        flex-direction: column;
         min-width: 0;
+        min-height: var(--pa-card-h);
+    }
+    .pa-col-identity > .pa-identity-card,
+    .pa-col-score > .pa-score-stack,
+    .pa-col-pillars > .pa-pillars-column {
+        flex: 1 1 auto;
+        min-height: var(--pa-card-h);
+        height: 100%;
     }
     .pa-score-stack {
         display: flex;
@@ -4196,11 +4197,11 @@ st.markdown(
     .pa-xp-profile-card {
         display: flex;
         flex-direction: column;
-        flex: 1 0 auto;
+        flex: 1 1 auto;
         min-height: 0;
-        padding: 0.65rem 0.7rem 0.85rem;
+        padding: 0.72rem 0.75rem 0.9rem;
         margin-bottom: 0;
-        gap: 0.45rem;
+        gap: 0.5rem;
         overflow: visible;
     }
     .pa-xp-profile-title {
@@ -4212,15 +4213,32 @@ st.markdown(
         text-transform: uppercase;
         flex-shrink: 0;
     }
+    .pa-pillars-column {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-height: var(--pa-card-h);
+        height: 100%;
+        box-sizing: border-box;
+    }
     .pa-pillars-card {
         display: flex;
         flex-direction: column;
-        padding: 0.75rem 0.7rem 0.7rem;
+        padding: 0.72rem 0.7rem 0.7rem;
         margin-bottom: 0;
-        min-height: var(--pa-card-h);
-        height: 100%;
-        overflow: visible;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
         box-sizing: border-box;
+    }
+    .pa-stats-title {
+        margin: 0 0 0.35rem 0;
+        color: #93c5fd;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        flex-shrink: 0;
     }
     .grade-card-title-row {
         display: flex;
@@ -4243,11 +4261,11 @@ st.markdown(
         margin-left: 0.25rem;
     }
     .pa-identity-card {
-        padding: 0.9rem 1rem 0.85rem;
+        padding: 0.78rem 0.92rem 0.75rem;
         margin-bottom: 0;
         display: flex;
         flex-direction: column;
-        gap: 0.55rem;
+        gap: 0.48rem;
         height: 100%;
         min-height: var(--pa-card-h);
         overflow: hidden;
@@ -4260,8 +4278,8 @@ st.markdown(
     }
     .pa-identity-photo-wrap {
         flex-shrink: 0;
-        width: 74px;
-        height: 74px;
+        width: 68px;
+        height: 68px;
         border-radius: 10px;
         overflow: hidden;
         border: 1px solid #334155;
@@ -4864,7 +4882,7 @@ st.markdown(
     }
     .pa-origin-heatmap-wrap {
         flex: 1;
-        min-height: 250px;
+        min-height: 198px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -4890,7 +4908,7 @@ st.markdown(
         display: flex;
         flex-direction: column;
         gap: 0.34rem;
-        flex: 1;
+        flex: 1 1 auto;
         min-height: 0;
         overflow-y: auto;
     }
@@ -4959,12 +4977,13 @@ st.markdown(
         min-height: 0;
     }
     .pa-xp-profile-bars-tri {
-        gap: 0.58rem;
+        gap: 0.72rem;
         justify-content: space-between;
+        flex: 1 1 auto;
     }
     .pa-xp-profile-bars-tri .pa-xp-pillar {
-        padding: 0.48rem 0.55rem 0.52rem;
-        gap: 0.34rem;
+        padding: 0.55rem 0.58rem 0.6rem;
+        gap: 0.38rem;
     }
     .pa-xp-profile-eligibility-note {
         margin: 0;
@@ -5318,7 +5337,7 @@ st.markdown(
     .pa-pass-mix-card {
         padding: 0.65rem 0.7rem 0.7rem;
         margin-bottom: 0;
-        flex-shrink: 0;
+        flex: 0 0 auto;
         display: flex;
         flex-direction: column;
         gap: 0.45rem;
@@ -5601,6 +5620,10 @@ st.markdown(
         color: #7dd3fc;
         font-size: 0.66rem;
         font-weight: 600;
+    }
+    .pa-xp-gradient-bar-tip-pillar-rank {
+        display: block;
+        margin: 0.18rem 0 0.28rem;
     }
     .pa-xp-gradient-bar-ticks {
         display: flex;
@@ -7947,6 +7970,13 @@ def _xp_gradient_bar_tier(pct: float) -> str:
     return "cool"
 
 
+def _xp_pillar_index_key(display_key: str) -> str:
+    for raw_key, disp, _metrics in xstats.XP_PROFILE_BAR_SPECS:
+        if disp == display_key:
+            return raw_key
+    return display_key.replace("_display", "_index")
+
+
 def _xp_gradient_bar_metric_rank_html(xp_profile: dict, key: str) -> str:
     rank = xp_profile.get(f"{key}_rank_in_group")
     total = xp_profile.get(f"{key}_rank_pool_in_group")
@@ -7960,21 +7990,39 @@ def _xp_gradient_bar_metric_rank_html(xp_profile: dict, key: str) -> str:
     )
 
 
-_GRADIENT_BAR_TOOLTIP_NO_RANK_KEYS: frozenset[str] = frozenset(xstats.XP_PROFILE_BAR_KEYS)
+def _xp_pillar_bar_rank_html(xp_profile: dict, display_key: str) -> str:
+    index_key = _xp_pillar_index_key(display_key)
+    rank = xp_profile.get(f"{index_key}_rank_in_group")
+    total = xp_profile.get(f"{index_key}_rank_pool_in_group")
+    if not rank or not total:
+        return ""
+    group = _pa_field_group_label(xp_profile)
+    return (
+        '<span class="pa-xp-gradient-bar-tip-rank pa-xp-gradient-bar-tip-pillar-rank">'
+        f"Pillar · #{int(rank)} of {int(total)} · {html.escape(group)}"
+        "</span>"
+    )
+
+
+_GRADIENT_BAR_TOOLTIP_NO_RANK_KEYS: frozenset[str] = frozenset()
 
 
 def _xp_gradient_bar_tooltip_html(xp_profile: dict, display_key: str) -> str:
     title = xstats.XP_PROFILE_BAR_LABELS.get(display_key, display_key)
     metric_keys = xstats.XP_PROFILE_BAR_METRICS.get(display_key, ())
     summary = xstats.XP_PROFILE_BAR_TOOLTIPS.get(display_key, "")
-    show_rank = display_key not in _GRADIENT_BAR_TOOLTIP_NO_RANK_KEYS
+    pillar_rank_html = (
+        _xp_pillar_bar_rank_html(xp_profile, display_key)
+        if display_key in xstats.XP_PROFILE_BAR_KEYS
+        else ""
+    )
     lines = "".join(
         '<span class="pa-xp-gradient-bar-tip-line">'
         '<span class="pa-xp-gradient-bar-tip-metric">'
         f'{html.escape(xstats.pa_stats_metric_label(key))}: '
         f'{html.escape(xstats.format_pa_stats_value(key, xp_profile.get(key)))}'
         "</span>"
-        f"{_xp_gradient_bar_metric_rank_html(xp_profile, key) if show_rank else ''}"
+        f"{_xp_gradient_bar_metric_rank_html(xp_profile, key)}"
         "</span>"
         for key in metric_keys
     )
@@ -7985,6 +8033,7 @@ def _xp_gradient_bar_tooltip_html(xp_profile: dict, display_key: str) -> str:
     )
     return (
         f'<span class="pa-xp-gradient-bar-tip-title">{html.escape(title)}</span>'
+        f"{pillar_rank_html}"
         f"{summary_html}"
         f"{lines}"
     )
@@ -7994,13 +8043,21 @@ def _xp_gradient_bar_tooltip_plain(xp_profile: dict, display_key: str) -> str:
     """Plain-text tooltip used as a native title fallback."""
     title = xstats.XP_PROFILE_BAR_LABELS.get(display_key, display_key)
     parts: list[str] = [str(title)]
+    if display_key in xstats.XP_PROFILE_BAR_KEYS:
+        index_key = _xp_pillar_index_key(display_key)
+        rank = xp_profile.get(f"{index_key}_rank_in_group")
+        total = xp_profile.get(f"{index_key}_rank_pool_in_group")
+        if rank and total:
+            group = _pa_field_group_label(xp_profile)
+            parts.append(f"Pillar #{int(rank)} of {int(total)} · {group}")
     for key in xstats.XP_PROFILE_BAR_METRICS.get(display_key, ()):
         label = xstats.pa_stats_metric_label(key)
         value = xstats.format_pa_stats_value(key, xp_profile.get(key))
         rank = xp_profile.get(f"{key}_rank_in_group")
         total = xp_profile.get(f"{key}_rank_pool_in_group")
         if rank and total:
-            parts.append(f"{label}: {value} (#{int(rank)} of {int(total)})")
+            group = _pa_field_group_label(xp_profile)
+            parts.append(f"{label}: {value} (#{int(rank)} of {int(total)} · {group})")
         else:
             parts.append(f"{label}: {value}")
     return " · ".join(parts)
@@ -8486,12 +8543,10 @@ def _player_analysis_score_stack_html(
 ) -> str:
     rating_panel = _player_analysis_rating_panel_html(player, metric_ranks, xp_profile)
     profile_html = _xp_profile_score_column_html(xp_profile, xp_passes_df)
-    pass_mix_html = _pa_pass_length_card_html(xp_profile)
     return (
         '<div class="pa-score-stack">'
         f"{rating_panel}"
         f"{profile_html}"
-        f"{pass_mix_html}"
         "</div>"
     )
 
@@ -9069,11 +9124,16 @@ def _build_xp_stats_card_html(
 ) -> str:
     _ = xp_passes_df
     regular_html = _pa_regular_stats_panel_html(player, xp_profile)
+    pass_mix_html = _pa_pass_length_card_html(xp_profile)
     return (
+        '<div class="pa-pillars-column">'
         '<div class="player-card pa-pillars-card">'
+        '<p class="pa-stats-title">Stats</p>'
         '<div class="pa-pillars-stack"><div class="pa-pillar-group">'
         f"{regular_html}"
         "</div></div>"
+        "</div>"
+        f"{pass_mix_html}"
         "</div>"
     )
 
