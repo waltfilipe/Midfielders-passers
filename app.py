@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import inspect
+import math
 import sys
 import unicodedata
 from pathlib import Path
@@ -573,6 +574,19 @@ PA_XP_RADAR_LINE_COLOR = "#a855f7"
 PA_XP_RADAR_FILL_COLOR = "#a855f7"
 PA_COMPARE_PRIMARY_COLOR = "#a78bfa"
 PA_COMPARE_SECONDARY_COLOR = "#86efac"
+COMPARE_RADAR_MIN = 3.0
+COMPARE_RADAR_MAX = 9.0
+COMPARE_RADAR_XP_SPECS: tuple[tuple[str, str], ...] = (
+    ("xp_activity_display", "Productivity"),
+    ("xp_efficiency_display", "Precision"),
+    ("xp_edge_display", "Lethality"),
+)
+COMPARE_RADAR_PASS_SPECS: tuple[tuple[str, str], ...] = (
+    ("pass_volume_display", "Volume"),
+    ("pass_efficiency_display", "Efficiency"),
+    ("pass_buildup_display", "Build-up"),
+    ("pass_chance_creation_display", "Chance creation"),
+)
 
 
 def _radar_axis_is_carry(metric_key: str, scout_section_specs) -> bool:
@@ -1626,29 +1640,23 @@ def _pa_pass_mix_markers_html(xp_profile: dict, share: float) -> str:
     )
 
 
-def _compare_xp_indices_list_html(xp_profile: dict | None) -> str:
-    """Consistency + Impact tiers as list rows."""
+def _compare_column_indices_html(xp_profile: dict | None) -> str:
+    """Consistency + Impact in the same tier-row style as Player Profile."""
     if not xp_profile or not xp_profile.get("xp_profile_bars_eligible", True):
         return ""
-    rows: list[str] = []
-    for label, tier_key in (
-        ("Consistency", "xp_idx_consistency_tier"),
-        ("Impact", "xp_idx_impact_tier"),
-    ):
-        tier = xp_profile.get(tier_key)
-        if not tier:
-            continue
-        icon = xstats.XP_INDEX_ICONS.get(tier_key, "fa-circle")
-        tier_label = html.escape(xstats.XP_INDEX_TIER_LABELS.get(tier, "—"))
-        rows.append(
-            _compare_insight_row_html(
-                label,
-                tier_label,
-                icon=icon,
-                value_class=f"pa-compare-tier-{tier}",
-            )
-        )
-    return "".join(rows)
+    rows = [
+        _xp_consistency_row_html(xp_profile),
+        _xp_impact_pass_row_html(xp_profile),
+    ]
+    rows = [row for row in rows if row]
+    if not rows:
+        return ""
+    return (
+        '<div class="pa-xp-index-wrap cmp-xp-index-wrap">'
+        '<div class="pa-xp-index-title">xP Indices</div>'
+        f'<div class="pa-xp-index-list">{"".join(rows)}</div>'
+        "</div>"
+    )
 
 
 def _compare_component_stat_value(source: dict, key: str) -> str:
@@ -1734,16 +1742,16 @@ def _compare_column_xp_metrics_html(
 
 
 def _compare_column_insights_html(xp_profile: dict | None) -> str:
-    indices_html = _compare_xp_indices_list_html(xp_profile)
+    indices_html = _compare_column_indices_html(xp_profile)
     mix_html = _compare_pass_mix_list_html(xp_profile)
     if not indices_html and not mix_html:
         return ""
-    return (
-        '<ul class="pa-compare-profile-list pa-compare-insight-list">'
-        f"{indices_html}"
-        f"{mix_html}"
-        "</ul>"
+    mix_block = (
+        f'<ul class="pa-compare-profile-list pa-compare-insight-list">{mix_html}</ul>'
+        if mix_html
+        else ""
     )
+    return f"{indices_html}{mix_block}"
 
 
 def _compare_column_visual_html(
@@ -1780,6 +1788,249 @@ def _compare_column_html(
         f"{_compare_column_visual_html(source, heatmap_b64=heatmap_b64)}"
         f"{_compare_column_xp_metrics_html(source, other_source=other_source)}"
         f"{_compare_column_scores_html(source, variant=variant)}"
+        "</div>"
+    )
+
+
+def _compare_player_column_html(
+    player: dict,
+    source: dict,
+    *,
+    heatmap_b64: str | None,
+    variant: str,
+    fmt_pct_fn,
+) -> str:
+    """Compare tab player pane: identity, heatmap, indices and pass-length mix only."""
+    return (
+        f'<div class="player-card pa-compare-player-card pa-compare-player-card-{html.escape(variant)}">'
+        f"{_compare_column_head_html(player, variant=variant)}"
+        f"{_compare_column_facts_html(player, fmt_pct_fn=fmt_pct_fn)}"
+        f"{_compare_column_visual_html(source, heatmap_b64=heatmap_b64)}"
+        "</div>"
+    )
+
+
+def _compare_radar_metric_value(source: dict, key: str) -> float | None:
+    if key in xstats.XP_PROFILE_BAR_KEYS and not source.get("xp_profile_bars_eligible", True):
+        return None
+    return _xp_compare_metric_numeric(source, key)
+
+
+def _compare_radar_metric_display(source: dict, key: str) -> str:
+    if key in xstats.XP_PROFILE_BAR_KEYS:
+        return _xp_compare_profile_value(source, key)[0]
+    return xstats.format_pa_stats_value(key, source.get(key))
+
+
+def _compare_radar_axis_angle(index: int, count: int) -> float:
+    return -math.pi / 2 - (2 * math.pi * index / count)
+
+
+def _compare_radar_radius(value: float | None, max_r: float) -> float:
+    score = COMPARE_RADAR_MIN if value is None else float(value)
+    score = max(COMPARE_RADAR_MIN, min(COMPARE_RADAR_MAX, score))
+    span = COMPARE_RADAR_MAX - COMPARE_RADAR_MIN
+    return max_r * (score - COMPARE_RADAR_MIN) / span
+
+
+def _compare_radar_xy(
+    value: float | None,
+    index: int,
+    count: int,
+    *,
+    cx: float,
+    cy: float,
+    max_r: float,
+) -> tuple[float, float]:
+    angle = _compare_radar_axis_angle(index, count)
+    radius = _compare_radar_radius(value, max_r)
+    return cx + radius * math.cos(angle), cy + radius * math.sin(angle)
+
+
+def _compare_radar_polygon_points(
+    values: list[float | None],
+    *,
+    cx: float,
+    cy: float,
+    max_r: float,
+) -> str:
+    count = len(values)
+    points = [
+        f"{_compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)[0]:.2f},"
+        f"{_compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)[1]:.2f}"
+        for idx, value in enumerate(values)
+    ]
+    return " ".join(points)
+
+
+def _compare_radar_axis_tip_html(
+    label: str,
+    key: str,
+    *,
+    name_a: str,
+    name_b: str,
+    source_a: dict,
+    source_b: dict,
+) -> str:
+    val_a = html.escape(_compare_radar_metric_display(source_a, key))
+    val_b = html.escape(_compare_radar_metric_display(source_b, key))
+    return (
+        '<div class="cmp-radar-tip" role="tooltip">'
+        f'<div class="cmp-radar-tip-title">{html.escape(label)}</div>'
+        '<div class="cmp-radar-tip-rows">'
+        '<div class="cmp-radar-tip-row cmp-radar-tip-primary">'
+        '<span class="cmp-radar-tip-dot" aria-hidden="true"></span>'
+        f'<span class="cmp-radar-tip-name">{html.escape(name_a)}</span>'
+        f'<span class="cmp-radar-tip-val">{val_a}</span>'
+        "</div>"
+        '<div class="cmp-radar-tip-row cmp-radar-tip-secondary">'
+        '<span class="cmp-radar-tip-dot" aria-hidden="true"></span>'
+        f'<span class="cmp-radar-tip-name">{html.escape(name_b)}</span>'
+        f'<span class="cmp-radar-tip-val">{val_b}</span>'
+        "</div>"
+        "</div>"
+        "</div>"
+    )
+
+
+def _compare_interactive_radar_html(
+    title: str,
+    metric_specs: tuple[tuple[str, str], ...],
+    *,
+    source_a: dict,
+    source_b: dict,
+    name_a: str,
+    name_b: str,
+) -> str:
+    count = len(metric_specs)
+    if count < 3:
+        return ""
+
+    cx, cy, max_r = 150.0, 150.0, 96.0
+    values_a = [_compare_radar_metric_value(source_a, key) for key, _ in metric_specs]
+    values_b = [_compare_radar_metric_value(source_b, key) for key, _ in metric_specs]
+    poly_a = _compare_radar_polygon_points(values_a, cx=cx, cy=cy, max_r=max_r)
+    poly_b = _compare_radar_polygon_points(values_b, cx=cx, cy=cy, max_r=max_r)
+
+    grid_levels = (4.0, 5.0, 6.0, 7.0, 8.0)
+    grid_rings: list[str] = []
+    for level in grid_levels:
+        ring_vals = [level] * count
+        ring_pts = _compare_radar_polygon_points(ring_vals, cx=cx, cy=cy, max_r=max_r)
+        grid_rings.append(
+            f'<polygon class="cmp-radar-grid-ring" points="{ring_pts}" />'
+        )
+
+    spokes: list[str] = []
+    for idx in range(count):
+        x_end, y_end = _compare_radar_xy(COMPARE_RADAR_MAX, idx, count, cx=cx, cy=cy, max_r=max_r)
+        spokes.append(
+            f'<line class="cmp-radar-spoke" x1="{cx:.2f}" y1="{cy:.2f}" '
+            f'x2="{x_end:.2f}" y2="{y_end:.2f}" />'
+        )
+
+    dots_a: list[str] = []
+    dots_b: list[str] = []
+    for idx, value in enumerate(values_a):
+        x_pt, y_pt = _compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)
+        dots_a.append(
+            f'<circle class="cmp-radar-dot cmp-radar-dot-primary" cx="{x_pt:.2f}" '
+            f'cy="{y_pt:.2f}" r="4.2" />'
+        )
+    for idx, value in enumerate(values_b):
+        x_pt, y_pt = _compare_radar_xy(value, idx, count, cx=cx, cy=cy, max_r=max_r)
+        dots_b.append(
+            f'<circle class="cmp-radar-dot cmp-radar-dot-secondary" cx="{x_pt:.2f}" '
+            f'cy="{y_pt:.2f}" r="4.2" />'
+        )
+
+    axis_hits: list[str] = []
+    for idx, (key, label) in enumerate(metric_specs):
+        label_x, label_y = _compare_radar_xy(
+            COMPARE_RADAR_MAX + 0.55,
+            idx,
+            count,
+            cx=cx,
+            cy=cy,
+            max_r=max_r,
+        )
+        left_pct = max(2.0, min(98.0, (label_x / 300.0) * 100.0))
+        top_pct = max(2.0, min(98.0, (label_y / 300.0) * 100.0))
+        anchor = "center"
+        if left_pct < 28:
+            anchor = "left"
+        elif left_pct > 72:
+            anchor = "right"
+        tip_html = _compare_radar_axis_tip_html(
+            label,
+            key,
+            name_a=name_a,
+            name_b=name_b,
+            source_a=source_a,
+            source_b=source_b,
+        )
+        axis_hits.append(
+            f'<div class="cmp-radar-axis cmp-radar-axis-{anchor}" tabindex="0" '
+            f'style="left:{left_pct:.2f}%;top:{top_pct:.2f}%;">'
+            f'<span class="cmp-radar-axis-label">{html.escape(label)}</span>'
+            f"{tip_html}"
+            "</div>"
+        )
+
+    return (
+        '<div class="cmp-radar-card">'
+        f'<div class="cmp-radar-card-title">{html.escape(title)}</div>'
+        '<div class="cmp-radar-stage">'
+        '<svg class="cmp-radar-svg" viewBox="0 0 300 300" role="img" '
+        f'aria-label="{html.escape(title)} comparison radar">'
+        f"{''.join(grid_rings)}"
+        f"{''.join(spokes)}"
+        f'<polygon class="cmp-radar-poly cmp-radar-poly-secondary" points="{poly_b}" />'
+        f'<polygon class="cmp-radar-poly cmp-radar-poly-primary" points="{poly_a}" />'
+        f"{''.join(dots_b)}"
+        f"{''.join(dots_a)}"
+        "</svg>"
+        f'<div class="cmp-radar-axis-layer">{"".join(axis_hits)}</div>'
+        "</div>"
+        "</div>"
+    )
+
+
+def _build_compare_radars_html(
+    player_a: dict,
+    source_a: dict,
+    player_b: dict,
+    source_b: dict,
+) -> str:
+    name_a = str(player_a.get("player_name") or "Player 1")
+    name_b = str(player_b.get("player_name") or "Player 2")
+    legend = (
+        '<div class="pa-compare-legend cmp-radar-legend">'
+        f'<span class="pa-compare-legend-primary">{html.escape(name_a)}</span>'
+        f'<span class="pa-compare-legend-secondary">{html.escape(name_b)}</span>'
+        "</div>"
+    )
+    radar_xp = _compare_interactive_radar_html(
+        "xP pillars",
+        COMPARE_RADAR_XP_SPECS,
+        source_a=source_a,
+        source_b=source_b,
+        name_a=name_a,
+        name_b=name_b,
+    )
+    radar_pass = _compare_interactive_radar_html(
+        "Pass profile",
+        COMPARE_RADAR_PASS_SPECS,
+        source_a=source_a,
+        source_b=source_b,
+        name_a=name_a,
+        name_b=name_b,
+    )
+    return (
+        '<div class="cmp-radar-column player-card">'
+        f"{legend}"
+        f"{radar_xp}"
+        f"{radar_pass}"
         "</div>"
     )
 
@@ -3748,23 +3999,23 @@ st.markdown(
     }
     .pa-filter-count strong { color: #38bdf8; }
     .cmp-shell {
-        max-width: 1380px;
+        max-width: 1520px;
         margin: 0.15rem auto 1.25rem auto;
     }
     .cmp-compare-hero {
         margin-bottom: 0.85rem;
-        max-width: 1380px;
+        max-width: 1520px;
         margin-left: auto;
         margin-right: auto;
     }
     .st-key-cmp_layout_row {
-        max-width: 1380px;
+        max-width: 1520px;
         margin: 0 auto;
         width: 100%;
     }
     .st-key-cmp_layout_row [data-testid="stHorizontalBlock"] {
         gap: 0.85rem !important;
-        max-width: 1380px;
+        max-width: 1520px;
         margin: 0 auto;
         width: 100%;
         align-items: flex-start;
@@ -3860,6 +4111,221 @@ st.markdown(
     .cmp-player-pane .pa-compare-col-section {
         padding-left: 1.1rem;
         padding-right: 1.1rem;
+    }
+    .cmp-player-pane .cmp-xp-index-wrap {
+        margin: 0.55rem 1.1rem 0.45rem;
+        padding-bottom: 0.55rem;
+        border-bottom: 1px solid rgba(51, 65, 85, 0.45);
+    }
+    .cmp-player-pane .cmp-xp-index-wrap .pa-xp-index-row {
+        padding: 0.34rem 0.48rem;
+    }
+    .cmp-player-pane .cmp-xp-index-wrap .pa-xp-index-list {
+        gap: 0.22rem;
+    }
+    .cmp-radar-pane {
+        min-width: 0;
+        width: 100%;
+    }
+    .cmp-radar-column {
+        background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
+        border: 1px solid #2a3550;
+        border-radius: 14px;
+        padding: 0.95rem 0.85rem 1rem;
+        box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-width: 0;
+    }
+    .cmp-radar-legend {
+        margin-bottom: 0.15rem;
+    }
+    .cmp-radar-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        min-width: 0;
+    }
+    .cmp-radar-card + .cmp-radar-card {
+        padding-top: 0.55rem;
+        border-top: 1px solid rgba(51, 65, 85, 0.45);
+    }
+    .cmp-radar-card-title {
+        color: #93c5fd;
+        font-size: 0.66rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        text-align: center;
+    }
+    .cmp-radar-stage {
+        position: relative;
+        width: 100%;
+        max-width: 320px;
+        margin: 0 auto;
+        aspect-ratio: 1 / 1;
+    }
+    .cmp-radar-svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        overflow: visible;
+    }
+    .cmp-radar-grid-ring {
+        fill: none;
+        stroke: rgba(51, 65, 85, 0.55);
+        stroke-width: 0.8;
+    }
+    .cmp-radar-spoke {
+        stroke: rgba(51, 65, 85, 0.45);
+        stroke-width: 0.8;
+    }
+    .cmp-radar-poly {
+        stroke-width: 2.2;
+        stroke-linejoin: round;
+        vector-effect: non-scaling-stroke;
+    }
+    .cmp-radar-poly-primary {
+        fill: rgba(167, 139, 250, 0.16);
+        stroke: #a78bfa;
+    }
+    .cmp-radar-poly-secondary {
+        fill: rgba(134, 239, 172, 0.12);
+        stroke: #86efac;
+    }
+    .cmp-radar-dot {
+        stroke: #0f172a;
+        stroke-width: 0.8;
+        vector-effect: non-scaling-stroke;
+    }
+    .cmp-radar-dot-primary { fill: #a78bfa; }
+    .cmp-radar-dot-secondary { fill: #86efac; }
+    .cmp-radar-axis-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+    }
+    .cmp-radar-axis {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        pointer-events: auto;
+        z-index: 2;
+    }
+    .cmp-radar-axis-center { text-align: center; }
+    .cmp-radar-axis-left {
+        transform: translate(0, -50%);
+        text-align: left;
+    }
+    .cmp-radar-axis-right {
+        transform: translate(-100%, -50%);
+        text-align: right;
+    }
+    .cmp-radar-axis-label {
+        display: inline-block;
+        color: #cbd5e1;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        line-height: 1.2;
+        padding: 0.2rem 0.35rem;
+        border-radius: 6px;
+        background: rgba(15, 23, 42, 0.72);
+        border: 1px solid transparent;
+        cursor: default;
+        transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+        white-space: nowrap;
+        max-width: 7.5rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .cmp-radar-axis:hover .cmp-radar-axis-label,
+    .cmp-radar-axis:focus-within .cmp-radar-axis-label {
+        color: #f8fafc;
+        border-color: rgba(148, 163, 184, 0.35);
+        background: rgba(15, 23, 42, 0.92);
+    }
+    .cmp-radar-tip {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 8px);
+        transform: translateX(-50%) translateY(4px);
+        min-width: 11.5rem;
+        max-width: 15rem;
+        padding: 0.55rem 0.62rem;
+        border-radius: 10px;
+        border: 1px solid rgba(100, 116, 139, 0.45);
+        background: rgba(15, 23, 42, 0.96);
+        box-shadow: 0 10px 28px rgba(2, 6, 23, 0.45);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s ease;
+        z-index: 12;
+    }
+    .cmp-radar-axis-left .cmp-radar-tip {
+        left: 0;
+        transform: translateX(0) translateY(4px);
+    }
+    .cmp-radar-axis-right .cmp-radar-tip {
+        left: auto;
+        right: 0;
+        transform: translateX(0) translateY(4px);
+    }
+    .cmp-radar-axis:hover .cmp-radar-tip,
+    .cmp-radar-axis:focus-within .cmp-radar-tip {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+    }
+    .cmp-radar-axis-left:hover .cmp-radar-tip,
+    .cmp-radar-axis-left:focus-within .cmp-radar-tip {
+        transform: translateX(0) translateY(0);
+    }
+    .cmp-radar-axis-right:hover .cmp-radar-tip,
+    .cmp-radar-axis-right:focus-within .cmp-radar-tip {
+        transform: translateX(0) translateY(0);
+    }
+    .cmp-radar-tip-title {
+        color: #e2e8f0;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        margin-bottom: 0.42rem;
+    }
+    .cmp-radar-tip-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+    .cmp-radar-tip-row {
+        display: grid;
+        grid-template-columns: 0.45rem minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.38rem;
+        font-size: 0.68rem;
+        line-height: 1.25;
+    }
+    .cmp-radar-tip-dot {
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 999px;
+        display: inline-block;
+    }
+    .cmp-radar-tip-primary .cmp-radar-tip-dot { background: #a78bfa; }
+    .cmp-radar-tip-secondary .cmp-radar-tip-dot { background: #86efac; }
+    .cmp-radar-tip-name {
+        color: #94a3b8;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .cmp-radar-tip-val {
+        color: #f8fafc;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
     }
     .st-key-pa_filter_card label[data-testid="stWidgetLabel"] p {
         font-size: 0.78rem !important;
@@ -11348,11 +11814,6 @@ def _render_compare_filter_card(
         )
         player_b_id = id_by_label_b.get(selected_b_label)
 
-        st.markdown(
-            f'<div class="cmp-filter-count"><strong>{len(pool)}</strong> jogadores no grupo filtrado</div>',
-            unsafe_allow_html=True,
-        )
-
     return player_a_id, player_b_id
 
 
@@ -11379,14 +11840,14 @@ def render_compare_section(
         '<span class="pa-compare-hero-icon"><i class="fa-solid fa-code-compare"></i></span>'
         '<span class="pa-compare-hero-text">'
         '<span class="pa-compare-hero-title">Compare players</span>'
-        '<span class="pa-compare-hero-sub">Filtre o grupo e compare dois jogadores lado a lado</span>'
+        '<span class="pa-compare-hero-sub">Filtre o grupo e compare perfis com radares sobrepostos</span>'
         "</span>"
         "</div>",
         unsafe_allow_html=True,
     )
 
     with st.container(key="cmp_layout_row"):
-        col_filter, col_a, col_b = st.columns([1.0, 1.65, 1.65], gap="medium")
+        col_filter, col_a, col_radar, col_b = st.columns([1.0, 1.2, 1.45, 1.2], gap="medium")
         with col_filter:
             player_a_id, player_b_id = _render_compare_filter_card(
                 all_players,
@@ -11431,14 +11892,21 @@ def render_compare_section(
         with col_a:
             st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
             st.html(
-                _compare_column_html(
+                _compare_player_column_html(
                     player_a,
                     source_a,
                     heatmap_b64=heatmap_a,
                     variant="primary",
                     fmt_pct_fn=fmt_pct_fn,
-                    other_source=source_b,
                 ),
+                width="stretch",
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with col_radar:
+            st.markdown('<div class="cmp-radar-pane">', unsafe_allow_html=True)
+            st.html(
+                _build_compare_radars_html(player_a, source_a, player_b, source_b),
                 width="stretch",
             )
             st.markdown("</div>", unsafe_allow_html=True)
@@ -11446,13 +11914,12 @@ def render_compare_section(
         with col_b:
             st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
             st.html(
-                _compare_column_html(
+                _compare_player_column_html(
                     player_b,
                     source_b,
                     heatmap_b64=heatmap_b,
                     variant="secondary",
                     fmt_pct_fn=fmt_pct_fn,
-                    other_source=source_a,
                 ),
                 width="stretch",
             )
