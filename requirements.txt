@@ -9,3 +9,4 @@ Pillow
 scipy
 scikit-learn
 xgboost
+transfermarkt-wrapper>=0.0.8

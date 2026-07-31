@@ -161,6 +161,7 @@ from passes_maps import (
 import carries_engine as ce
 import midfield_origin as mo
 import player_profiles as pp
+import transfermarkt_profiles as tm
 from carries_maps import (
     draw_all_carries_map,
     draw_dribble_map,
@@ -1448,6 +1449,7 @@ _COMPARE_PROFILE_KEYS: tuple[str, ...] = (
     "age",
     "height",
     "nationality",
+    "market_value",
     "minutes",
 )
 
@@ -1456,6 +1458,7 @@ _COMPARE_PROFILE_SHORT_LABELS: dict[str, str] = {
     "age": "Age",
     "height": "Height",
     "nationality": "Nation",
+    "market_value": "Value",
     "minutes": "Minutes",
 }
 
@@ -1464,6 +1467,7 @@ _COMPARE_PROFILE_ICONS: dict[str, str] = {
     "age": "fa-cake-candles",
     "height": "fa-ruler-vertical",
     "nationality": "fa-flag",
+    "market_value": "fa-coins",
     "minutes": "fa-clock",
 }
 
@@ -6658,9 +6662,11 @@ def load_player_analysis_bundle(
     for player in analysis_players:
         pid = str(player["player_id"])
         player["age"] = pp.read_cached_age(pid)
+        player["market_value"] = tm.read_cached_market_value(pid)
     for xp_profile in xp_players:
         pid = str(xp_profile["player_id"])
         xp_profile["age"] = pp.read_cached_age(pid)
+        xp_profile["market_value"] = tm.read_cached_market_value(pid)
         origin = origin_by_id.get(pid)
         if origin:
             xp_profile.setdefault("league", origin.get("league"))
@@ -6673,6 +6679,7 @@ def load_player_analysis_bundle(
     for prof in progression_by_id.values():
         pid = str(prof.get("player_id"))
         prof["age"] = pp.read_cached_age(pid)
+        prof["market_value"] = tm.read_cached_market_value(pid)
         origin = origin_by_id.get(pid)
         if origin:
             prof.setdefault("league", origin.get("league"))

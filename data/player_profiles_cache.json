@@ -15,7 +15,12 @@
     "nationality": "The Netherlands",
     "age": 28,
     "thesportsdb_id": "34174205",
-    "resolved": true
+    "resolved": true,
+    "transfermarkt_id": "416386",
+    "transfermarkt_fetch_status": "ok",
+    "market_value_eur": 1600000,
+    "market_value_display": "€1.60M",
+    "market_value_updated": "2026-05-29"
   },
   "1109771": {
     "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/dierqf1761492318.png",
@@ -24,7 +29,12 @@
     "nationality": "England",
     "age": 22,
     "thesportsdb_id": "34217528",
-    "resolved": true
+    "resolved": true,
+    "transfermarkt_id": "744149",
+    "transfermarkt_fetch_status": "ok",
+    "market_value_eur": 70000000,
+    "market_value_display": "€70.00M",
+    "market_value_updated": "2026-06-03"
   },
   "845742": {
     "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/3wg5e51763154410.png",
@@ -33,7 +43,12 @@
     "nationality": "Germany",
     "age": 29,
     "thesportsdb_id": "34217018",
-    "resolved": true
+    "resolved": true,
+    "transfermarkt_id": "273669",
+    "transfermarkt_fetch_status": "ok",
+    "market_value_eur": 1500000,
+    "market_value_display": "€1.50M",
+    "market_value_updated": "2026-05-27"
   },
   "250737": {
     "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/m2upnx1758893486.png",
@@ -4945,7 +4960,12 @@
     "source": "thesportsdb",
     "resolved": true,
     "fetch_status": "ok",
-    "date_of_birth": "2001-08-28"
+    "date_of_birth": "2001-08-28",
+    "transfermarkt_id": "991487",
+    "transfermarkt_fetch_status": "ok",
+    "market_value_eur": 15000000,
+    "market_value_display": "€15.00M",
+    "market_value_updated": "2026-06-01"
   },
   "1512625": {
     "photo_url": "https://www.thesportsdb.com/images/media/player/cutout/6dyhue1783710250.png",
@@ -4958,7 +4978,12 @@
     "source": "thesportsdb",
     "resolved": true,
     "fetch_status": "ok",
-    "date_of_birth": "2000-03-04"
+    "date_of_birth": "2000-03-04",
+    "transfermarkt_id": "1091219",
+    "transfermarkt_fetch_status": "ok",
+    "market_value_eur": 5000000,
+    "market_value_display": "€5.00M",
+    "market_value_updated": "2026-05-26"
   },
   "149732": {
     "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/m0dieo1765990753.png",
@@ -4971,7 +4996,12 @@
     "source": "thesportsdb",
     "resolved": true,
     "fetch_status": "ok",
-    "date_of_birth": "1994-03-03"
+    "date_of_birth": "1994-03-03",
+    "transfermarkt_id": "181382",
+    "transfermarkt_fetch_status": "ok",
+    "market_value_eur": 2500000,
+    "market_value_display": "€2.50M",
+    "market_value_updated": "2026-06-01"
   },
   "988801": {
     "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/daswj81766405155.png",
@@ -4984,7 +5014,12 @@
     "source": "thesportsdb",
     "resolved": true,
     "fetch_status": "ok",
-    "date_of_birth": "2001-04-27"
+    "date_of_birth": "2001-04-27",
+    "transfermarkt_id": "658533",
+    "transfermarkt_fetch_status": "ok",
+    "market_value_eur": 2000000,
+    "market_value_display": "€2.00M",
+    "market_value_updated": "2026-06-01"
   },
   "1507384": {
     "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/5oyhj71766328998.png",
@@ -4997,7 +5032,12 @@
     "source": "thesportsdb",
     "resolved": true,
     "fetch_status": "ok",
-    "date_of_birth": "1996-10-18"
+    "date_of_birth": "1996-10-18",
+    "transfermarkt_id": "973949",
+    "transfermarkt_fetch_status": "ok",
+    "market_value_eur": 3000000,
+    "market_value_display": "€3.00M",
+    "market_value_updated": "2026-06-01"
   },
   "231946": {
     "photo_url": "https://r2.thesportsdb.com/images/media/player/cutout/qit97c1766006297.png",

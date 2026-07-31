@@ -27,6 +27,7 @@ GENERAL_PROFILE_LABELS: dict[str, str] = {
     "height": "Height",
     "dominant_foot": "Dominant foot",
     "nationality": "Nationality",
+    "market_value": "Market value",
 }
 
 GENERAL_PROFILE_KEYS: tuple[str, ...] = tuple(GENERAL_PROFILE_LABELS.keys())
@@ -237,6 +238,20 @@ def _load_cache() -> dict[str, dict]:
 def _save_cache(cache: dict[str, dict]) -> None:
     CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
     CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def update_player_profile_cache(player_id: str, fields: dict) -> dict:
+    """Merge extra enrichment fields into the profile cache (offline prefetch)."""
+    pid = str(player_id or "").strip()
+    cache = _load_cache()
+    entry = dict(cache.get(pid, {})) if pid else {}
+    for key, value in fields.items():
+        if value is not None:
+            entry[key] = value
+    if pid:
+        cache[pid] = entry
+        _save_cache(cache)
+    return entry
 
 
 def _pick_search_result(results: list[dict], *, player_name: str, team: str) -> dict | None:
@@ -530,16 +545,28 @@ def read_cached_age(player_id: str) -> int | None:
 def enrich_player_general_profile(player: dict, *, force: bool = False) -> dict:
     """Attach general profile fields onto a player dict (non-destructive)."""
     out = dict(player)
+    pid = str(player.get("player_id", ""))
     profile = get_player_profile(
-        str(player.get("player_id", "")),
+        pid,
         str(player.get("player_name", "")),
         str(player.get("team", "")),
         force=force,
     )
     for key in GENERAL_PROFILE_KEYS:
-        if key in {"minutes", "minutes_pct"}:
+        if key in {"minutes", "minutes_pct", "market_value"}:
             continue
         value = profile.get(key)
         if value is not None:
             out[key] = value
+    cached = read_cached_profile(pid)
+    market_value = cached.get("market_value_display")
+    if not market_value and cached.get("market_value_eur") is not None:
+        try:
+            from transfermarkt_profiles import format_market_value_eur
+
+            market_value = format_market_value_eur(int(cached["market_value_eur"]))
+        except (TypeError, ValueError, ImportError):
+            market_value = None
+    if market_value:
+        out["market_value"] = market_value
     return out
