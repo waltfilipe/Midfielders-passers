@@ -2006,7 +2006,6 @@ APP_NAME = "World Cup"
 APP_LEAGUE = "xP (Expected Passes) Analysis"
 PRES_DEMO_KEY = "pres_active_demo"
 FONT_AWESOME_CDN = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-PLAYER_ANALYSIS_CARD_HEIGHT_PX = 700
 PASS_LENGTH_MIX_CENTER_PCT = 11.4
 
 st.set_page_config(page_title=f"{APP_NAME} | {APP_LEAGUE}", layout="wide", initial_sidebar_state="collapsed")
@@ -4176,20 +4175,18 @@ st.markdown(
         display: flex;
         flex-direction: column;
         min-width: 0;
-        min-height: var(--pa-card-h);
     }
     .pa-col-identity > .pa-identity-card,
     .pa-col-score > .pa-score-stack,
     .pa-col-pillars > .pa-pillars-column {
         flex: 1 1 auto;
-        min-height: var(--pa-card-h);
         height: 100%;
+        min-height: 0;
     }
     .pa-score-stack {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
-        min-height: var(--pa-card-h);
+        gap: 0.42rem;
         height: 100%;
         overflow: visible;
         box-sizing: border-box;
@@ -4197,11 +4194,11 @@ st.markdown(
     .pa-xp-profile-card {
         display: flex;
         flex-direction: column;
-        flex: 1 1 auto;
+        flex: 0 0 auto;
         min-height: 0;
-        padding: 0.72rem 0.75rem 0.9rem;
+        padding: 0.58rem 0.68rem 0.62rem;
         margin-bottom: 0;
-        gap: 0.5rem;
+        gap: 0.35rem;
         overflow: visible;
     }
     .pa-xp-profile-title {
@@ -4216,15 +4213,14 @@ st.markdown(
     .pa-pillars-column {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
-        min-height: var(--pa-card-h);
+        gap: 0.42rem;
         height: 100%;
         box-sizing: border-box;
     }
     .pa-pillars-card {
         display: flex;
         flex-direction: column;
-        padding: 0.72rem 0.7rem 0.7rem;
+        padding: 0.58rem 0.65rem 0.62rem;
         margin-bottom: 0;
         flex: 1 1 auto;
         min-height: 0;
@@ -4261,13 +4257,12 @@ st.markdown(
         margin-left: 0.25rem;
     }
     .pa-identity-card {
-        padding: 0.78rem 0.92rem 0.75rem;
+        padding: 0.72rem 0.88rem 0.68rem;
         margin-bottom: 0;
         display: flex;
         flex-direction: column;
-        gap: 0.48rem;
+        gap: 0.4rem;
         height: 100%;
-        min-height: var(--pa-card-h);
         overflow: hidden;
         box-sizing: border-box;
     }
@@ -4882,7 +4877,7 @@ st.markdown(
     }
     .pa-origin-heatmap-wrap {
         flex: 1;
-        min-height: 198px;
+        min-height: 168px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -4970,20 +4965,20 @@ st.markdown(
     .pa-xp-profile-bars {
         display: flex;
         flex-direction: column;
-        gap: 0.85rem;
-        padding-top: 0.1rem;
-        flex: 1;
+        gap: 0.42rem;
+        padding-top: 0;
+        flex: 0 0 auto;
         justify-content: flex-start;
         min-height: 0;
     }
     .pa-xp-profile-bars-tri {
-        gap: 0.72rem;
-        justify-content: space-between;
-        flex: 1 1 auto;
+        gap: 0.3rem;
+        justify-content: flex-start;
+        flex: 0 0 auto;
     }
     .pa-xp-profile-bars-tri .pa-xp-pillar {
-        padding: 0.55rem 0.58rem 0.6rem;
-        gap: 0.38rem;
+        padding: 0.36rem 0.46rem 0.4rem;
+        gap: 0.24rem;
     }
     .pa-xp-profile-eligibility-note {
         margin: 0;
@@ -4997,9 +4992,9 @@ st.markdown(
     .pa-xp-pillar {
         display: flex;
         flex-direction: column;
-        gap: 0.45rem;
-        padding: 0.6rem 0.6rem 0.65rem;
-        border-radius: 12px;
+        gap: 0.3rem;
+        padding: 0.45rem 0.5rem 0.5rem;
+        border-radius: 10px;
         background: linear-gradient(160deg, rgba(21, 27, 43, 0.55) 0%, rgba(15, 23, 42, 0.35) 100%);
         border: 1px solid rgba(51, 65, 85, 0.45);
     }
@@ -5013,10 +5008,10 @@ st.markdown(
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 1.65rem;
-        height: 1.65rem;
-        border-radius: 8px;
-        font-size: 0.8rem;
+        width: 1.4rem;
+        height: 1.4rem;
+        border-radius: 7px;
+        font-size: 0.68rem;
         color: #c4b5fd;
         background: rgba(168, 85, 247, 0.14);
         border: 1px solid rgba(168, 85, 247, 0.32);
@@ -5025,7 +5020,7 @@ st.markdown(
         flex: 1;
         min-width: 0;
         color: #f1f5f9;
-        font-size: 0.88rem;
+        font-size: 0.8rem;
         font-weight: 700;
         letter-spacing: 0.02em;
     }
@@ -5065,9 +5060,9 @@ st.markdown(
     }
     .pa-xp-index-wrap {
         margin-top: 0;
-        margin-bottom: 0.55rem;
+        margin-bottom: 0.35rem;
         padding-top: 0;
-        padding-bottom: 0.55rem;
+        padding-bottom: 0.35rem;
         border-top: none;
         border-bottom: 1px solid rgba(51, 65, 85, 0.55);
     }
@@ -5335,7 +5330,7 @@ st.markdown(
         font-style: italic;
     }
     .pa-pass-mix-card {
-        padding: 0.65rem 0.7rem 0.7rem;
+        padding: 0.55rem 0.65rem 0.6rem;
         margin-bottom: 0;
         flex: 0 0 auto;
         display: flex;
@@ -7747,10 +7742,6 @@ def _build_player_analysis_left_card_html(
 ) -> str:
     search_pos = sim.player_search_position(player)
     group_label = sim.similarity_position_label(search_pos) if search_pos else "—"
-    badges = _xp_identity_badges_html(xp_profile)
-    badges_block = (
-        f'<div class="pa-identity-badges">{badges}</div>' if badges else ""
-    )
 
     profile_lines = []
     for key in pp.GENERAL_PROFILE_KEYS:
@@ -7788,8 +7779,6 @@ def _build_player_analysis_left_card_html(
         f'<p class="pa-identity-meta">{html.escape(str(player.get("team", "—")))} · '
         f'{html.escape(str(player.get("position", "—")))} · '
         f'{html.escape(group_label)}</p>'
-        f'<span class="pa-identity-chip">{html.escape(APP_LEAGUE)}</span>'
-        f"{badges_block}"
         "</div>"
         "</div>"
         "</div>"
@@ -9202,7 +9191,6 @@ def _build_player_analysis_layout_html(
     xp_passes_df: pd.DataFrame | None = None,
 ) -> str:
     metric_ranks = player.get("metric_ranks") if isinstance(player.get("metric_ranks"), dict) else {}
-    layout_style = f"--pa-card-h: {PLAYER_ANALYSIS_CARD_HEIGHT_PX}px;"
     score_stack = _player_analysis_score_stack_html(
         player,
         xp_profile,
@@ -9221,7 +9209,7 @@ def _build_player_analysis_layout_html(
     )
     stats_card = _build_xp_stats_card_html(xp_profile, player, xp_passes_df=xp_passes_df)
     return (
-        f'<div class="pa-layout" style="{layout_style}">'
+        '<div class="pa-layout">'
         f'<div class="pa-col pa-col-identity">{left_card}</div>'
         '<div class="pa-col pa-col-score">'
         f"{score_stack}"
