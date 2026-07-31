@@ -1593,10 +1593,7 @@ def _compare_pass_mix_list_html(xp_profile: dict | None) -> str:
     if share is None:
         return ""
     share = float(share)
-    marker_pos = max(4.0, min(96.0, share))
-    player_marker = (
-        f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%"></span>'
-    )
+    markers_html = _pa_pass_mix_markers_html(xp_profile, share)
     return (
         '<li class="pa-compare-profile-row pa-compare-profile-row-passmix">'
         '<div class="pa-compare-passmix-head">'
@@ -1606,7 +1603,7 @@ def _compare_pass_mix_list_html(xp_profile: dict | None) -> str:
         f'<span class="pa-compare-profile-row-val">{share:.1f}% long</span>'
         "</div>"
         '<div class="pa-pass-mix-track pa-pass-mix-track-compact">'
-        f"{player_marker}"
+        f"{markers_html}"
         "</div>"
         '<div class="pa-pass-mix-axis pa-pass-mix-axis-compact">'
         '<span class="pa-pass-mix-axis-short">Short</span>'
@@ -1614,6 +1611,27 @@ def _compare_pass_mix_list_html(xp_profile: dict | None) -> str:
         "</div>"
         "</li>"
     )
+
+
+def _pa_pass_mix_markers_html(xp_profile: dict, share: float) -> str:
+    """Player marker plus optional top-volume median reference at bar center."""
+    player_pos = max(4.0, min(96.0, share))
+    parts: list[str] = []
+    ref = xp_profile.get("long_pass_share_peer_avg_pct")
+    if ref is not None:
+        ref = float(ref)
+        ref_pos = max(4.0, min(96.0, ref))
+        ref_count = xp_profile.get("long_pass_share_peer_count")
+        ref_note = f" (top {int(ref_count)} by passes)" if ref_count else ""
+        parts.append(
+            f'<span class="pa-pass-mix-center" style="left:{ref_pos:.1f}%" '
+            f'title="Median long share{ref_note}: {ref:.1f}%"></span>'
+        )
+    parts.append(
+        f'<span class="pa-pass-mix-marker" style="left:{player_pos:.1f}%" '
+        f'title="Player long share: {share:.1f}%"></span>'
+    )
+    return "".join(parts)
 
 
 def _compare_xp_indices_list_html(xp_profile: dict | None) -> str:
@@ -5369,7 +5387,6 @@ st.markdown(
         position: absolute;
         top: -0.18rem;
         bottom: -0.18rem;
-        left: 50%;
         width: 2px;
         transform: translateX(-50%);
         border-radius: 999px;
@@ -8384,11 +8401,7 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         return ""
     share = float(share)
     short_share = 100.0 - share
-    marker_pos = max(4.0, min(96.0, share))
-    player_marker = (
-        f'<span class="pa-pass-mix-marker" style="left:{marker_pos:.1f}%" '
-        f'title="Player long share: {share:.1f}%"></span>'
-    )
+    markers_html = _pa_pass_mix_markers_html(xp_profile, share)
 
     return (
         '<div class="player-card pa-pass-mix-card">'
@@ -8399,7 +8412,7 @@ def _pa_pass_length_card_html(xp_profile: dict | None) -> str:
         '<span class="pa-pass-mix-title">Pass Length Mix</span>'
         "</div>"
         '<div class="pa-pass-mix-track">'
-        f"{player_marker}"
+        f"{markers_html}"
         "</div>"
         '<div class="pa-pass-mix-axis">'
         '<span class="pa-pass-mix-axis-short">Short</span>'
@@ -9040,6 +9053,7 @@ def _pa_regular_stats_panel_html(
             component_keys,
         )
         for display_key, index_key, letter_key, title, component_keys in XP_PA_REGULAR_SCORE_SPECS
+        if display_key != "pass_impact_display"
     )
     return (
         '<div class="pa-xp-section-panel pa-pass-score-panel">'
@@ -12301,7 +12315,7 @@ def render_presentation_tab(
         "<p>xP generated per game — how much total value the player delivers through their passes.</p></div>"
         '<div class="pres-tile pres-dim">'
         '<span class="pres-icon"><i class="fa-solid fa-bolt"></i></span>'
-        "<h5>Effectiveness</h5>"
+        "<h5>Lethality</h5>"
         "<p>50% xPV per pass and 50% Pass Impact v2 per game — destination value plus "
         "selective high-progression deliveries.</p></div>"
         "</div>",

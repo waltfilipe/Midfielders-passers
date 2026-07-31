@@ -910,7 +910,7 @@ XP_PLAYER_ANALYSIS_BLOCKS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "xp_per_90",
         "threat_passes_p90",
     )),
-    ("Effectiveness", (
+    ("Lethality", (
         "xpv_per_pass",
         "test_impact_v2_p90",
     )),
@@ -964,8 +964,8 @@ XP_ARCHETYPE_AXIS_KEYS: tuple[str, ...] = (
 
 XP_PROFILE_BAR_LABELS: dict[str, str] = {
     "xp_activity_display": "Productivity",
-    "xp_edge_display": "Effectiveness",
-    "xp_efficiency_display": "Efficiency",
+    "xp_edge_display": "Lethality",
+    "xp_efficiency_display": "Precision",
     "xp_quality_display": "Quality",
     "xp_consistency_display": "Consistency",
 }
@@ -996,12 +996,14 @@ XP_PROFILE_SUBMETRICS: tuple[str, ...] = (
     "xp_residual_median",
 )
 
-# Secondary indices shown as coloured status boxes below the regular stats.
+# Shared composite for Lethality pillar and the xP Impact index.
+LETHALITY_METRICS: tuple[str, ...] = ("xpv_per_pass", "test_impact_v2_p90")
+
 # (index_key, label, metrics, invert_metrics)
 XP_INDEX_ELITE_TOP_N = 10
 XP_INDEX_SPECS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...] = (
     ("xp_idx_consistency", "Consistency", ("xp_game_consistency_score",), ()),
-    ("xp_idx_impact", "Impact", ("threat_passes_p90",), ()),
+    ("xp_idx_impact", "Impact", LETHALITY_METRICS, ()),
 )
 
 XP_INDEX_TIER_LABELS: dict[str, str] = {
@@ -1018,8 +1020,8 @@ XP_INDEX_TOOLTIPS: dict[str, str] = {
         "(median absolute deviation), which is robust to outlier games."
     ),
     "xp_idx_impact": (
-        "Impact passes combine high destination value, positive residual and forward "
-        "progress — deliveries that meaningfully change expected threat."
+        "50% xPV per completed pass and 50% Pass Impact v2 per game — "
+        "destination value plus selective high-progression deliveries."
     ),
 }
 
@@ -1046,7 +1048,7 @@ XP_BADGE_TOOLTIPS: dict[str, str] = {
 # Player Analysis compare panel — ordered metric list per column.
 XP_COMPARE_COLUMN_KEYS: tuple[tuple[str, str], ...] = (
     ("xp_activity_display", "Productivity"),
-    ("xp_edge_display", "Effectiveness"),
+    ("xp_edge_display", "Lethality"),
     ("passes_total", "Passes"),
 )
 XP_COMPARE_COLUMN_TOOLTIPS: dict[str, str] = {
@@ -1152,7 +1154,7 @@ XP_PROFILE_ARCHETYPE_ICONS: dict[str, str] = {
 XP_PROFILE_ARCHETYPE_FILTER_ALL = ""
 
 ACTIVITY_METRICS: tuple[str, ...] = ("xp_per_90",)
-EDGE_METRICS: tuple[str, ...] = ("xpv_per_pass", "test_impact_v2_p90")
+EDGE_METRICS: tuple[str, ...] = LETHALITY_METRICS
 EFFICIENCY_METRICS: tuple[str, ...] = ("xpass_residual_p90",)
 
 # Grade = weighted mean of three pillars (z-scores within position group).
@@ -1351,7 +1353,7 @@ XP_PA_LABELS: dict[str, str] = {
     "xp_surprise_rate": "% above expected",
     "xp_game_std_adj_score": "Stability",
     "xp_games_above_median_pct": "% strong games",
-    "xpass_residual_p90": "Efficiency",
+    "xpass_residual_p90": "Precision",
     "xpass_hard_coe_pct": "Precisão difícil",
 }
 
@@ -2390,7 +2392,7 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
     """Attach xP pass rating (3-metric weighted mean + shrinkage) with blended display.
 
     Composite = weighted z-scores within position:
-    Productivity 35%, Effectiveness 30% (xPV/pass + Pass Impact v2/game), Efficiency 35%.
+    Productivity 35%, Lethality 30% (xPV/pass + Pass Impact v2/game), Precision 35%.
     Display grade blends probit rank (52%) with tanh(composite z) (48%), then confidence pull.
     """
     if not players:
@@ -2460,7 +2462,7 @@ def attach_xp_pass_ratings(players: list[dict]) -> None:
 
 
 PASS_LENGTH_MIN_PEERS = 5
-PASS_LENGTH_REF_TOP_N = 100
+PASS_LENGTH_REF_TOP_N = 200
 
 
 def _long_pass_share_from_row(row: dict) -> float | None:
@@ -2508,16 +2510,16 @@ def attach_pass_length_profile(players: list[dict]) -> None:
     ref_shares = [float(row["long_pass_share_pct"]) for row in ref_rows]
     if len(ref_shares) >= PASS_LENGTH_MIN_PEERS:
         ref_sorted = np.sort(np.asarray(ref_shares, dtype=float))
-        ref_avg = round(float(ref_sorted.mean()), 1)
+        ref_median = round(float(np.median(ref_sorted)), 1)
         p10, p90 = np.percentile(ref_sorted, [10, 90])
         ref_span = max(5.0, float(p90 - p10) / 2.0)
         ref_span = min(ref_span, 11.0)
         for row in players:
-            row["long_pass_share_ref_avg_pct"] = ref_avg
+            row["long_pass_share_ref_avg_pct"] = ref_median
             row["long_pass_share_ref_span_pp"] = round(ref_span, 2)
             row["long_pass_share_ref_count"] = len(ref_shares)
-            # Bar center uses the top-volume reference; keep legacy keys in sync.
-            row["long_pass_share_peer_avg_pct"] = ref_avg
+            # Bar center uses the top-volume reference median; keep legacy keys in sync.
+            row["long_pass_share_peer_avg_pct"] = ref_median
             row["long_pass_share_peer_span_pp"] = round(ref_span, 2)
             row["long_pass_share_peer_count"] = len(ref_shares)
     else:
