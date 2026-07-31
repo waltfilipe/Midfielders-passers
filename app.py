@@ -574,16 +574,14 @@ PA_XP_RADAR_LINE_COLOR = "#a855f7"
 PA_XP_RADAR_FILL_COLOR = "#a855f7"
 PA_COMPARE_PRIMARY_COLOR = "#a78bfa"
 PA_COMPARE_SECONDARY_COLOR = "#86efac"
-CMP_RADAR_NEON_A = "#00E5FF"
-CMP_RADAR_NEON_B = "#B24BF3"
-COMPARE_RADAR_MIN = 3.0
-COMPARE_RADAR_MAX = 9.0
-COMPARE_RADAR_XP_SPECS: tuple[tuple[str, str], ...] = (
+COMPARE_SCORE_MIN = 3.0
+COMPARE_SCORE_MAX = 9.0
+COMPARE_PILLAR_SPECS: tuple[tuple[str, str], ...] = (
     ("xp_activity_display", "Productivity"),
     ("xp_efficiency_display", "Precision"),
     ("xp_edge_display", "Lethality"),
 )
-COMPARE_RADAR_PASS_SPECS: tuple[tuple[str, str], ...] = (
+COMPARE_PASS_GRID_SPECS: tuple[tuple[str, str], ...] = (
     ("pass_volume_display", "Volume"),
     ("pass_efficiency_display", "Efficiency"),
     ("pass_buildup_display", "Build-up"),
@@ -1804,7 +1802,7 @@ def _compare_player_column_html(
 ) -> str:
     """Compare tab player pane: identity, heatmap, indices and pass-length mix only."""
     return (
-        f'<div class="player-card pa-compare-player-card pa-compare-player-card-{html.escape(variant)}">'
+        f'<div class="player-card pa-compare-player-card pa-compare-player-card-{html.escape(variant)} cmp-player-card-full">'
         f"{_compare_column_head_html(player, variant=variant)}"
         f"{_compare_column_facts_html(player, fmt_pct_fn=fmt_pct_fn)}"
         f"{_compare_column_visual_html(source, heatmap_b64=heatmap_b64)}"
@@ -1812,222 +1810,210 @@ def _compare_player_column_html(
     )
 
 
-def _compare_radar_metric_value(source: dict, key: str) -> float | None:
+def _compare_short_name(name: str, *, max_len: int = 15) -> str:
+    clean = str(name or "—").strip()
+    if len(clean) <= max_len:
+        return clean
+    return f"{clean[: max_len - 1]}…"
+
+
+def _compare_score_bar_pct(score: float | None) -> float:
+    if score is None:
+        return 6.0
+    clamped = max(COMPARE_SCORE_MIN, min(COMPARE_SCORE_MAX, float(score)))
+    return max(6.0, min(100.0, (clamped - COMPARE_SCORE_MIN) / (COMPARE_SCORE_MAX - COMPARE_SCORE_MIN) * 100.0))
+
+
+def _compare_metric_value(source: dict, key: str) -> float | None:
     if key in xstats.XP_PROFILE_BAR_KEYS and not source.get("xp_profile_bars_eligible", True):
         return None
     return _xp_compare_metric_numeric(source, key)
 
 
-def _compare_radar_metric_display(source: dict, key: str) -> str:
+def _compare_metric_display(source: dict, key: str) -> str:
     if key in xstats.XP_PROFILE_BAR_KEYS:
         return _xp_compare_profile_value(source, key)[0]
     return xstats.format_pa_stats_value(key, source.get(key))
 
 
-def _compare_radar_values(
+def _compare_pillar_tip_html(player_name: str, label: str, display: str) -> str:
+    return (
+        f'<span class="metric-tipbox">'
+        f"<strong>{html.escape(label)}</strong><br>"
+        f"{html.escape(player_name)} · {html.escape(display)}"
+        "</span>"
+    )
+
+
+def _compare_pillar_bar_row_html(
+    player_name: str,
+    metric_label: str,
     source: dict,
-    metric_specs: tuple[tuple[str, str], ...],
-) -> list[float]:
-    values: list[float] = []
-    for key, _ in metric_specs:
-        raw = _compare_radar_metric_value(source, key)
-        values.append(COMPARE_RADAR_MIN if raw is None else float(raw))
-    return values
-
-
-def _compare_radar_hex_rgba(hex_color: str, alpha: float) -> str:
-    color = str(hex_color).lstrip("#")
-    red = int(color[0:2], 16)
-    green = int(color[2:4], 16)
-    blue = int(color[4:6], 16)
-    return f"rgba({red},{green},{blue},{alpha})"
-
-
-def _add_neon_polar_trace(
-    fig,
+    key: str,
     *,
-    values: list[float],
-    categories: list[str],
-    color: str,
-    name: str,
-    customdata: list[tuple[str, str]],
-    hovertemplate: str,
-) -> None:
-    """Glow outline + filled polygon + bright vertex markers."""
-    import plotly.graph_objects as go
-
-    fig.add_trace(
-        go.Scatterpolar(
-            r=values,
-            theta=categories,
-            mode="lines",
-            line=dict(color=_compare_radar_hex_rgba(color, 0.42), width=11),
-            fill="none",
-            showlegend=False,
-            hoverinfo="skip",
-        )
-    )
-    fig.add_trace(
-        go.Scatterpolar(
-            r=values,
-            theta=categories,
-            name=name,
-            fill="toself",
-            fillcolor=_compare_radar_hex_rgba(color, 0.13),
-            line=dict(color=color, width=2.8),
-            marker=dict(
-                size=10,
-                color=color,
-                line=dict(width=2.2, color="#f8fafc"),
-            ),
-            customdata=customdata,
-            hovertemplate=hovertemplate,
-        )
+    variant: str,
+) -> str:
+    value = _compare_metric_value(source, key)
+    display = _compare_metric_display(source, key)
+    pct = _compare_score_bar_pct(value)
+    color = score_display_color(float(value)) if value is not None else "#475569"
+    accent = PA_COMPARE_PRIMARY_COLOR if variant == "primary" else PA_COMPARE_SECONDARY_COLOR
+    return (
+        f'<div class="cmp-pillar-row cmp-pillar-row-{html.escape(variant)}">'
+        f'<span class="cmp-pillar-name">{html.escape(_compare_short_name(player_name))}</span>'
+        f'<span class="cmp-pillar-bar-hit metric-tip" tabindex="0">'
+        f'<span class="cmp-pillar-bar-track">'
+        f'<span class="cmp-pillar-bar-fill" style="width:{pct:.1f}%;background:{color};'
+        f'box-shadow:0 0 10px {accent}33;"></span>'
+        "</span>"
+        f"{_compare_pillar_tip_html(player_name, metric_label, display)}"
+        "</span>"
+        "</div>"
     )
 
 
-def build_compare_radar_figure(
-    title: str,
-    metric_specs: tuple[tuple[str, str], ...],
+def _compare_pillar_block_html(
+    key: str,
+    label: str,
     *,
     source_a: dict,
     source_b: dict,
     name_a: str,
     name_b: str,
-):
-    """Interactive overlaid polar chart for the Compare tab."""
-    import plotly.graph_objects as go
-
-    categories = [label.upper() for _, label in metric_specs]
-    values_a = _compare_radar_values(source_a, metric_specs)
-    values_b = _compare_radar_values(source_b, metric_specs)
-    displays_a = [_compare_radar_metric_display(source_a, key) for key, _ in metric_specs]
-    displays_b = [_compare_radar_metric_display(source_b, key) for key, _ in metric_specs]
-    compare_tip = (
-        "<b>%{theta}</b><br>"
-        f"{name_a}: %{{customdata[0]}}<br>"
-        f"{name_b}: %{{customdata[1]}}"
-        "<extra></extra>"
-    )
-    custom_pairs = list(zip(displays_a, displays_b))
-
-    fig = go.Figure()
-    _add_neon_polar_trace(
-        fig,
-        values=values_b,
-        categories=categories,
-        color=CMP_RADAR_NEON_B,
-        name=name_b,
-        customdata=custom_pairs,
-        hovertemplate=compare_tip,
-    )
-    _add_neon_polar_trace(
-        fig,
-        values=values_a,
-        categories=categories,
-        color=CMP_RADAR_NEON_A,
-        name=name_a,
-        customdata=custom_pairs,
-        hovertemplate=compare_tip,
-    )
-    chart_h = 308 if len(categories) <= 3 else 334
-    fig.update_layout(
-        title=dict(
-            text=title.upper(),
-            x=0.5,
-            xanchor="center",
-            font=dict(size=10.5, color="#8fdcff", family="inherit"),
-        ),
-        height=chart_h,
-        margin=dict(l=54, r=54, t=44, b=34),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        showlegend=False,
-        polar=dict(
-            bgcolor="rgba(10, 10, 20, 0.42)",
-            gridshape="linear",
-            radialaxis=dict(
-                range=[COMPARE_RADAR_MIN, COMPARE_RADAR_MAX],
-                tickvals=[4, 5, 6, 7, 8],
-                tickfont=dict(size=8, color="rgba(148, 163, 184, 0.5)"),
-                gridcolor="rgba(132, 108, 196, 0.24)",
-                linecolor="rgba(132, 108, 196, 0.24)",
-                angle=90,
-                showline=False,
-            ),
-            angularaxis=dict(
-                tickfont=dict(size=9.5, color="#f8fafc"),
-                gridcolor="rgba(132, 108, 196, 0.24)",
-                linecolor="rgba(132, 108, 196, 0.24)",
-                direction="clockwise",
-            ),
-        ),
-        font=dict(color="#cbd5e1", size=10),
-        hoverlabel=dict(
-            bgcolor="rgba(12, 12, 24, 0.96)",
-            bordercolor="rgba(142, 36, 255, 0.42)",
-            font=dict(size=12, color="#f8fafc"),
-        ),
-        hovermode="closest",
-    )
-    return fig
-
-
-def _cmp_radar_legend_html(name_a: str, name_b: str) -> str:
+) -> str:
     return (
-        '<div class="cmp-radar-legend">'
-        '<span class="cmp-radar-legend-item cmp-radar-legend-a">'
-        '<span class="cmp-radar-legend-ring" aria-hidden="true"></span>'
-        f"{html.escape(name_a)}</span>"
-        '<span class="cmp-radar-legend-item cmp-radar-legend-b">'
-        '<span class="cmp-radar-legend-ring" aria-hidden="true"></span>'
-        f"{html.escape(name_b)}</span>"
+        '<div class="cmp-pillar-block">'
+        f'<div class="cmp-pillar-title">{html.escape(label)}</div>'
+        f"{_compare_pillar_bar_row_html(name_a, label, source_a, key, variant='primary')}"
+        f"{_compare_pillar_bar_row_html(name_b, label, source_b, key, variant='secondary')}"
         "</div>"
     )
 
 
-def _render_compare_radars(
-    player_a: dict,
+def _compare_pass_score_tooltip(source: dict, display_key: str) -> str:
+    letter_key = xstats.PASS_SCORE_LETTER_KEYS.get(display_key, "")
+    index_key = xstats.PASS_SCORE_INDEX_KEYS.get(display_key, "")
+    title = xstats.PASS_SCORE_LABELS.get(display_key, display_key)
+    summary = xstats.PASS_SCORE_TOOLTIPS.get(display_key, "")
+    score = source.get(display_key)
+    try:
+        score_val = float(score) if score is not None else None
+    except (TypeError, ValueError):
+        score_val = None
+    if score_val is None:
+        return summary or title
+    letter = source.get(letter_key) or xstats.display_score_letter_grade(score_val)
+    rank = source.get(f"{index_key}_rank_in_group") if index_key else None
+    total = source.get(f"{index_key}_rank_pool_in_group") if index_key else None
+    rank_note = f" · #{int(rank)} of {int(total)}" if rank and total else ""
+    score_note = f"Grade {letter} · score {score_val:.1f}/9{rank_note}"
+    return f"{summary} {score_note}".strip() if summary else score_note
+
+
+def _compare_pass_grade_row_html(
+    player_name: str,
+    source: dict,
+    display_key: str,
+    *,
+    variant: str,
+) -> str:
+    letter_key = xstats.PASS_SCORE_LETTER_KEYS.get(display_key, "")
+    score = source.get(display_key)
+    try:
+        score_val = float(score) if score is not None else None
+    except (TypeError, ValueError):
+        score_val = None
+    letter = source.get(letter_key) if letter_key else None
+    pill = _pa_letter_grade_pill_html(score_val, str(letter) if letter else None)
+    tip = html.escape(_compare_pass_score_tooltip(source, display_key))
+    return (
+        f'<div class="cmp-pass-grade-row cmp-pass-grade-row-{html.escape(variant)}">'
+        f'<span class="cmp-pass-player">{html.escape(_compare_short_name(player_name))}</span>'
+        f'<span class="cmp-pass-grade-tip metric-tip" tabindex="0">'
+        f"{pill}"
+        f'<span class="metric-tipbox">{tip}</span>'
+        "</span>"
+        "</div>"
+    )
+
+
+def _compare_pass_cell_html(
+    display_key: str,
+    title: str,
+    *,
     source_a: dict,
-    player_b: dict,
     source_b: dict,
+    name_a: str,
+    name_b: str,
+) -> str:
+    return (
+        '<div class="cmp-pass-cell">'
+        f'<div class="cmp-pass-cell-title">{html.escape(title)}</div>'
+        f"{_compare_pass_grade_row_html(name_a, source_a, display_key, variant='primary')}"
+        f"{_compare_pass_grade_row_html(name_b, source_b, display_key, variant='secondary')}"
+        "</div>"
+    )
+
+
+def _build_compare_center_column_html(
+    source_a: dict,
+    source_b: dict,
+    *,
+    name_a: str,
+    name_b: str,
+) -> str:
+    pillar_blocks = "".join(
+        _compare_pillar_block_html(
+            key,
+            label,
+            source_a=source_a,
+            source_b=source_b,
+            name_a=name_a,
+            name_b=name_b,
+        )
+        for key, label in COMPARE_PILLAR_SPECS
+    )
+    pass_cells = "".join(
+        _compare_pass_cell_html(
+            key,
+            label,
+            source_a=source_a,
+            source_b=source_b,
+            name_a=name_a,
+            name_b=name_b,
+        )
+        for key, label in COMPARE_PASS_GRID_SPECS
+    )
+    return (
+        '<div class="cmp-viz-column player-card">'
+        '<div class="cmp-viz-section">'
+        '<div class="cmp-viz-section-title">xP pillars</div>'
+        f'<div class="cmp-pillar-list">{pillar_blocks}</div>'
+        "</div>"
+        '<div class="cmp-viz-section cmp-viz-section-pass">'
+        '<div class="cmp-viz-section-title">Pass profile</div>'
+        f'<div class="cmp-pass-grid">{pass_cells}</div>'
+        "</div>"
+        "</div>"
+    )
+
+
+def _render_compare_visuals(
+    source_a: dict,
+    source_b: dict,
+    *,
+    name_a: str,
+    name_b: str,
 ) -> None:
-    """Render the two comparison radar charts in the center column."""
-    name_a = str(player_a.get("player_name") or "Player 1")
-    name_b = str(player_b.get("player_name") or "Player 2")
-    st.markdown(
-        '<div class="cmp-radar-column">'
-        f"{_cmp_radar_legend_html(name_a, name_b)}",
-        unsafe_allow_html=True,
-    )
-    plot_cfg = {"displayModeBar": False, "responsive": True}
-    st.plotly_chart(
-        build_compare_radar_figure(
-            "xP pillars",
-            COMPARE_RADAR_XP_SPECS,
-            source_a=source_a,
-            source_b=source_b,
+    st.html(
+        _build_compare_center_column_html(
+            source_a,
+            source_b,
             name_a=name_a,
             name_b=name_b,
         ),
-        use_container_width=True,
-        config=plot_cfg,
-        key="cmp_radar_xp",
+        width="stretch",
     )
-    st.plotly_chart(
-        build_compare_radar_figure(
-            "Pass profile",
-            COMPARE_RADAR_PASS_SPECS,
-            source_a=source_a,
-            source_b=source_b,
-            name_a=name_a,
-            name_b=name_b,
-        ),
-        use_container_width=True,
-        config=plot_cfg,
-        key="cmp_radar_pass",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _build_pa_compare_layout_html(
@@ -4043,7 +4029,13 @@ st.markdown(
     }
     .st-key-cmp_player_a_slicer,
     .st-key-cmp_player_b_slicer {
-        margin-bottom: 0.55rem;
+        background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
+        border: 1px solid #2a3550;
+        border-radius: 14px;
+        padding: 0.72rem 0.95rem 0.62rem;
+        margin-bottom: 0.62rem;
+        box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
+        width: 100%;
     }
     .st-key-cmp_player_a_slicer label[data-testid="stWidgetLabel"] p,
     .st-key-cmp_player_b_slicer label[data-testid="stWidgetLabel"] p {
@@ -4057,15 +4049,34 @@ st.markdown(
         min-width: 0;
         width: 100%;
     }
-    .cmp-player-pane .pa-compare-player-card {
+    .cmp-player-pane .pa-compare-player-card,
+    .cmp-player-pane .cmp-player-card-full {
         max-width: none;
         width: 100%;
         justify-self: stretch;
         margin: 0;
+        min-height: 540px;
+        display: flex;
+        flex-direction: column;
+    }
+    .cmp-player-pane .pa-compare-col-visual {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
     }
     .cmp-player-pane .pa-compare-col-heatmap {
-        max-height: 300px;
-        min-height: 220px;
+        flex: 1;
+        max-height: none;
+        min-height: 300px;
+        display: flex;
+        align-items: stretch;
+    }
+    .cmp-player-pane .pa-compare-heatmap {
+        width: 100%;
+        height: 100%;
+        min-height: 300px;
+        object-fit: contain;
     }
     .cmp-player-pane .pa-compare-col-head {
         padding: 1rem 1.1rem 0.9rem;
@@ -4094,70 +4105,145 @@ st.markdown(
     .cmp-player-pane .cmp-xp-index-wrap .pa-xp-index-list {
         gap: 0.22rem;
     }
-    .cmp-radar-pane {
+    .cmp-viz-column {
+        background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
+        border: 1px solid #2a3550;
+        border-radius: 14px;
+        padding: 0.95rem 0.9rem 0.9rem;
+        box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
         min-width: 0;
         width: 100%;
     }
-    .cmp-radar-column {
-        background: radial-gradient(ellipse at 50% 36%, #1a1830 0%, #12121f 52%, #0b0b15 100%);
-        border: 1px solid rgba(142, 36, 255, 0.24);
-        border-radius: 16px;
-        padding: 0.9rem 0.75rem 0.7rem;
-        box-shadow:
-            inset 0 1px 0 rgba(0, 229, 255, 0.08),
-            0 14px 34px rgba(0, 0, 0, 0.38);
-        min-width: 0;
+    .cmp-viz-section + .cmp-viz-section {
+        margin-top: 0.85rem;
+        padding-top: 0.8rem;
+        border-top: 1px solid rgba(51, 65, 85, 0.45);
     }
-    .cmp-radar-legend {
+    .cmp-viz-section-title {
+        color: #93c5fd;
+        font-size: 0.66rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 0.65rem;
+    }
+    .cmp-pillar-list {
         display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 1.35rem;
-        margin-bottom: 0.45rem;
-        font-size: 0.72rem;
-        font-weight: 600;
-        color: #e2e8f0;
+        flex-direction: column;
+        gap: 0.8rem;
     }
-    .cmp-radar-legend-item {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
+    .cmp-pillar-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0.42rem;
+    }
+    .cmp-pillar-title {
+        color: #e2e8f0;
+        font-size: 0.76rem;
+        font-weight: 800;
         letter-spacing: 0.02em;
     }
-    .cmp-radar-legend-ring {
+    .cmp-pillar-row {
+        display: grid;
+        grid-template-columns: minmax(4.8rem, 0.34fr) minmax(0, 1fr);
+        align-items: center;
+        gap: 0.55rem;
+    }
+    .cmp-pillar-name {
+        color: #94a3b8;
+        font-size: 0.7rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .cmp-pillar-row-primary .cmp-pillar-name { color: #c4b5fd; }
+    .cmp-pillar-row-secondary .cmp-pillar-name { color: #86efac; }
+    .cmp-pillar-bar-hit {
         position: relative;
-        width: 0.62rem;
-        height: 0.62rem;
+        display: block;
+        min-width: 0;
+        cursor: default;
+    }
+    .cmp-pillar-bar-track {
+        display: block;
+        width: 100%;
+        height: 0.52rem;
         border-radius: 999px;
-        border: 2px solid currentColor;
-        box-shadow: 0 0 9px currentColor;
+        background: rgba(30, 41, 59, 0.85);
+        border: 1px solid rgba(51, 65, 85, 0.65);
+        overflow: hidden;
+    }
+    .cmp-pillar-bar-fill {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        min-width: 0.35rem;
+        transition: width 0.2s ease;
+    }
+    .cmp-pass-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+    }
+    .cmp-pass-cell {
+        background: rgba(15, 23, 42, 0.42);
+        border: 1px solid rgba(51, 65, 85, 0.45);
+        border-radius: 10px;
+        padding: 0.55rem 0.62rem 0.5rem;
+        min-width: 0;
+    }
+    .cmp-pass-cell-title {
+        color: #e2e8f0;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 0.42rem;
+        padding-bottom: 0.35rem;
+        border-bottom: 1px solid rgba(51, 65, 85, 0.38);
+    }
+    .cmp-pass-grade-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.45rem;
+        padding: 0.28rem 0;
+    }
+    .cmp-pass-grade-row + .cmp-pass-grade-row {
+        border-top: 1px dashed rgba(51, 65, 85, 0.32);
+    }
+    .cmp-pass-player {
+        color: #94a3b8;
+        font-size: 0.68rem;
+        font-weight: 600;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .cmp-pass-grade-row-primary .cmp-pass-player { color: #c4b5fd; }
+    .cmp-pass-grade-row-secondary .cmp-pass-player { color: #86efac; }
+    .cmp-pass-grade-tip {
+        position: relative;
         flex: 0 0 auto;
+        cursor: help;
     }
-    .cmp-radar-legend-ring::after {
-        content: "";
-        position: absolute;
-        width: 0.22rem;
-        height: 0.22rem;
-        border-radius: 999px;
-        background: #ffffff;
-        top: 50%;
+    .cmp-viz-column .metric-tipbox {
+        min-width: 11rem;
+        max-width: 16rem;
+        white-space: normal;
+        line-height: 1.35;
+        z-index: 20;
+    }
+    .cmp-pillar-bar-hit .metric-tipbox {
         left: 50%;
-        transform: translate(-50%, -50%);
+        bottom: calc(100% + 8px);
+        transform: translateX(-50%);
     }
-    .cmp-radar-legend-a { color: #00e5ff; }
-    .cmp-radar-legend-b { color: #b24bf3; }
-    .cmp-radar-column [data-testid="stPlotlyChart"] {
-        margin: 0;
-        padding: 0;
-    }
-    .cmp-radar-column [data-testid="stPlotlyChart"] + [data-testid="stPlotlyChart"] {
-        margin-top: -0.1rem;
-        padding-top: 0.4rem;
-        border-top: 1px solid rgba(142, 36, 255, 0.18);
-    }
-    .cmp-radar-column .js-plotly-plot,
-    .cmp-radar-column .plot-container.plotly {
-        background: transparent !important;
+    .cmp-pass-grade-tip .metric-tipbox {
+        right: 0;
+        bottom: calc(100% + 8px);
     }
     .st-key-pa_filter_card label[data-testid="stWidgetLabel"] p {
         font-size: 0.78rem !important;
@@ -11689,7 +11775,7 @@ def render_compare_section(
         '<span class="pa-compare-hero-icon"><i class="fa-solid fa-code-compare"></i></span>'
         '<span class="pa-compare-hero-text">'
         '<span class="pa-compare-hero-title">Compare players</span>'
-        '<span class="pa-compare-hero-sub">Filtre o grupo e compare perfis com radares sobrepostos</span>'
+        '<span class="pa-compare-hero-sub">Filtre o grupo e compare perfis lado a lado</span>'
         "</span>"
         "</div>",
         unsafe_allow_html=True,
@@ -11777,7 +11863,12 @@ def render_compare_section(
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col_radar:
-            _render_compare_radars(player_a, source_a, player_b, source_b)
+            _render_compare_visuals(
+                source_a,
+                source_b,
+                name_a=str(player_a.get("player_name", "Player 1")),
+                name_b=str(player_b.get("player_name", "Player 2")),
+            )
 
         with col_b:
             st.markdown('<div class="cmp-player-pane">', unsafe_allow_html=True)
