@@ -1800,12 +1800,13 @@ def _compare_player_card_styles_html() -> str:
         ".cmp-player-card-shell .pa-compare-player-card{"
         "width:100%;max-width:none;margin:0;min-height:600px;"
         "display:flex;flex-direction:column;border-radius:14px;"
-        "border:1px solid #2a3550;background:linear-gradient(160deg,#151b2b 0%,#101522 100%);"
+        "border:1px solid rgba(167,139,250,0.62);background:linear-gradient(160deg,#151b2b 0%,#101522 100%);"
         "overflow:hidden;box-sizing:border-box;}"
-        ".cmp-player-card-shell .pa-compare-player-card-primary{"
-        "box-shadow:inset 0 1px 0 rgba(167,139,250,0.14);}"
         ".cmp-player-card-shell .pa-compare-player-card-secondary{"
-        "box-shadow:inset 0 1px 0 rgba(134,239,172,0.12);}"
+        "border:1px solid rgba(134,239,172,0.62);"
+        "box-shadow:inset 0 1px 0 rgba(134,239,172,0.14);}"
+        ".cmp-player-card-shell .pa-compare-player-card-primary{"
+        "box-shadow:inset 0 1px 0 rgba(167,139,250,0.16);}"
         ".cmp-player-card-shell .pa-compare-col-visual{"
         "flex:1;display:flex;flex-direction:column;min-height:0;}"
         ".cmp-player-card-shell .pa-compare-col-heatmap{"
@@ -1896,7 +1897,7 @@ def _compare_pillar_bar_row_html(
     accent = PA_COMPARE_PRIMARY_COLOR if variant == "primary" else PA_COMPARE_SECONDARY_COLOR
     return (
         f'<div class="cmp-pillar-row cmp-pillar-row-{html.escape(variant)}">'
-        f'<span class="cmp-pillar-name">{html.escape(_compare_short_name(player_name))}</span>'
+        f'<span class="cmp-pillar-name">{html.escape(player_name)}</span>'
         f'<span class="cmp-pillar-bar-hit metric-tip" tabindex="0">'
         f'<span class="cmp-pillar-bar-track">'
         f'<span class="cmp-pillar-bar-fill" style="width:{pct:.1f}%;background:{color};'
@@ -1927,23 +1928,19 @@ def _compare_pillar_block_html(
 
 
 def _compare_pass_score_tooltip(source: dict, display_key: str) -> str:
-    letter_key = xstats.PASS_SCORE_LETTER_KEYS.get(display_key, "")
     index_key = xstats.PASS_SCORE_INDEX_KEYS.get(display_key, "")
-    title = xstats.PASS_SCORE_LABELS.get(display_key, display_key)
-    summary = xstats.PASS_SCORE_TOOLTIPS.get(display_key, "")
     score = source.get(display_key)
     try:
         score_val = float(score) if score is not None else None
     except (TypeError, ValueError):
         score_val = None
     if score_val is None:
-        return summary or title
-    letter = source.get(letter_key) or xstats.display_score_letter_grade(score_val)
+        return "—"
     rank = source.get(f"{index_key}_rank_in_group") if index_key else None
     total = source.get(f"{index_key}_rank_pool_in_group") if index_key else None
-    rank_note = f" · #{int(rank)} of {int(total)}" if rank and total else ""
-    score_note = f"Grade {letter} · score {score_val:.1f}/9{rank_note}"
-    return f"{summary} {score_note}".strip() if summary else score_note
+    if rank and total:
+        return f"{score_val:.1f} · #{int(rank)} of {int(total)}"
+    return f"{score_val:.1f}"
 
 
 def _compare_pass_grade_row_html(
@@ -1964,7 +1961,7 @@ def _compare_pass_grade_row_html(
     tip = html.escape(_compare_pass_score_tooltip(source, display_key))
     return (
         f'<div class="cmp-pass-grade-row cmp-pass-grade-row-{html.escape(variant)}">'
-        f'<span class="cmp-pass-player">{html.escape(_compare_short_name(player_name))}</span>'
+        f'<span class="cmp-pass-player">{html.escape(player_name)}</span>'
         f'<span class="cmp-pass-grade-tip metric-tip" tabindex="0">'
         f"{pill}"
         f'<span class="metric-tipbox">{tip}</span>'
@@ -2021,6 +2018,7 @@ def _build_compare_center_column_html(
         for key, label in COMPARE_PASS_GRID_SPECS
     )
     return (
+        '<div class="cmp-viz-shell">'
         '<div class="cmp-viz-column player-card">'
         '<div class="cmp-viz-section">'
         '<div class="cmp-viz-section-title">xP pillars</div>'
@@ -2031,6 +2029,16 @@ def _build_compare_center_column_html(
         f'<div class="cmp-pass-grid">{pass_cells}</div>'
         "</div>"
         "</div>"
+        "</div>"
+    )
+
+
+def _compare_center_styles_html() -> str:
+    return (
+        "<style>"
+        ".cmp-viz-shell{width:100%;min-height:600px;height:100%;box-sizing:border-box;}"
+        ".cmp-viz-shell .cmp-viz-column{min-height:600px;height:100%;}"
+        "</style>"
     )
 
 
@@ -2042,7 +2050,8 @@ def _render_compare_visuals(
     name_b: str,
 ) -> None:
     st.html(
-        _build_compare_center_column_html(
+        _compare_center_styles_html()
+        + _build_compare_center_column_html(
             source_a,
             source_b,
             name_a=name_a,
@@ -4035,7 +4044,7 @@ st.markdown(
         max-width: 1520px;
         margin: 0 auto;
         width: 100%;
-        align-items: flex-start;
+        align-items: stretch;
     }
     .st-key-cmp_layout_row [data-testid="column"] {
         flex: 1 1 0 !important;
@@ -4064,13 +4073,20 @@ st.markdown(
         color: #93a4bc !important;
     }
     .st-key-cmp_player_a_slicer,
+    .st-key-cmp_player_a_card {
+        background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
+        border: 1px solid rgba(167, 139, 250, 0.62);
+        border-radius: 14px;
+        box-shadow: inset 0 1px 0 rgba(167, 139, 250, 0.16);
+        width: 100%;
+        box-sizing: border-box;
+    }
     .st-key-cmp_player_b_slicer,
-    .st-key-cmp_player_a_card,
     .st-key-cmp_player_b_card {
         background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
-        border: 1px solid #2a3550;
+        border: 1px solid rgba(134, 239, 172, 0.62);
         border-radius: 14px;
-        box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
+        box-shadow: inset 0 1px 0 rgba(134, 239, 172, 0.14);
         width: 100%;
         box-sizing: border-box;
     }
@@ -4078,12 +4094,56 @@ st.markdown(
     .st-key-cmp_player_b_slicer {
         padding: 0.72rem 0.95rem 0.62rem;
         margin-bottom: 0.62rem;
+        flex: 0 0 auto;
     }
     .st-key-cmp_player_a_card,
     .st-key-cmp_player_b_card {
         padding: 0;
         overflow: hidden;
         min-height: 600px;
+        flex: 1 1 auto;
+    }
+    .st-key-cmp_comparison_card {
+        background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
+        border: 1px solid #2a3550;
+        border-radius: 14px;
+        box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0;
+        overflow: hidden;
+        min-height: 600px;
+        flex: 1 1 auto;
+    }
+    .st-key-cmp_comparison_card [data-testid="stHtml"] {
+        width: 100%;
+        height: 100%;
+    }
+    .st-key-cmp_comparison_card iframe {
+        width: 100% !important;
+        min-height: 600px;
+        border: 0;
+        display: block;
+    }
+    .cmp-center-head {
+        background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
+        border: 1px solid #2a3550;
+        border-radius: 14px;
+        padding: 0.72rem 0.95rem;
+        margin-bottom: 0.62rem;
+        min-height: 3.35rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        flex: 0 0 auto;
+    }
+    .cmp-center-head-title {
+        color: #e2e8f0;
+        font-size: 0.82rem;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
     }
     .st-key-cmp_player_a_card [data-testid="stHtml"],
     .st-key-cmp_player_b_card [data-testid="stHtml"] {
@@ -4096,27 +4156,38 @@ st.markdown(
         border: 0;
         display: block;
     }
-    .st-key-cmp_player_a_slicer label[data-testid="stWidgetLabel"] p,
+    .st-key-cmp_player_a_slicer label[data-testid="stWidgetLabel"] p {
+        font-size: 0.72rem !important;
+        font-weight: 800 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #c4b5fd !important;
+    }
     .st-key-cmp_player_b_slicer label[data-testid="stWidgetLabel"] p {
         font-size: 0.72rem !important;
         font-weight: 800 !important;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: #93c5fd !important;
+        color: #86efac !important;
     }
     .st-key-cmp_layout_row [data-testid="column"]:first-child,
-    .st-key-cmp_layout_row [data-testid="column"]:last-child {
+    .st-key-cmp_layout_row [data-testid="column"]:last-child,
+    .st-key-cmp_layout_row [data-testid="column"]:nth-child(2) {
         display: flex;
         flex-direction: column;
     }
     .cmp-viz-column {
         background: linear-gradient(160deg, #151b2b 0%, #101522 100%);
-        border: 1px solid #2a3550;
+        border: none;
         border-radius: 14px;
         padding: 0.95rem 0.9rem 0.9rem;
-        box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.1);
+        box-shadow: none;
         min-width: 0;
         width: 100%;
+        min-height: 600px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
     }
     .cmp-viz-section + .cmp-viz-section {
         margin-top: 0.85rem;
@@ -4139,7 +4210,7 @@ st.markdown(
     .cmp-pillar-block {
         display: flex;
         flex-direction: column;
-        gap: 0.42rem;
+        gap: 0.3rem;
     }
     .cmp-pillar-title {
         color: #e2e8f0;
@@ -4149,17 +4220,17 @@ st.markdown(
     }
     .cmp-pillar-row {
         display: grid;
-        grid-template-columns: minmax(4.8rem, 0.34fr) minmax(0, 1fr);
+        grid-template-columns: minmax(6.8rem, 0.48fr) minmax(0, 1fr);
         align-items: center;
-        gap: 0.55rem;
+        gap: 0.45rem;
     }
     .cmp-pillar-name {
         color: #94a3b8;
-        font-size: 0.7rem;
+        font-size: 0.66rem;
         font-weight: 600;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        line-height: 1.2;
+        white-space: normal;
+        word-break: break-word;
     }
     .cmp-pillar-row-primary .cmp-pillar-name { color: #c4b5fd; }
     .cmp-pillar-row-secondary .cmp-pillar-name { color: #86efac; }
@@ -4172,7 +4243,7 @@ st.markdown(
     .cmp-pillar-bar-track {
         display: block;
         width: 100%;
-        height: 0.52rem;
+        height: 0.36rem;
         border-radius: 999px;
         background: rgba(30, 41, 59, 0.85);
         border: 1px solid rgba(51, 65, 85, 0.65);
@@ -4219,12 +4290,13 @@ st.markdown(
     }
     .cmp-pass-player {
         color: #94a3b8;
-        font-size: 0.68rem;
+        font-size: 0.66rem;
         font-weight: 600;
         min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        line-height: 1.2;
+        white-space: normal;
+        word-break: break-word;
+        flex: 1;
     }
     .cmp-pass-grade-row-primary .cmp-pass-player { color: #c4b5fd; }
     .cmp-pass-grade-row-secondary .cmp-pass-player { color: #86efac; }
@@ -11866,12 +11938,19 @@ def render_compare_section(
                 )
 
         with col_radar:
-            _render_compare_visuals(
-                source_a,
-                source_b,
-                name_a=str(player_a.get("player_name", "Player 1")),
-                name_b=str(player_b.get("player_name", "Player 2")),
+            st.markdown(
+                '<div class="cmp-center-head">'
+                '<span class="cmp-center-head-title">Player Comparison</span>'
+                "</div>",
+                unsafe_allow_html=True,
             )
+            with st.container(key="cmp_comparison_card"):
+                _render_compare_visuals(
+                    source_a,
+                    source_b,
+                    name_a=str(player_a.get("player_name", "Player 1")),
+                    name_b=str(player_b.get("player_name", "Player 2")),
+                )
 
         with col_b:
             with st.container(key="cmp_player_b_card"):
