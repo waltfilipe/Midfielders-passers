@@ -6663,10 +6663,12 @@ def load_player_analysis_bundle(
         pid = str(player["player_id"])
         player["age"] = pp.read_cached_age(pid)
         player["market_value"] = tm.read_cached_market_value(pid)
+        player["photo_url"] = pp.read_cached_photo_url(pid)
     for xp_profile in xp_players:
         pid = str(xp_profile["player_id"])
         xp_profile["age"] = pp.read_cached_age(pid)
         xp_profile["market_value"] = tm.read_cached_market_value(pid)
+        xp_profile["photo_url"] = pp.read_cached_photo_url(pid)
         origin = origin_by_id.get(pid)
         if origin:
             xp_profile.setdefault("league", origin.get("league"))
@@ -6680,6 +6682,7 @@ def load_player_analysis_bundle(
         pid = str(prof.get("player_id"))
         prof["age"] = pp.read_cached_age(pid)
         prof["market_value"] = tm.read_cached_market_value(pid)
+        prof["photo_url"] = pp.read_cached_photo_url(pid)
         origin = origin_by_id.get(pid)
         if origin:
             prof.setdefault("league", origin.get("league"))
@@ -8225,7 +8228,7 @@ def _general_profile_row_html(label: str, value: str) -> str:
 
 
 def _player_photo_html(player: dict) -> str:
-    photo_url = player.get("photo_url")
+    photo_url = player.get("photo_url") or pp.read_cached_photo_url(str(player.get("player_id", "")))
     if photo_url:
         return (
             f'<img class="pa-identity-photo" src="{html.escape(str(photo_url), quote=True)}" '

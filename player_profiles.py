@@ -542,6 +542,16 @@ def read_cached_age(player_id: str) -> int | None:
     return _cached_age_value(read_cached_profile(player_id))
 
 
+def read_cached_photo_url(player_id: str) -> str | None:
+    """Cached player photo URL, falling back to Transfermarkt portrait when needed."""
+    profile = read_cached_profile(player_id)
+    photo = profile.get("photo_url")
+    if photo:
+        return str(photo)
+    tm_photo = profile.get("transfermarkt_photo_url")
+    return str(tm_photo) if tm_photo else None
+
+
 def enrich_player_general_profile(player: dict, *, force: bool = False) -> dict:
     """Attach general profile fields onto a player dict (non-destructive)."""
     out = dict(player)
@@ -569,4 +579,7 @@ def enrich_player_general_profile(player: dict, *, force: bool = False) -> dict:
             market_value = None
     if market_value:
         out["market_value"] = market_value
+    photo_url = read_cached_photo_url(pid)
+    if photo_url:
+        out["photo_url"] = photo_url
     return out

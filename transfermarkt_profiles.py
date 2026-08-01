@@ -16,6 +16,7 @@ from player_profiles import (
 
 TRANSFERMARKT_FETCH_STATUS_KEY = "transfermarkt_fetch_status"
 TRANSFERMARKT_ID_KEY = "transfermarkt_id"
+TRANSFERMARKT_PHOTO_URL_KEY = "transfermarkt_photo_url"
 MARKET_VALUE_EUR_KEY = "market_value_eur"
 MARKET_VALUE_DISPLAY_KEY = "market_value_display"
 MARKET_VALUE_UPDATED_KEY = "market_value_updated"
@@ -69,7 +70,7 @@ def _pick_tmkt_search_result(
     return best_row if best_score >= 0.45 else None
 
 
-def _market_value_from_player_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _transfermarkt_fields_from_player_payload(payload: dict[str, Any]) -> dict[str, Any]:
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     current = (data.get("marketValueDetails") or {}).get("current") or {}
     value_eur = current.get("value")
@@ -83,10 +84,21 @@ def _market_value_from_player_payload(payload: dict[str, Any]) -> dict[str, Any]
         )
     elif value_eur is not None:
         display = format_market_value_eur(int(value_eur))
+    portrait = data.get("portraitUrl")
     return {
         MARKET_VALUE_EUR_KEY: int(value_eur) if value_eur is not None else None,
         MARKET_VALUE_DISPLAY_KEY: display,
         MARKET_VALUE_UPDATED_KEY: current.get("determined"),
+        TRANSFERMARKT_PHOTO_URL_KEY: str(portrait) if portrait else None,
+    }
+
+
+def _market_value_from_player_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    fields = _transfermarkt_fields_from_player_payload(payload)
+    return {
+        MARKET_VALUE_EUR_KEY: fields.get(MARKET_VALUE_EUR_KEY),
+        MARKET_VALUE_DISPLAY_KEY: fields.get(MARKET_VALUE_DISPLAY_KEY),
+        MARKET_VALUE_UPDATED_KEY: fields.get(MARKET_VALUE_UPDATED_KEY),
     }
 
 
@@ -177,12 +189,12 @@ async def fetch_transfermarkt_market_value_async(
             lambda pid=player_id: tmkt.get_player(pid),
             label=f"player:{player_id}",
         )
-        market = _market_value_from_player_payload(payload if isinstance(payload, dict) else {})
-        status = "ok" if market.get(MARKET_VALUE_EUR_KEY) is not None else "not_found"
+        fields = _transfermarkt_fields_from_player_payload(payload if isinstance(payload, dict) else {})
+        status = "ok" if fields.get(MARKET_VALUE_EUR_KEY) is not None else "not_found"
         return {
             TRANSFERMARKT_ID_KEY: str(player_id),
             TRANSFERMARKT_FETCH_STATUS_KEY: status,
-            **market,
+            **fields,
         }
 
 
@@ -202,4 +214,35 @@ def prefetch_transfermarkt_for_player(
     if transfermarkt_cache_is_fresh(pid, force=force):
         return read_cached_profile(pid)
     fetched = fetch_transfermarkt_market_value(player_name, team)
+    return update_player_profile_cache(pid, fetched)
+
+
+async def fetch_transfermarkt_photo_by_id_async(transfermarkt_id: str) -> dict[str, Any]:
+    from tmkt import TMKT
+
+    async with TMKT() as tmkt:
+        payload = await _tmkt_call_with_retry(
+            lambda tid=int(transfermarkt_id): tmkt.get_player(tid),
+            label=f"player-photo:{transfermarkt_id}",
+        )
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    portrait = data.get("portraitUrl")
+    return {
+        TRANSFERMARKT_PHOTO_URL_KEY: str(portrait) if portrait else None,
+    }
+
+
+def prefetch_transfermarkt_photo_for_player(
+    player_id: str,
+    *,
+    force: bool = False,
+) -> dict[str, Any]:
+    pid = str(player_id or "").strip()
+    profile = read_cached_profile(pid)
+    if not force and profile.get(TRANSFERMARKT_PHOTO_URL_KEY):
+        return profile
+    transfermarkt_id = profile.get(TRANSFERMARKT_ID_KEY)
+    if not transfermarkt_id:
+        return profile
+    fetched = asyncio.run(fetch_transfermarkt_photo_by_id_async(str(transfermarkt_id)))
     return update_player_profile_cache(pid, fetched)
