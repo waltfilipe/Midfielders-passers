@@ -76,20 +76,31 @@ def main() -> None:
 
     resolved = 0
     not_found = 0
+    errors = 0
     for i, player in enumerate(targets, start=1):
-        profile = tm.prefetch_transfermarkt_for_player(
-            str(player.get("player_id", "")),
-            str(player.get("player_name", "")),
-            str(player.get("team", "")),
-            force=args.force,
-        )
+        pid = str(player.get("player_id", ""))
+        name = str(player.get("player_name", ""))
+        team = str(player.get("team", ""))
+        try:
+            profile = tm.prefetch_transfermarkt_for_player(
+                pid,
+                name,
+                team,
+                force=args.force,
+            )
+        except Exception as exc:  # noqa: BLE001 - keep batch prefetch running
+            errors += 1
+            print(f"  ERROR {i}/{total} · {name} ({team}): {exc}", flush=True)
+            if args.sleep > 0:
+                time.sleep(args.sleep)
+            continue
         if profile.get("market_value_eur") is not None or profile.get("market_value_display"):
             resolved += 1
         elif profile.get("transfermarkt_fetch_status") == "not_found":
             not_found += 1
         if i % 10 == 0 or i == total:
             print(
-                f"  {i}/{total} · values: {resolved} · not found: {not_found}",
+                f"  {i}/{total} · values: {resolved} · not found: {not_found} · errors: {errors}",
                 flush=True,
             )
         if args.sleep > 0:

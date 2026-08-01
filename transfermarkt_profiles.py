@@ -19,6 +19,21 @@ TRANSFERMARKT_ID_KEY = "transfermarkt_id"
 MARKET_VALUE_EUR_KEY = "market_value_eur"
 MARKET_VALUE_DISPLAY_KEY = "market_value_display"
 MARKET_VALUE_UPDATED_KEY = "market_value_updated"
+TMKT_MAX_RETRIES = 4
+TMKT_RETRY_BACKOFF_SEC = 1.5
+
+
+async def _tmkt_call_with_retry(coro_factory, *, label: str):
+    last_error: Exception | None = None
+    for attempt in range(TMKT_MAX_RETRIES):
+        try:
+            return await coro_factory()
+        except Exception as exc:  # noqa: BLE001 - retry transient Transfermarkt API failures
+            last_error = exc
+            if attempt >= TMKT_MAX_RETRIES - 1:
+                break
+            await asyncio.sleep(TMKT_RETRY_BACKOFF_SEC * (attempt + 1))
+    raise RuntimeError(f"Transfermarkt request failed for {label}: {last_error}") from last_error
 
 
 def _tmkt_row_name(row: dict) -> str:
@@ -129,7 +144,10 @@ async def fetch_transfermarkt_market_value_async(
 
     async with TMKT() as tmkt:
         for query in queries:
-            results = await tmkt.player_search(query)
+            results = await _tmkt_call_with_retry(
+                lambda q=query: tmkt.player_search(q),
+                label=f"search:{query}",
+            )
             if not isinstance(results, list):
                 continue
             for row in results:
@@ -155,7 +173,10 @@ async def fetch_transfermarkt_market_value_async(
             return {TRANSFERMARKT_FETCH_STATUS_KEY: "not_found"}
 
         player_id = int(best_row["id"])
-        payload = await tmkt.get_player(player_id)
+        payload = await _tmkt_call_with_retry(
+            lambda pid=player_id: tmkt.get_player(pid),
+            label=f"player:{player_id}",
+        )
         market = _market_value_from_player_payload(payload if isinstance(payload, dict) else {})
         status = "ok" if market.get(MARKET_VALUE_EUR_KEY) is not None else "not_found"
         return {
