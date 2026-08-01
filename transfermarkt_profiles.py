@@ -144,21 +144,15 @@ def read_cached_market_value_eur(player_id: str) -> int | None:
 
 
 def format_contract_until_display(value: str | None) -> str | None:
-    if not value:
-        return None
-    text = str(value).strip()[:10]
-    try:
-        from datetime import datetime
+    from player_profiles import format_contract_until_display as _format
 
-        return datetime.strptime(text, "%Y-%m-%d").strftime("%d %b %Y")
-    except ValueError:
-        return text
+    return _format(value)
 
 
 def read_cached_contract_until(player_id: str) -> str | None:
-    """Cached contract end date label or None. No network."""
-    raw = read_cached_profile(player_id).get(CONTRACT_UNTIL_KEY)
-    return format_contract_until_display(str(raw) if raw else None)
+    from player_profiles import read_cached_contract_until as _read
+
+    return _read(player_id)
 
 
 def transfermarkt_cache_is_fresh(player_id: str, *, force: bool = False) -> bool:

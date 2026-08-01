@@ -557,6 +557,22 @@ def read_cached_dominant_foot(player_id: str) -> str | None:
     return str(foot) if foot else None
 
 
+def format_contract_until_display(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = str(value).strip()[:10]
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").strftime("%d %b %Y")
+    except ValueError:
+        return text
+
+
+def read_cached_contract_until(player_id: str) -> str | None:
+    """Cached contract end date label or None. No network."""
+    raw = read_cached_profile(player_id).get("contract_until")
+    return format_contract_until_display(str(raw) if raw else None)
+
+
 def enrich_player_general_profile(player: dict, *, force: bool = False) -> dict:
     """Attach general profile fields onto a player dict (non-destructive)."""
     out = dict(player)
@@ -586,12 +602,7 @@ def enrich_player_general_profile(player: dict, *, force: bool = False) -> dict:
         out["market_value"] = market_value
     contract_until = cached.get("contract_until")
     if contract_until:
-        try:
-            from transfermarkt_profiles import format_contract_until_display
-
-            out["contract_until"] = format_contract_until_display(str(contract_until))
-        except ImportError:
-            out["contract_until"] = str(contract_until)
+        out["contract_until"] = format_contract_until_display(str(contract_until))
     photo_url = read_cached_photo_url(pid)
     if photo_url:
         out["photo_url"] = photo_url

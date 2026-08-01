@@ -1516,7 +1516,7 @@ def _player_tm_display_value(player: dict, field: str) -> str:
         if field == "market_value":
             value = tm.read_cached_market_value(pid)
         elif field == "contract_until":
-            value = tm.read_cached_contract_until(pid)
+            value = pp.read_cached_contract_until(pid)
     if value is None or value == "":
         return "—"
     return html.escape(str(value))
@@ -6760,7 +6760,7 @@ def load_player_analysis_bundle(
         player["age"] = pp.read_cached_age(pid)
         player["market_value"] = tm.read_cached_market_value(pid)
         player["market_value_eur"] = tm.read_cached_market_value_eur(pid)
-        player["contract_until"] = tm.read_cached_contract_until(pid)
+        player["contract_until"] = pp.read_cached_contract_until(pid)
         player["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         player["photo_url"] = pp.read_cached_photo_url(pid)
     for xp_profile in xp_players:
@@ -6785,7 +6785,7 @@ def load_player_analysis_bundle(
         prof["age"] = pp.read_cached_age(pid)
         prof["market_value"] = tm.read_cached_market_value(pid)
         prof["market_value_eur"] = tm.read_cached_market_value_eur(pid)
-        prof["contract_until"] = tm.read_cached_contract_until(pid)
+        prof["contract_until"] = pp.read_cached_contract_until(pid)
         prof["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         prof["photo_url"] = pp.read_cached_photo_url(pid)
         origin = origin_by_id.get(pid)
