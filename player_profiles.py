@@ -552,6 +552,12 @@ def read_cached_photo_url(player_id: str) -> str | None:
     return str(tm_photo) if tm_photo else None
 
 
+def read_cached_dominant_foot(player_id: str) -> str | None:
+    """Cached dominant foot label (Left/Right/Both) or None."""
+    foot = read_cached_profile(player_id).get("dominant_foot")
+    return str(foot) if foot else None
+
+
 def enrich_player_general_profile(player: dict, *, force: bool = False) -> dict:
     """Attach general profile fields onto a player dict (non-destructive)."""
     out = dict(player)

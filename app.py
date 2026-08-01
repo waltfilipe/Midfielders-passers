@@ -179,7 +179,6 @@ xpe = _load_xp_study_engine()
 xe = _load_xp_engine()
 xpass = _load_xpass_engine()
 xstats = _load_xp_stats_engine()
-from new_xp_tab import render_new_xp_tab
 IMPACT_PASS_ABBR = getattr(xstats, "IMPACT_PASS_ABBR", "I.P.")
 XP_ROUND_SERIES_KEY = getattr(xstats, "XP_ROUND_SERIES_KEY", "xp_round_series")
 XP_PROFILE_BAR_KEYS_RENDER: tuple[str, ...] = xstats.XP_PROFILE_BAR_KEYS
@@ -234,13 +233,17 @@ PLAYER_ANALYSIS_COMPARE_KEY = "pa_compare_select"
 PLAYER_ANALYSIS_POSITION_BLOCKS_KEY = "pa_position_blocks"
 STATS_POSITION_BLOCKS_KEY = "stats_position_blocks"
 PA_FILTER_LEAGUE_KEY = "pa_filter_league"
-PA_FILTER_FIELD_KEY = "pa_filter_field"
 PA_FILTER_AGE_KEY = "pa_filter_age"
+PA_FILTER_AGE_SLIDER_KEY = "pa_filter_age_slider"
+PA_FILTER_FOOT_KEY = "pa_filter_foot"
+PA_FILTER_VALUE_SLIDER_KEY = "pa_filter_value_slider"
 PA_FILTER_PLAYER_KEY = "pa_filter_player"
 PA_VIEW_SELECT_KEY = "pa_view_select"
 PA_COMPARE_FILTER_LEAGUE_KEY = "cmp_filter_league"
-PA_COMPARE_FILTER_FIELD_KEY = "cmp_filter_field"
 PA_COMPARE_FILTER_AGE_KEY = "cmp_filter_age"
+PA_COMPARE_FILTER_AGE_SLIDER_KEY = "cmp_filter_age_slider"
+PA_COMPARE_FILTER_FOOT_KEY = "cmp_filter_foot"
+PA_COMPARE_FILTER_VALUE_SLIDER_KEY = "cmp_filter_value_slider"
 PA_COMPARE_PLAYER_A_KEY = "cmp_filter_player_a"
 PA_COMPARE_PLAYER_B_KEY = "cmp_filter_player_b"
 PA_VIEW_SCATTER = "scatter"
@@ -257,10 +260,11 @@ PA_LEAGUE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("bundesliga", "Bundesliga"),
     ("ligue1", "Ligue 1"),
 )
-PA_FIELD_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("all", "Todos os campos"),
-    ("offensive", "Campo ofensivo"),
-    ("defensive", "Campo defensivo"),
+PA_FOOT_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("all", "Todos"),
+    ("left", "Esquerdo"),
+    ("right", "Direito"),
+    ("both", "Ambidestro"),
 )
 PA_AGE_OPTIONS: tuple[tuple[str, int | None, int | None], ...] = (
     ("all", None, None),
@@ -276,6 +280,7 @@ PA_AGE_LABELS: dict[str, str] = {
     "24_30": "24-30",
     "over30": ">30",
 }
+PA_VALUE_SLIDER_MAX_EUR = 150_000_000
 XP_CELL_MAP_HEIGHT = 1320
 INTERACTIVE_CELL_MAP_CACHE_VERSION = 5
 PA_URL_PLAYER_KEY = "_pa_url_player_id"
@@ -6663,11 +6668,15 @@ def load_player_analysis_bundle(
         pid = str(player["player_id"])
         player["age"] = pp.read_cached_age(pid)
         player["market_value"] = tm.read_cached_market_value(pid)
+        player["market_value_eur"] = tm.read_cached_market_value_eur(pid)
+        player["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         player["photo_url"] = pp.read_cached_photo_url(pid)
     for xp_profile in xp_players:
         pid = str(xp_profile["player_id"])
         xp_profile["age"] = pp.read_cached_age(pid)
         xp_profile["market_value"] = tm.read_cached_market_value(pid)
+        xp_profile["market_value_eur"] = tm.read_cached_market_value_eur(pid)
+        xp_profile["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         xp_profile["photo_url"] = pp.read_cached_photo_url(pid)
         origin = origin_by_id.get(pid)
         if origin:
@@ -6682,6 +6691,8 @@ def load_player_analysis_bundle(
         pid = str(prof.get("player_id"))
         prof["age"] = pp.read_cached_age(pid)
         prof["market_value"] = tm.read_cached_market_value(pid)
+        prof["market_value_eur"] = tm.read_cached_market_value_eur(pid)
+        prof["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         prof["photo_url"] = pp.read_cached_photo_url(pid)
         origin = origin_by_id.get(pid)
         if origin:
@@ -11582,35 +11593,142 @@ def render_estudo_section() -> None:
             st.pyplot(fig_m4, clear_figure=True, use_container_width=True)
 
 
+def _normalize_filter_foot(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = str(value).strip().lower()
+    if text in {"left", "esquerdo"}:
+        return "left"
+    if text in {"right", "direito"}:
+        return "right"
+    if text in {"both", "ambidestro"}:
+        return "both"
+    return None
+
+
+def _render_pool_filter_controls(
+    *,
+    league_key: str,
+    age_band_key: str,
+    age_slider_key: str,
+    foot_key: str,
+    value_slider_key: str,
+) -> dict:
+    """Shared filter widgets for Player Profile and Compare."""
+    col_league, col_age_band, col_foot = st.columns([1.0, 1.0, 1.0], gap="medium")
+
+    with col_league:
+        league_labels = dict(PA_LEAGUE_OPTIONS)
+        league = st.selectbox(
+            "Liga",
+            options=[key for key, _ in PA_LEAGUE_OPTIONS],
+            format_func=lambda key: league_labels[key],
+            key=league_key,
+        )
+
+    with col_age_band:
+        age_key = st.selectbox(
+            "Faixa etária",
+            options=[key for key, _, _ in PA_AGE_OPTIONS],
+            format_func=lambda key: PA_AGE_LABELS[key],
+            key=age_band_key,
+            help="Faixa fixa; combine com o controle deslizante de idade abaixo.",
+        )
+    age_min, age_max = dict((key, (lo, hi)) for key, lo, hi in PA_AGE_OPTIONS)[age_key]
+
+    with col_foot:
+        foot_labels = dict(PA_FOOT_OPTIONS)
+        foot = st.selectbox(
+            "Pé dominante",
+            options=[key for key, _ in PA_FOOT_OPTIONS],
+            format_func=lambda key: foot_labels[key],
+            key=foot_key,
+            help="Filtra pelo pé dominante do jogador quando disponível no cache.",
+        )
+
+    col_age_slider, col_value_slider = st.columns(2, gap="medium")
+    with col_age_slider:
+        age_slider_min, age_slider_max = st.slider(
+            "Idade (ajuste fino)",
+            min_value=pp.MIN_PLAYER_AGE,
+            max_value=pp.MAX_PLAYER_AGE,
+            value=(pp.MIN_PLAYER_AGE, pp.MAX_PLAYER_AGE),
+            key=age_slider_key,
+            help="Ajuste a faixa etária; o jogador precisa estar dentro da faixa fixa e deste intervalo.",
+        )
+    with col_value_slider:
+        value_max_m = int(PA_VALUE_SLIDER_MAX_EUR / 1_000_000)
+        value_slider_min_m, value_slider_max_m = st.slider(
+            "Valor de mercado (€M)",
+            min_value=0,
+            max_value=value_max_m,
+            value=(0, value_max_m),
+            step=1,
+            key=value_slider_key,
+            help="Filtra pelo valor de mercado do Transfermarkt quando disponível no cache.",
+        )
+        value_slider_min = int(value_slider_min_m * 1_000_000)
+        value_slider_max = int(value_slider_max_m * 1_000_000)
+
+    return {
+        "league": league,
+        "age_min": age_min,
+        "age_max": age_max,
+        "age_slider_min": int(age_slider_min),
+        "age_slider_max": int(age_slider_max),
+        "foot": foot,
+        "value_min_eur": int(value_slider_min),
+        "value_max_eur": int(value_slider_max),
+    }
+
+
 def _filter_pa_pool(
     all_players: list[dict],
     progression_by_id: dict[str, dict],
     *,
     league: str,
-    field: str,
     age_min: int | None,
     age_max: int | None,
+    age_slider_min: int,
+    age_slider_max: int,
+    foot: str,
+    value_min_eur: int,
+    value_max_eur: int,
 ) -> list[dict]:
-    """Filter the midfielder pool by league, field orientation and age band."""
+    """Filter the midfielder pool by league, age, foot and market value."""
+    effective_age_min = max(age_min or pp.MIN_PLAYER_AGE, age_slider_min)
+    effective_age_max = min(age_max or pp.MAX_PLAYER_AGE, age_slider_max)
+    filter_by_value = value_min_eur > 0 or value_max_eur < PA_VALUE_SLIDER_MAX_EUR
     out: list[dict] = []
     for player in all_players:
         pid = str(player["player_id"])
         if league != "all" and str(player.get("league_source") or "") != league:
             continue
-        profile = progression_by_id.get(pid, player)
-        group = str(profile.get("position_group") or player.get("position_group") or "")
-        if field == "offensive" and group != "attacking_midfielders":
-            continue
-        if field == "defensive" and group != "central_midfielders":
-            continue
-        if age_min is not None or age_max is not None:
-            age = player.get("age")
-            if age is None:
-                continue
+        age = player.get("age")
+        if age is None:
+            age = pp.read_cached_age(pid)
+        if age is not None:
             age_val = int(age)
-            if age_min is not None and age_val < age_min:
+            if age_val < effective_age_min or age_val > effective_age_max:
                 continue
-            if age_max is not None and age_val > age_max:
+        elif age_min is not None or age_max is not None or (
+            age_slider_min > pp.MIN_PLAYER_AGE or age_slider_max < pp.MAX_PLAYER_AGE
+        ):
+            continue
+        if foot != "all":
+            player_foot = _normalize_filter_foot(
+                player.get("dominant_foot") or pp.read_cached_dominant_foot(pid)
+            )
+            if player_foot is None or player_foot != foot:
+                continue
+        if filter_by_value:
+            market_value_eur = player.get("market_value_eur")
+            if market_value_eur is None:
+                market_value_eur = tm.read_cached_market_value_eur(pid)
+            if market_value_eur is None:
+                continue
+            mv = int(market_value_eur)
+            if mv < value_min_eur or mv > value_max_eur:
                 continue
         out.append(player)
     return out
@@ -11622,11 +11740,7 @@ def _render_pa_filter_card(
     *,
     xp_by_id: dict[str, dict] | None,
 ) -> tuple[str | None, bool, bool]:
-    """Full-width horizontal filter bar: league, field, age, player and on-demand views.
-
-    The filtered pool only narrows the player picker; it never leaves this card,
-    so downstream comparisons keep using the full midfielder set.
-    """
+    """Full-width horizontal filter bar: league, age, foot, sliders, player and views."""
     with st.container(key="pa_filter_card"):
         st.markdown(
             '<div class="pa-filter-head">'
@@ -11638,50 +11752,16 @@ def _render_pa_filter_card(
             unsafe_allow_html=True,
         )
 
-        col_league, col_field, col_age, col_player, col_views = st.columns(
-            [1.0, 1.15, 1.0, 2.1, 1.35], gap="medium"
+        filters = _render_pool_filter_controls(
+            league_key=PA_FILTER_LEAGUE_KEY,
+            age_band_key=PA_FILTER_AGE_KEY,
+            age_slider_key=PA_FILTER_AGE_SLIDER_KEY,
+            foot_key=PA_FILTER_FOOT_KEY,
+            value_slider_key=PA_FILTER_VALUE_SLIDER_KEY,
         )
 
-        with col_league:
-            league_labels = dict(PA_LEAGUE_OPTIONS)
-            league = st.selectbox(
-                "Liga",
-                options=[key for key, _ in PA_LEAGUE_OPTIONS],
-                format_func=lambda key: league_labels[key],
-                key=PA_FILTER_LEAGUE_KEY,
-            )
-
-        with col_field:
-            field_labels = dict(PA_FIELD_OPTIONS)
-            field = st.selectbox(
-                "Campo de atuação",
-                options=[key for key, _ in PA_FIELD_OPTIONS],
-                format_func=lambda key: field_labels[key],
-                key=PA_FILTER_FIELD_KEY,
-                help=(
-                    "Origem das ações: ofensivo = maioria dos passes começa no campo de ataque; "
-                    "defensivo = maioria começa no campo de defesa."
-                ),
-            )
-
-        with col_age:
-            age_key = st.selectbox(
-                "Faixa etária",
-                options=[key for key, _, _ in PA_AGE_OPTIONS],
-                format_func=lambda key: PA_AGE_LABELS[key],
-                key=PA_FILTER_AGE_KEY,
-                help="Idade via base pública; jogadores sem idade ficam fora das faixas filtradas.",
-            )
-        age_min, age_max = dict((key, (lo, hi)) for key, lo, hi in PA_AGE_OPTIONS)[age_key]
-
-        pool = _filter_pa_pool(
-            all_players,
-            progression_by_id,
-            league=league,
-            field=field,
-            age_min=age_min,
-            age_max=age_max,
-        )
+        col_player, col_views = st.columns([2.4, 1.35], gap="medium")
+        pool = _filter_pa_pool(all_players, progression_by_id, **filters)
         all_codes, all_groups = _all_position_filters()
         options = _player_analysis_options(
             pool,
@@ -11728,17 +11808,25 @@ def _compare_pool_options(
     *,
     xp_by_id: dict[str, dict] | None,
     league: str,
-    field: str,
-    age_min: int,
-    age_max: int,
+    age_min: int | None,
+    age_max: int | None,
+    age_slider_min: int,
+    age_slider_max: int,
+    foot: str,
+    value_min_eur: int,
+    value_max_eur: int,
 ) -> list[tuple]:
     pool = _filter_pa_pool(
         all_players,
         progression_by_id,
         league=league,
-        field=field,
         age_min=age_min,
         age_max=age_max,
+        age_slider_min=age_slider_min,
+        age_slider_max=age_slider_max,
+        foot=foot,
+        value_min_eur=value_min_eur,
+        value_max_eur=value_max_eur,
     )
     all_codes, all_groups = _all_position_filters()
     return _player_analysis_options(
@@ -11757,7 +11845,7 @@ def _render_compare_filter_header(
     *,
     xp_by_id: dict[str, dict] | None,
 ) -> list[tuple]:
-    """Full-width horizontal filter bar for Compare (league, field, age only)."""
+    """Full-width horizontal filter bar for Compare (same filters as Player Profile)."""
     with st.container(key="cmp_filter_card"):
         st.markdown(
             '<div class="pa-filter-head">'
@@ -11769,48 +11857,19 @@ def _render_compare_filter_header(
             unsafe_allow_html=True,
         )
 
-        col_league, col_field, col_age = st.columns([1.0, 1.15, 1.0], gap="medium")
-
-        with col_league:
-            league_labels = dict(PA_LEAGUE_OPTIONS)
-            league = st.selectbox(
-                "Liga",
-                options=[key for key, _ in PA_LEAGUE_OPTIONS],
-                format_func=lambda key: league_labels[key],
-                key=PA_COMPARE_FILTER_LEAGUE_KEY,
-            )
-
-        with col_field:
-            field_labels = dict(PA_FIELD_OPTIONS)
-            field = st.selectbox(
-                "Campo de atuação",
-                options=[key for key, _ in PA_FIELD_OPTIONS],
-                format_func=lambda key: field_labels[key],
-                key=PA_COMPARE_FILTER_FIELD_KEY,
-                help=(
-                    "Origem das ações: ofensivo = maioria dos passes começa no campo de ataque; "
-                    "defensivo = maioria começa no campo de defesa."
-                ),
-            )
-
-        with col_age:
-            age_key = st.selectbox(
-                "Faixa etária",
-                options=[key for key, _, _ in PA_AGE_OPTIONS],
-                format_func=lambda key: PA_AGE_LABELS[key],
-                key=PA_COMPARE_FILTER_AGE_KEY,
-                help="Idade via base pública; jogadores sem idade ficam fora das faixas filtradas.",
-            )
-        age_min, age_max = dict((key, (lo, hi)) for key, lo, hi in PA_AGE_OPTIONS)[age_key]
+        filters = _render_pool_filter_controls(
+            league_key=PA_COMPARE_FILTER_LEAGUE_KEY,
+            age_band_key=PA_COMPARE_FILTER_AGE_KEY,
+            age_slider_key=PA_COMPARE_FILTER_AGE_SLIDER_KEY,
+            foot_key=PA_COMPARE_FILTER_FOOT_KEY,
+            value_slider_key=PA_COMPARE_FILTER_VALUE_SLIDER_KEY,
+        )
 
     return _compare_pool_options(
         all_players,
         progression_by_id,
         xp_by_id=xp_by_id,
-        league=league,
-        field=field,
-        age_min=age_min,
-        age_max=age_max,
+        **filters,
     )
 
 
@@ -13328,8 +13387,8 @@ def _render_similarity_results_tab(
 
 
 def main() -> None:
-    tab_pres, tab_profile, tab_compare, tab_new_xp, tab_xp_maps = st.tabs(
-        ["Overview", "Player Profile", "Compare", "New xP", "xP - Maps Analysis"]
+    tab_pres, tab_profile, tab_compare, tab_xp_maps = st.tabs(
+        ["Overview", "Player Profile", "Compare", "xP - Maps Analysis"]
     )
     with tab_pres:
         render_presentation_tab([], {}, {}, {}, rated=[], xp_players=[])
@@ -13379,8 +13438,6 @@ def main() -> None:
                 _cmp_players_by_id,
                 xp_by_id=cmp_xp_by_id,
             )
-    with tab_new_xp:
-        render_new_xp_tab()
     with tab_xp_maps:
         render_xp_maps_analysis_tab()
 

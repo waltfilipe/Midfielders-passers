@@ -129,6 +129,17 @@ def read_cached_market_value(player_id: str) -> str | None:
     return None
 
 
+def read_cached_market_value_eur(player_id: str) -> int | None:
+    """Cached Transfermarkt market value in EUR or None. No network."""
+    value_eur = read_cached_profile(player_id).get(MARKET_VALUE_EUR_KEY)
+    if value_eur is None:
+        return None
+    try:
+        return int(value_eur)
+    except (TypeError, ValueError):
+        return None
+
+
 def transfermarkt_cache_is_fresh(player_id: str, *, force: bool = False) -> bool:
     if force:
         return False
