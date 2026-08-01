@@ -557,6 +557,41 @@ def read_cached_dominant_foot(player_id: str) -> str | None:
     return str(foot) if foot else None
 
 
+def read_cached_nationality(player_id: str) -> str | None:
+    nationality = read_cached_profile(player_id).get("nationality")
+    return str(nationality) if nationality else None
+
+
+def format_height_display(value: str | None) -> str | None:
+    """Normalize cached height strings to a consistent meters label."""
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    meters_match = re.search(r"(\d+(?:\.\d+)?)\s*m\b", text, flags=re.IGNORECASE)
+    if meters_match:
+        meters = float(meters_match.group(1))
+        if 1.40 <= meters <= 2.20:
+            return f"{meters:.2f} m"
+    cm_match = re.search(r"(\d{2,3})\s*cm\b", text, flags=re.IGNORECASE)
+    if cm_match:
+        cm = int(cm_match.group(1))
+        if 140 <= cm <= 220:
+            return f"{cm / 100:.2f} m"
+    ft_match = re.search(r"(\d+)\s*['\u2019]\s*(\d+)", text)
+    if ft_match:
+        total_in = int(ft_match.group(1)) * 12 + int(ft_match.group(2))
+        meters = total_in * 0.0254
+        if 1.40 <= meters <= 2.20:
+            return f"{meters:.2f} m"
+    return text
+
+
+def read_cached_height_display(player_id: str) -> str | None:
+    return format_height_display(read_cached_profile(player_id).get("height"))
+
+
 def format_contract_until_display(value: str | None) -> str | None:
     if not value:
         return None
@@ -587,6 +622,8 @@ def enrich_player_general_profile(player: dict, *, force: bool = False) -> dict:
         if key in {"minutes", "minutes_pct", "market_value"}:
             continue
         value = profile.get(key)
+        if key == "height":
+            value = format_height_display(value) or read_cached_height_display(pid)
         if value is not None:
             out[key] = value
     cached = read_cached_profile(pid)

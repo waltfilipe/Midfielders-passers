@@ -160,6 +160,7 @@ from passes_maps import (
 )
 import carries_engine as ce
 import midfield_origin as mo
+import nationality_groups as ng
 import player_profiles as pp
 import transfermarkt_profiles as tm
 from carries_maps import (
@@ -237,6 +238,9 @@ PA_FILTER_AGE_KEY = "pa_filter_age"
 PA_FILTER_AGE_SLIDER_KEY = "pa_filter_age_slider"
 PA_FILTER_FOOT_KEY = "pa_filter_foot"
 PA_FILTER_VALUE_SLIDER_KEY = "pa_filter_value_slider"
+PA_FILTER_CONTRACT_YEAR_KEY = "pa_filter_contract_year"
+PA_FILTER_NATIONALITY_REGIONS_KEY = "pa_filter_nationality_regions"
+PA_FILTER_NATIONALITY_COUNTRIES_KEY = "pa_filter_nationality_countries"
 PA_FILTER_PLAYER_KEY = "pa_filter_player"
 PA_VIEW_SELECT_KEY = "pa_view_select"
 PA_COMPARE_FILTER_LEAGUE_KEY = "cmp_filter_league"
@@ -244,6 +248,9 @@ PA_COMPARE_FILTER_AGE_KEY = "cmp_filter_age"
 PA_COMPARE_FILTER_AGE_SLIDER_KEY = "cmp_filter_age_slider"
 PA_COMPARE_FILTER_FOOT_KEY = "cmp_filter_foot"
 PA_COMPARE_FILTER_VALUE_SLIDER_KEY = "cmp_filter_value_slider"
+PA_COMPARE_FILTER_CONTRACT_YEAR_KEY = "cmp_filter_contract_year"
+PA_COMPARE_FILTER_NATIONALITY_REGIONS_KEY = "cmp_filter_nationality_regions"
+PA_COMPARE_FILTER_NATIONALITY_COUNTRIES_KEY = "cmp_filter_nationality_countries"
 PA_COMPARE_PLAYER_A_KEY = "cmp_filter_player_a"
 PA_COMPARE_PLAYER_B_KEY = "cmp_filter_player_b"
 PA_VIEW_SCATTER = "scatter"
@@ -281,6 +288,8 @@ PA_AGE_LABELS: dict[str, str] = {
     "over30": ">30",
 }
 PA_VALUE_SLIDER_MAX_EUR = 150_000_000
+PA_CONTRACT_YEAR_MIN = 2026
+PA_CONTRACT_YEAR_MAX = 2033
 XP_CELL_MAP_HEIGHT = 1320
 INTERACTIVE_CELL_MAP_CACHE_VERSION = 5
 PA_URL_PLAYER_KEY = "_pa_url_player_id"
@@ -1506,6 +1515,9 @@ def _compare_profile_plain_value(player: dict, key: str, *, fmt_pct_fn) -> str:
         return "—"
     if key == "age":
         return str(int(value))
+    if key == "height":
+        formatted = pp.format_height_display(value)
+        return formatted if formatted else str(value)
     return str(value)
 
 
@@ -6758,17 +6770,21 @@ def load_player_analysis_bundle(
     for player in analysis_players:
         pid = str(player["player_id"])
         player["age"] = pp.read_cached_age(pid)
+        player["height"] = pp.read_cached_height_display(pid)
+        player["nationality"] = pp.read_cached_nationality(pid)
         player["market_value"] = tm.read_cached_market_value(pid)
         player["market_value_eur"] = tm.read_cached_market_value_eur(pid)
-        player["contract_until"] = pp.read_cached_contract_until(pid)
+        player["contract_until"] = pp.read_cached_profile(pid).get("contract_until")
         player["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         player["photo_url"] = pp.read_cached_photo_url(pid)
     for xp_profile in xp_players:
         pid = str(xp_profile["player_id"])
         xp_profile["age"] = pp.read_cached_age(pid)
+        xp_profile["height"] = pp.read_cached_height_display(pid)
+        xp_profile["nationality"] = pp.read_cached_nationality(pid)
         xp_profile["market_value"] = tm.read_cached_market_value(pid)
         xp_profile["market_value_eur"] = tm.read_cached_market_value_eur(pid)
-        xp_profile["contract_until"] = tm.read_cached_contract_until(pid)
+        xp_profile["contract_until"] = pp.read_cached_profile(pid).get("contract_until")
         xp_profile["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         xp_profile["photo_url"] = pp.read_cached_photo_url(pid)
         origin = origin_by_id.get(pid)
@@ -6783,9 +6799,11 @@ def load_player_analysis_bundle(
     for prof in progression_by_id.values():
         pid = str(prof.get("player_id"))
         prof["age"] = pp.read_cached_age(pid)
+        prof["height"] = pp.read_cached_height_display(pid)
+        prof["nationality"] = pp.read_cached_nationality(pid)
         prof["market_value"] = tm.read_cached_market_value(pid)
         prof["market_value_eur"] = tm.read_cached_market_value_eur(pid)
-        prof["contract_until"] = pp.read_cached_contract_until(pid)
+        prof["contract_until"] = pp.read_cached_profile(pid).get("contract_until")
         prof["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         prof["photo_url"] = pp.read_cached_photo_url(pid)
         origin = origin_by_id.get(pid)
@@ -8303,6 +8321,9 @@ def _general_profile_value_html(player: dict, key: str, *, fmt_pct_fn) -> str:
         return html.escape(str(int(round(float(value)))))
     if key == "age":
         return html.escape(str(int(value)))
+    if key == "height":
+        formatted = pp.format_height_display(value)
+        return html.escape(formatted if formatted else str(value))
     return html.escape(str(value))
 
 
@@ -9504,10 +9525,12 @@ def _pa_letter_grade_pill_html(display_score: float | None, letter: str | None =
     grade = letter
     if not grade or grade == "—":
         grade = xstats.display_score_letter_grade(display_score)
-    pct = xstats.letter_grade_pass_grade_pct(grade)
-    if pct <= 0.0 and display_score is not None:
-        pct = xstats.display_score_pass_grade_pct(float(display_score))
-    bg = _pass_grade_gradient_color(pct)
+    bg = xstats.LETTER_GRADE_PILL_COLORS.get(str(grade))
+    if not bg:
+        pct = xstats.letter_grade_pass_grade_pct(grade)
+        if pct <= 0.0 and display_score is not None:
+            pct = xstats.display_score_pass_grade_pct(float(display_score))
+        bg = _pass_grade_gradient_color(pct)
     txt = _badge_text_color(bg)
     return (
         f'<span class="section-rating-pill pa-letter-grade-pill" style="background:{bg};color:{txt}">'
@@ -11700,6 +11723,53 @@ def _normalize_filter_foot(value: str | None) -> str | None:
     return None
 
 
+def _available_nationalities_from_players(all_players: list[dict]) -> list[str]:
+    nationalities: set[str] = set()
+    for player in all_players:
+        pid = str(player.get("player_id", ""))
+        nationality = player.get("nationality") or pp.read_cached_nationality(pid)
+        normalized = ng.normalize_nationality(nationality)
+        if normalized:
+            nationalities.add(normalized)
+    return sorted(nationalities)
+
+
+def _pool_filter_defaults() -> dict:
+    value_max_m = int(PA_VALUE_SLIDER_MAX_EUR / 1_000_000)
+    return {
+        "league": "all",
+        "age_band": "all",
+        "age_slider": (pp.MIN_PLAYER_AGE, pp.MAX_PLAYER_AGE),
+        "foot": "all",
+        "value_slider": (0, value_max_m),
+        "contract_year": (PA_CONTRACT_YEAR_MIN, PA_CONTRACT_YEAR_MAX),
+        "nationality_regions": [ng.NATIONALITY_REGION_WORLD],
+        "nationality_countries": [],
+    }
+
+
+def _reset_pool_filter_session(
+    *,
+    league_key: str,
+    age_band_key: str,
+    age_slider_key: str,
+    foot_key: str,
+    value_slider_key: str,
+    contract_year_key: str,
+    nationality_regions_key: str,
+    nationality_countries_key: str,
+) -> None:
+    defaults = _pool_filter_defaults()
+    st.session_state[league_key] = defaults["league"]
+    st.session_state[age_band_key] = defaults["age_band"]
+    st.session_state[age_slider_key] = defaults["age_slider"]
+    st.session_state[foot_key] = defaults["foot"]
+    st.session_state[value_slider_key] = defaults["value_slider"]
+    st.session_state[contract_year_key] = defaults["contract_year"]
+    st.session_state[nationality_regions_key] = list(defaults["nationality_regions"])
+    st.session_state[nationality_countries_key] = list(defaults["nationality_countries"])
+
+
 def _render_pool_filter_controls(
     *,
     league_key: str,
@@ -11707,8 +11777,31 @@ def _render_pool_filter_controls(
     age_slider_key: str,
     foot_key: str,
     value_slider_key: str,
+    contract_year_key: str,
+    nationality_regions_key: str,
+    nationality_countries_key: str,
+    available_nationalities: list[str],
+    clear_button_key: str,
 ) -> dict:
     """Shared filter widgets for Player Profile and Compare."""
+    defaults = _pool_filter_defaults()
+    head_col, clear_col = st.columns([5.2, 1.0], gap="small")
+    with head_col:
+        st.caption("Combine faixa etária, valor, contrato e nacionalidade para refinar o grupo.")
+    with clear_col:
+        if st.button("Limpar filtros", key=clear_button_key, use_container_width=True):
+            _reset_pool_filter_session(
+                league_key=league_key,
+                age_band_key=age_band_key,
+                age_slider_key=age_slider_key,
+                foot_key=foot_key,
+                value_slider_key=value_slider_key,
+                contract_year_key=contract_year_key,
+                nationality_regions_key=nationality_regions_key,
+                nationality_countries_key=nationality_countries_key,
+            )
+            st.rerun()
+
     col_league, col_age_band, col_foot = st.columns([1.0, 1.0, 1.0], gap="medium")
 
     with col_league:
@@ -11764,6 +11857,39 @@ def _render_pool_filter_controls(
         value_slider_min = int(value_slider_min_m * 1_000_000)
         value_slider_max = int(value_slider_max_m * 1_000_000)
 
+    col_contract_year, col_nat_region, col_nat_country = st.columns([1.0, 1.2, 1.4], gap="medium")
+    with col_contract_year:
+        contract_year_min, contract_year_max = st.slider(
+            "Fim de contrato (ano)",
+            min_value=PA_CONTRACT_YEAR_MIN,
+            max_value=PA_CONTRACT_YEAR_MAX,
+            value=defaults["contract_year"],
+            step=1,
+            key=contract_year_key,
+            help="Filtra pelo ano de término do contrato no Transfermarkt.",
+        )
+    with col_nat_region:
+        nationality_regions = st.multiselect(
+            "Regiões",
+            options=list(ng.NATIONALITY_REGION_OPTIONS),
+            default=defaults["nationality_regions"],
+            key=nationality_regions_key,
+            help="Conjuntos pré-definidos de nacionalidades. World ignora o filtro regional.",
+        )
+    with col_nat_country:
+        nationality_countries = st.multiselect(
+            "Países",
+            options=available_nationalities,
+            default=defaults["nationality_countries"],
+            key=nationality_countries_key,
+            help="Combine regiões com países individuais.",
+        )
+
+    allowed_nationalities = ng.resolve_nationality_filter(
+        nationality_regions,
+        nationality_countries,
+    )
+
     return {
         "league": league,
         "age_min": age_min,
@@ -11773,6 +11899,9 @@ def _render_pool_filter_controls(
         "foot": foot,
         "value_min_eur": int(value_slider_min),
         "value_max_eur": int(value_slider_max),
+        "contract_year_min": int(contract_year_min),
+        "contract_year_max": int(contract_year_max),
+        "allowed_nationalities": allowed_nationalities,
     }
 
 
@@ -11788,11 +11917,17 @@ def _filter_pa_pool(
     foot: str,
     value_min_eur: int,
     value_max_eur: int,
+    contract_year_min: int,
+    contract_year_max: int,
+    allowed_nationalities: set[str] | None,
 ) -> list[dict]:
-    """Filter the midfielder pool by league, age, foot and market value."""
+    """Filter the midfielder pool by league, age, foot, market value, contract and nationality."""
     effective_age_min = max(age_min or pp.MIN_PLAYER_AGE, age_slider_min)
     effective_age_max = min(age_max or pp.MAX_PLAYER_AGE, age_slider_max)
     filter_by_value = value_min_eur > 0 or value_max_eur < PA_VALUE_SLIDER_MAX_EUR
+    filter_by_contract = (
+        contract_year_min > PA_CONTRACT_YEAR_MIN or contract_year_max < PA_CONTRACT_YEAR_MAX
+    )
     out: list[dict] = []
     for player in all_players:
         pid = str(player["player_id"])
@@ -11824,6 +11959,22 @@ def _filter_pa_pool(
             mv = int(market_value_eur)
             if mv < value_min_eur or mv > value_max_eur:
                 continue
+        if filter_by_contract:
+            contract_until = player.get("contract_until")
+            if not contract_until:
+                contract_until = pp.read_cached_profile(pid).get("contract_until")
+            if not contract_until:
+                continue
+            try:
+                contract_year = int(str(contract_until)[:4])
+            except (TypeError, ValueError):
+                continue
+            if contract_year < contract_year_min or contract_year > contract_year_max:
+                continue
+        if allowed_nationalities is not None:
+            nationality = player.get("nationality") or pp.read_cached_nationality(pid)
+            if not ng.nationality_matches_filter(nationality, allowed=allowed_nationalities):
+                continue
         out.append(player)
     return out
 
@@ -11852,6 +12003,11 @@ def _render_pa_filter_card(
             age_slider_key=PA_FILTER_AGE_SLIDER_KEY,
             foot_key=PA_FILTER_FOOT_KEY,
             value_slider_key=PA_FILTER_VALUE_SLIDER_KEY,
+            contract_year_key=PA_FILTER_CONTRACT_YEAR_KEY,
+            nationality_regions_key=PA_FILTER_NATIONALITY_REGIONS_KEY,
+            nationality_countries_key=PA_FILTER_NATIONALITY_COUNTRIES_KEY,
+            available_nationalities=_available_nationalities_from_players(all_players),
+            clear_button_key="pa_filter_clear",
         )
 
         col_player, col_views = st.columns([2.4, 1.35], gap="medium")
@@ -11909,6 +12065,9 @@ def _compare_pool_options(
     foot: str,
     value_min_eur: int,
     value_max_eur: int,
+    contract_year_min: int,
+    contract_year_max: int,
+    allowed_nationalities: set[str] | None,
 ) -> list[tuple]:
     pool = _filter_pa_pool(
         all_players,
@@ -11921,6 +12080,9 @@ def _compare_pool_options(
         foot=foot,
         value_min_eur=value_min_eur,
         value_max_eur=value_max_eur,
+        contract_year_min=contract_year_min,
+        contract_year_max=contract_year_max,
+        allowed_nationalities=allowed_nationalities,
     )
     all_codes, all_groups = _all_position_filters()
     return _player_analysis_options(
@@ -11957,6 +12119,11 @@ def _render_compare_filter_header(
             age_slider_key=PA_COMPARE_FILTER_AGE_SLIDER_KEY,
             foot_key=PA_COMPARE_FILTER_FOOT_KEY,
             value_slider_key=PA_COMPARE_FILTER_VALUE_SLIDER_KEY,
+            contract_year_key=PA_COMPARE_FILTER_CONTRACT_YEAR_KEY,
+            nationality_regions_key=PA_COMPARE_FILTER_NATIONALITY_REGIONS_KEY,
+            nationality_countries_key=PA_COMPARE_FILTER_NATIONALITY_COUNTRIES_KEY,
+            available_nationalities=_available_nationalities_from_players(all_players),
+            clear_button_key="cmp_filter_clear",
         )
 
     return _compare_pool_options(

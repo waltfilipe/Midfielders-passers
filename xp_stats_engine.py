@@ -1698,6 +1698,20 @@ LETTER_GRADE_COLOR_SCORES: dict[str, float] = {
     "D": 4.2,
 }
 
+# Distinct pill colors: A/B lean green, C grades yellow, D red.
+LETTER_GRADE_PILL_COLORS: dict[str, str] = {
+    "A+": "#15803d",
+    "A": "#16a34a",
+    "A-": "#22c55e",
+    "B+": "#4d7c0f",
+    "B": "#65a30d",
+    "B-": "#84cc16",
+    "C+": "#ca8a04",
+    "C": "#eab308",
+    "C-": "#facc15",
+    "D": "#dc2626",
+}
+
 
 def rank_percentile_letter_grade(
     rank: float | int | None,
