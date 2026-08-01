@@ -42,7 +42,7 @@ def _needs_fetch(
         return False
     if not only_missing:
         return True
-    return not profile.get("transfermarkt_photo_url")
+    return not profile.get("transfermarkt_photo_url") or not profile.get("contract_until")
 
 
 def main() -> None:

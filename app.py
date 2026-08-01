@@ -1454,7 +1454,6 @@ _COMPARE_PROFILE_KEYS: tuple[str, ...] = (
     "age",
     "height",
     "nationality",
-    "market_value",
     "minutes",
 )
 
@@ -1463,7 +1462,6 @@ _COMPARE_PROFILE_SHORT_LABELS: dict[str, str] = {
     "age": "Age",
     "height": "Height",
     "nationality": "Nation",
-    "market_value": "Value",
     "minutes": "Minutes",
 }
 
@@ -1472,7 +1470,6 @@ _COMPARE_PROFILE_ICONS: dict[str, str] = {
     "age": "fa-cake-candles",
     "height": "fa-ruler-vertical",
     "nationality": "fa-flag",
-    "market_value": "fa-coins",
     "minutes": "fa-clock",
 }
 
@@ -1512,6 +1509,53 @@ def _compare_profile_plain_value(player: dict, key: str, *, fmt_pct_fn) -> str:
     return str(value)
 
 
+def _player_tm_display_value(player: dict, field: str) -> str:
+    value = player.get(field)
+    if value is None or value == "":
+        pid = str(player.get("player_id", ""))
+        if field == "market_value":
+            value = tm.read_cached_market_value(pid)
+        elif field == "contract_until":
+            value = tm.read_cached_contract_until(pid)
+    if value is None or value == "":
+        return "—"
+    return html.escape(str(value))
+
+
+def _player_tm_info_row_html(player: dict) -> str:
+    return (
+        '<div class="pa-part-row pa-part-row-tm-split">'
+        '<div class="pa-tm-split-col">'
+        '<span class="pa-part-label">Market value</span>'
+        f'<span class="pa-part-val"><span class="pa-part-val-num">'
+        f'{_player_tm_display_value(player, "market_value")}</span></span>'
+        "</div>"
+        '<div class="pa-tm-split-col">'
+        '<span class="pa-part-label">Contract until</span>'
+        f'<span class="pa-part-val"><span class="pa-part-val-num">'
+        f'{_player_tm_display_value(player, "contract_until")}</span></span>'
+        "</div>"
+        "</div>"
+    )
+
+
+def _compare_tm_info_row_html(player: dict) -> str:
+    return (
+        '<li class="pa-compare-profile-row pa-compare-tm-split">'
+        '<div class="pa-compare-tm-col">'
+        '<span class="pa-compare-profile-row-label">'
+        '<i class="fa-solid fa-coins" aria-hidden="true"></i>Value</span>'
+        f'<span class="pa-compare-profile-row-val">{_player_tm_display_value(player, "market_value")}</span>'
+        "</div>"
+        '<div class="pa-compare-tm-col">'
+        '<span class="pa-compare-profile-row-label">'
+        '<i class="fa-solid fa-file-signature" aria-hidden="true"></i>Contract</span>'
+        f'<span class="pa-compare-profile-row-val">{_player_tm_display_value(player, "contract_until")}</span>'
+        "</div>"
+        "</li>"
+    )
+
+
 def _compare_column_head_html(player: dict, *, variant: str) -> str:
     search_pos = sim.player_search_position(player)
     group_label = sim.similarity_position_label(search_pos) if search_pos else "—"
@@ -1531,7 +1575,7 @@ def _compare_column_head_html(player: dict, *, variant: str) -> str:
 
 
 def _compare_column_facts_html(player: dict, *, fmt_pct_fn) -> str:
-    items: list[str] = []
+    items: list[str] = [_compare_tm_info_row_html(player)]
     for key in _COMPARE_PROFILE_KEYS:
         label = _COMPARE_PROFILE_SHORT_LABELS.get(key, key)
         icon = _COMPARE_PROFILE_ICONS.get(key, "fa-circle")
@@ -5021,6 +5065,53 @@ st.markdown(
         border-bottom: 1px solid #243049;
     }
     .pa-part-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .pa-part-row-tm-split {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.85rem;
+        align-items: start;
+        padding-top: 0.1rem;
+        padding-bottom: 0.35rem;
+    }
+    .pa-tm-split-col {
+        display: flex;
+        flex-direction: column;
+        gap: 0.18rem;
+        min-width: 0;
+    }
+    .pa-tm-split-col .pa-part-label {
+        font-size: 0.72rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+    }
+    .pa-tm-split-col .pa-part-val {
+        text-align: left;
+        white-space: normal;
+        font-size: 0.84rem;
+    }
+    .pa-compare-tm-split {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.65rem;
+        align-items: start;
+        padding-top: 0.15rem;
+        padding-bottom: 0.45rem;
+        border-bottom: 1px dashed rgba(51, 65, 85, 0.42);
+    }
+    .pa-compare-tm-col {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        min-width: 0;
+    }
+    .pa-compare-tm-col .pa-compare-profile-row-label {
+        font-size: 0.66rem;
+    }
+    .pa-compare-tm-col .pa-compare-profile-row-val {
+        font-size: 0.78rem;
+        text-align: left;
+        white-space: normal;
+    }
     .pa-part-label {
         color: #94a3b8;
         font-size: 0.82rem;
@@ -6669,6 +6760,7 @@ def load_player_analysis_bundle(
         player["age"] = pp.read_cached_age(pid)
         player["market_value"] = tm.read_cached_market_value(pid)
         player["market_value_eur"] = tm.read_cached_market_value_eur(pid)
+        player["contract_until"] = tm.read_cached_contract_until(pid)
         player["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         player["photo_url"] = pp.read_cached_photo_url(pid)
     for xp_profile in xp_players:
@@ -6676,6 +6768,7 @@ def load_player_analysis_bundle(
         xp_profile["age"] = pp.read_cached_age(pid)
         xp_profile["market_value"] = tm.read_cached_market_value(pid)
         xp_profile["market_value_eur"] = tm.read_cached_market_value_eur(pid)
+        xp_profile["contract_until"] = tm.read_cached_contract_until(pid)
         xp_profile["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         xp_profile["photo_url"] = pp.read_cached_photo_url(pid)
         origin = origin_by_id.get(pid)
@@ -6692,6 +6785,7 @@ def load_player_analysis_bundle(
         prof["age"] = pp.read_cached_age(pid)
         prof["market_value"] = tm.read_cached_market_value(pid)
         prof["market_value_eur"] = tm.read_cached_market_value_eur(pid)
+        prof["contract_until"] = tm.read_cached_contract_until(pid)
         prof["dominant_foot"] = pp.read_cached_dominant_foot(pid)
         prof["photo_url"] = pp.read_cached_photo_url(pid)
         origin = origin_by_id.get(pid)
@@ -8263,7 +8357,7 @@ def _build_player_analysis_left_card_html(
     search_pos = sim.player_search_position(player)
     group_label = sim.similarity_position_label(search_pos) if search_pos else "—"
 
-    profile_lines = []
+    profile_lines = [_player_tm_info_row_html(player)]
     for key in pp.GENERAL_PROFILE_KEYS:
         if key == "minutes":
             value = _general_profile_minutes_html(player, fmt_pct_fn=fmt_pct_fn)

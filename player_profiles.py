@@ -27,7 +27,6 @@ GENERAL_PROFILE_LABELS: dict[str, str] = {
     "height": "Height",
     "dominant_foot": "Dominant foot",
     "nationality": "Nationality",
-    "market_value": "Market value",
 }
 
 GENERAL_PROFILE_KEYS: tuple[str, ...] = tuple(GENERAL_PROFILE_LABELS.keys())
@@ -585,6 +584,14 @@ def enrich_player_general_profile(player: dict, *, force: bool = False) -> dict:
             market_value = None
     if market_value:
         out["market_value"] = market_value
+    contract_until = cached.get("contract_until")
+    if contract_until:
+        try:
+            from transfermarkt_profiles import format_contract_until_display
+
+            out["contract_until"] = format_contract_until_display(str(contract_until))
+        except ImportError:
+            out["contract_until"] = str(contract_until)
     photo_url = read_cached_photo_url(pid)
     if photo_url:
         out["photo_url"] = photo_url

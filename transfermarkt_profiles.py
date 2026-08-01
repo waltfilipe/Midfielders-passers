@@ -17,6 +17,7 @@ from player_profiles import (
 TRANSFERMARKT_FETCH_STATUS_KEY = "transfermarkt_fetch_status"
 TRANSFERMARKT_ID_KEY = "transfermarkt_id"
 TRANSFERMARKT_PHOTO_URL_KEY = "transfermarkt_photo_url"
+CONTRACT_UNTIL_KEY = "contract_until"
 MARKET_VALUE_EUR_KEY = "market_value_eur"
 MARKET_VALUE_DISPLAY_KEY = "market_value_display"
 MARKET_VALUE_UPDATED_KEY = "market_value_updated"
@@ -85,11 +86,13 @@ def _transfermarkt_fields_from_player_payload(payload: dict[str, Any]) -> dict[s
     elif value_eur is not None:
         display = format_market_value_eur(int(value_eur))
     portrait = data.get("portraitUrl")
+    contract_until = (data.get("attributes") or {}).get("contractUntil")
     return {
         MARKET_VALUE_EUR_KEY: int(value_eur) if value_eur is not None else None,
         MARKET_VALUE_DISPLAY_KEY: display,
         MARKET_VALUE_UPDATED_KEY: current.get("determined"),
         TRANSFERMARKT_PHOTO_URL_KEY: str(portrait) if portrait else None,
+        CONTRACT_UNTIL_KEY: str(contract_until)[:10] if contract_until else None,
     }
 
 
@@ -138,6 +141,24 @@ def read_cached_market_value_eur(player_id: str) -> int | None:
         return int(value_eur)
     except (TypeError, ValueError):
         return None
+
+
+def format_contract_until_display(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = str(value).strip()[:10]
+    try:
+        from datetime import datetime
+
+        return datetime.strptime(text, "%Y-%m-%d").strftime("%d %b %Y")
+    except ValueError:
+        return text
+
+
+def read_cached_contract_until(player_id: str) -> str | None:
+    """Cached contract end date label or None. No network."""
+    raw = read_cached_profile(player_id).get(CONTRACT_UNTIL_KEY)
+    return format_contract_until_display(str(raw) if raw else None)
 
 
 def transfermarkt_cache_is_fresh(player_id: str, *, force: bool = False) -> bool:
@@ -236,10 +257,10 @@ async def fetch_transfermarkt_photo_by_id_async(transfermarkt_id: str) -> dict[s
             lambda tid=int(transfermarkt_id): tmkt.get_player(tid),
             label=f"player-photo:{transfermarkt_id}",
         )
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    portrait = data.get("portraitUrl")
+    fields = _transfermarkt_fields_from_player_payload(payload if isinstance(payload, dict) else {})
     return {
-        TRANSFERMARKT_PHOTO_URL_KEY: str(portrait) if portrait else None,
+        TRANSFERMARKT_PHOTO_URL_KEY: fields.get(TRANSFERMARKT_PHOTO_URL_KEY),
+        CONTRACT_UNTIL_KEY: fields.get(CONTRACT_UNTIL_KEY),
     }
 
 
@@ -250,7 +271,7 @@ def prefetch_transfermarkt_photo_for_player(
 ) -> dict[str, Any]:
     pid = str(player_id or "").strip()
     profile = read_cached_profile(pid)
-    if not force and profile.get(TRANSFERMARKT_PHOTO_URL_KEY):
+    if not force and profile.get(TRANSFERMARKT_PHOTO_URL_KEY) and profile.get(CONTRACT_UNTIL_KEY):
         return profile
     transfermarkt_id = profile.get(TRANSFERMARKT_ID_KEY)
     if not transfermarkt_id:
