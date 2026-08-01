@@ -1,0 +1,939 @@
+{
+  "n_players_total": 527,
+  "n_players_eligible": 251,
+  "n_features": 27,
+  "feature_columns": [
+    "aggression_aip_p90",
+    "construction_aip_p90",
+    "impact_passes_p90",
+    "impact_per_pass",
+    "pass_buildup_display",
+    "pass_chance_creation_display",
+    "pass_completion_pct",
+    "pass_efficiency_display",
+    "pass_impact_display",
+    "pass_volume_display",
+    "positive_dxt_pct",
+    "risk_pass_pct",
+    "xp_archetype_builder_display",
+    "xp_archetype_creator_display",
+    "xp_archetype_finisher_display",
+    "xp_archetype_progressor_display",
+    "xp_builder_index",
+    "xp_consistency_index",
+    "xp_creator_index",
+    "xp_finisher_pass_index",
+    "xp_progressor_index",
+    "xp_quality_index",
+    "xpass_coe_pct",
+    "xpass_expected_pct",
+    "xpass_hard_coe_pct",
+    "xpass_residual_p90",
+    "xpv_per_pass"
+  ],
+  "position_group_counts": {
+    "midfielders": 250,
+    "wingers": 1
+  },
+  "existing_archetypes": {
+    "xp_profile_archetypes": {
+      "limitado": 96,
+      "impacto": 16,
+      "elite": 36,
+      "regular": 41,
+      "seguranca": 47,
+      "criativo": 15
+    },
+    "progression_archetypes": {
+      "missing": 250,
+      "Associador": 1
+    },
+    "xp_n_types": 6,
+    "progression_n_types": 1
+  },
+  "pca": {
+    "n_components_80pct": 4,
+    "n_components_90pct": 8,
+    "first_component_pct": 41.6
+  },
+  "k_scan": [
+    {
+      "k": 2,
+      "silhouette": 0.22604304520269153,
+      "calinski_harabasz": 93.582884058661,
+      "davies_bouldin": 1.5545894749223028,
+      "inertia": 4906.112004452046
+    },
+    {
+      "k": 3,
+      "silhouette": 0.19931621140361336,
+      "calinski_harabasz": 78.06642593715912,
+      "davies_bouldin": 1.6042209750445442,
+      "inertia": 4142.202229381241
+    },
+    {
+      "k": 4,
+      "silhouette": 0.14817149044276448,
+      "calinski_harabasz": 61.44251929545672,
+      "davies_bouldin": 1.8287347096584,
+      "inertia": 3865.3917875547004
+    },
+    {
+      "k": 5,
+      "silhouette": 0.1484482654651736,
+      "calinski_harabasz": 55.703132026029806,
+      "davies_bouldin": 1.8304681413469073,
+      "inertia": 3541.9275306380396
+    },
+    {
+      "k": 6,
+      "silhouette": 0.13716773188940629,
+      "calinski_harabasz": 49.56761011723268,
+      "davies_bouldin": 1.774083327321848,
+      "inertia": 3355.5647702791834
+    },
+    {
+      "k": 7,
+      "silhouette": 0.12565210157380785,
+      "calinski_harabasz": 45.91794738513658,
+      "davies_bouldin": 1.806538833718539,
+      "inertia": 3170.3092172446213
+    },
+    {
+      "k": 8,
+      "silhouette": 0.12893658439857264,
+      "calinski_harabasz": 43.906261573324116,
+      "davies_bouldin": 1.7595539843032717,
+      "inertia": 2980.4095323100896
+    },
+    {
+      "k": 9,
+      "silhouette": 0.12691411605051528,
+      "calinski_harabasz": 40.58193146048575,
+      "davies_bouldin": 1.7272887889509314,
+      "inertia": 2882.7041108417025
+    },
+    {
+      "k": 10,
+      "silhouette": 0.11668691658698366,
+      "calinski_harabasz": 36.637304988885404,
+      "davies_bouldin": 1.7460928009902965,
+      "inertia": 2850.268297607882
+    }
+  ],
+  "best_k_silhouette": 2,
+  "recommended_k": 3,
+  "cluster_profiles": [
+    {
+      "cluster_id": 0,
+      "label_suggested": "Balanced / mixed",
+      "size": 72,
+      "share_pct": 28.7,
+      "mean_xp_pass_rating": 0.77,
+      "top_features": [
+        {
+          "key": "impact_passes_p90",
+          "mean_z": 1.06
+        },
+        {
+          "key": "xpass_residual_p90",
+          "mean_z": 1.06
+        },
+        {
+          "key": "construction_aip_p90",
+          "mean_z": 1.05
+        },
+        {
+          "key": "pass_efficiency_display",
+          "mean_z": 1.02
+        },
+        {
+          "key": "pass_buildup_display",
+          "mean_z": 1.02
+        },
+        {
+          "key": "pass_impact_display",
+          "mean_z": 1.0
+        }
+      ],
+      "xp_archetype_mix": {
+        "seguranca": 32,
+        "elite": 25,
+        "impacto": 6,
+        "regular": 4,
+        "criativo": 3,
+        "limitado": 2
+      },
+      "progression_archetype_mix": {
+        "—": 72
+      },
+      "origin_mix": {
+        "campo_defensivo": 46,
+        "campo_ofensivo": 26
+      },
+      "examples": [
+        {
+          "player_name": "Joshua Kimmich",
+          "team": "FC Bayern München",
+          "xp_pass_rating": 0.832,
+          "xp_profile_archetype_label": "Safety"
+        },
+        {
+          "player_name": "Manuel Locatelli",
+          "team": "Juventus",
+          "xp_pass_rating": 0.832,
+          "xp_profile_archetype_label": "Elite"
+        },
+        {
+          "player_name": "Aleix García",
+          "team": "Bayer 04 Leverkusen",
+          "xp_pass_rating": 0.8319,
+          "xp_profile_archetype_label": "Safety"
+        },
+        {
+          "player_name": "Vitinha",
+          "team": "Paris Saint-Germain",
+          "xp_pass_rating": 0.8319,
+          "xp_profile_archetype_label": "Safety"
+        },
+        {
+          "player_name": "Luka Modrić",
+          "team": "AC Milan",
+          "xp_pass_rating": 0.8316,
+          "xp_profile_archetype_label": "Elite"
+        }
+      ]
+    },
+    {
+      "cluster_id": 2,
+      "label_suggested": "Balanced / mixed",
+      "size": 80,
+      "share_pct": 31.9,
+      "mean_xp_pass_rating": 0.62,
+      "top_features": [
+        {
+          "key": "pass_completion_pct",
+          "mean_z": -0.96
+        },
+        {
+          "key": "xpass_expected_pct",
+          "mean_z": -0.89
+        },
+        {
+          "key": "xpass_coe_pct",
+          "mean_z": -0.76
+        },
+        {
+          "key": "xp_quality_index",
+          "mean_z": 0.74
+        },
+        {
+          "key": "xpass_residual_p90",
+          "mean_z": -0.71
+        },
+        {
+          "key": "pass_efficiency_display",
+          "mean_z": -0.57
+        }
+      ],
+      "xp_archetype_mix": {
+        "regular": 25,
+        "limitado": 19,
+        "criativo": 12,
+        "elite": 11,
+        "impacto": 10,
+        "seguranca": 3
+      },
+      "progression_archetype_mix": {
+        "—": 79,
+        "Associador": 1
+      },
+      "origin_mix": {
+        "campo_defensivo": 42,
+        "campo_ofensivo": 38
+      },
+      "examples": [
+        {
+          "player_name": "Florian Wirtz",
+          "team": "Liverpool FC",
+          "xp_pass_rating": 0.7332,
+          "xp_profile_archetype_label": "Impact"
+        },
+        {
+          "player_name": "Lamine Camara",
+          "team": "AS Monaco",
+          "xp_pass_rating": 0.7248,
+          "xp_profile_archetype_label": "Elite"
+        },
+        {
+          "player_name": "Mamadou Sangare",
+          "team": "RC Lens",
+          "xp_pass_rating": 0.7187,
+          "xp_profile_archetype_label": "Elite"
+        },
+        {
+          "player_name": "Henrikh Mkhitaryan",
+          "team": "Inter",
+          "xp_pass_rating": 0.718,
+          "xp_profile_archetype_label": "Impact"
+        },
+        {
+          "player_name": "Casemiro",
+          "team": "Manchester United",
+          "xp_pass_rating": 0.7128,
+          "xp_profile_archetype_label": "Elite"
+        }
+      ]
+    },
+    {
+      "cluster_id": 1,
+      "label_suggested": "Balanced / mixed",
+      "size": 99,
+      "share_pct": 39.4,
+      "mean_xp_pass_rating": 0.61,
+      "top_features": [
+        {
+          "key": "xp_archetype_builder_display",
+          "mean_z": -0.87
+        },
+        {
+          "key": "pass_buildup_display",
+          "mean_z": -0.85
+        },
+        {
+          "key": "xp_archetype_creator_display",
+          "mean_z": -0.85
+        },
+        {
+          "key": "pass_chance_creation_display",
+          "mean_z": -0.84
+        },
+        {
+          "key": "xp_creator_index",
+          "mean_z": -0.8
+        },
+        {
+          "key": "xpv_per_pass",
+          "mean_z": -0.8
+        }
+      ],
+      "xp_archetype_mix": {
+        "limitado": 75,
+        "regular": 12,
+        "seguranca": 12
+      },
+      "progression_archetype_mix": {
+        "—": 99
+      },
+      "origin_mix": {
+        "campo_defensivo": 81,
+        "campo_ofensivo": 18
+      },
+      "examples": [
+        {
+          "player_name": "Nico González",
+          "team": "Manchester City",
+          "xp_pass_rating": 0.7685,
+          "xp_profile_archetype_label": "Safety"
+        },
+        {
+          "player_name": "Ryan Gravenberch",
+          "team": "Liverpool FC",
+          "xp_pass_rating": 0.7526,
+          "xp_profile_archetype_label": "Safety"
+        },
+        {
+          "player_name": "Bernardo Silva",
+          "team": "Manchester City",
+          "xp_pass_rating": 0.7492,
+          "xp_profile_archetype_label": "Safety"
+        },
+        {
+          "player_name": "João Neves",
+          "team": "Paris Saint-Germain",
+          "xp_pass_rating": 0.7387,
+          "xp_profile_archetype_label": "Safety"
+        },
+        {
+          "player_name": "Sofyan Amrabat",
+          "team": "Real Betis",
+          "xp_pass_rating": 0.7355,
+          "xp_profile_archetype_label": "Safety"
+        }
+      ]
+    }
+  ],
+  "alternate_cluster_profiles": {
+    "2": [
+      {
+        "cluster_id": 0,
+        "label_suggested": "Creator",
+        "size": 134,
+        "share_pct": 53.4,
+        "mean_xp_pass_rating": 0.71,
+        "top_features": [
+          {
+            "key": "pass_buildup_display",
+            "mean_z": 0.72
+          },
+          {
+            "key": "xp_archetype_builder_display",
+            "mean_z": 0.68
+          },
+          {
+            "key": "xp_archetype_creator_display",
+            "mean_z": 0.66
+          },
+          {
+            "key": "pass_chance_creation_display",
+            "mean_z": 0.65
+          },
+          {
+            "key": "xp_builder_index",
+            "mean_z": 0.62
+          },
+          {
+            "key": "xp_creator_index",
+            "mean_z": 0.62
+          }
+        ],
+        "xp_archetype_mix": {
+          "elite": 36,
+          "seguranca": 35,
+          "regular": 23,
+          "impacto": 15,
+          "criativo": 14,
+          "limitado": 11
+        },
+        "progression_archetype_mix": {
+          "—": 133,
+          "Associador": 1
+        },
+        "origin_mix": {
+          "campo_defensivo": 74,
+          "campo_ofensivo": 60
+        },
+        "examples": [
+          {
+            "player_name": "Joshua Kimmich",
+            "team": "FC Bayern München",
+            "xp_pass_rating": 0.832,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Manuel Locatelli",
+            "team": "Juventus",
+            "xp_pass_rating": 0.832,
+            "xp_profile_archetype_label": "Elite"
+          },
+          {
+            "player_name": "Aleix García",
+            "team": "Bayer 04 Leverkusen",
+            "xp_pass_rating": 0.8319,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Vitinha",
+            "team": "Paris Saint-Germain",
+            "xp_pass_rating": 0.8319,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Luka Modrić",
+            "team": "AC Milan",
+            "xp_pass_rating": 0.8316,
+            "xp_profile_archetype_label": "Elite"
+          }
+        ]
+      },
+      {
+        "cluster_id": 1,
+        "label_suggested": "Balanced / mixed",
+        "size": 117,
+        "share_pct": 46.6,
+        "mean_xp_pass_rating": 0.6,
+        "top_features": [
+          {
+            "key": "pass_buildup_display",
+            "mean_z": -0.82
+          },
+          {
+            "key": "xp_archetype_builder_display",
+            "mean_z": -0.78
+          },
+          {
+            "key": "xp_archetype_creator_display",
+            "mean_z": -0.75
+          },
+          {
+            "key": "pass_chance_creation_display",
+            "mean_z": -0.74
+          },
+          {
+            "key": "xp_builder_index",
+            "mean_z": -0.72
+          },
+          {
+            "key": "xp_creator_index",
+            "mean_z": -0.71
+          }
+        ],
+        "xp_archetype_mix": {
+          "limitado": 85,
+          "regular": 18,
+          "seguranca": 12,
+          "criativo": 1,
+          "impacto": 1
+        },
+        "progression_archetype_mix": {
+          "—": 117
+        },
+        "origin_mix": {
+          "campo_defensivo": 95,
+          "campo_ofensivo": 22
+        },
+        "examples": [
+          {
+            "player_name": "Nico González",
+            "team": "Manchester City",
+            "xp_pass_rating": 0.7685,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Bernardo Silva",
+            "team": "Manchester City",
+            "xp_pass_rating": 0.7492,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "João Neves",
+            "team": "Paris Saint-Germain",
+            "xp_pass_rating": 0.7387,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Sofyan Amrabat",
+            "team": "Real Betis",
+            "xp_pass_rating": 0.7355,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Eduardo Camavinga",
+            "team": "Real Madrid",
+            "xp_pass_rating": 0.7159,
+            "xp_profile_archetype_label": "Limited"
+          }
+        ]
+      }
+    ],
+    "5": [
+      {
+        "cluster_id": 0,
+        "label_suggested": "Balanced / mixed",
+        "size": 42,
+        "share_pct": 16.7,
+        "mean_xp_pass_rating": 0.79,
+        "top_features": [
+          {
+            "key": "xpass_residual_p90",
+            "mean_z": 1.56
+          },
+          {
+            "key": "xpass_coe_pct",
+            "mean_z": 1.27
+          },
+          {
+            "key": "impact_passes_p90",
+            "mean_z": 1.25
+          },
+          {
+            "key": "construction_aip_p90",
+            "mean_z": 1.2
+          },
+          {
+            "key": "pass_impact_display",
+            "mean_z": 1.16
+          },
+          {
+            "key": "pass_buildup_display",
+            "mean_z": 1.11
+          }
+        ],
+        "xp_archetype_mix": {
+          "seguranca": 26,
+          "elite": 11,
+          "regular": 3,
+          "impacto": 2
+        },
+        "progression_archetype_mix": {
+          "—": 42
+        },
+        "origin_mix": {
+          "campo_defensivo": 27,
+          "campo_ofensivo": 15
+        },
+        "examples": [
+          {
+            "player_name": "Joshua Kimmich",
+            "team": "FC Bayern München",
+            "xp_pass_rating": 0.832,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Manuel Locatelli",
+            "team": "Juventus",
+            "xp_pass_rating": 0.832,
+            "xp_profile_archetype_label": "Elite"
+          },
+          {
+            "player_name": "Aleix García",
+            "team": "Bayer 04 Leverkusen",
+            "xp_pass_rating": 0.8319,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Vitinha",
+            "team": "Paris Saint-Germain",
+            "xp_pass_rating": 0.8319,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Luka Modrić",
+            "team": "AC Milan",
+            "xp_pass_rating": 0.8316,
+            "xp_profile_archetype_label": "Elite"
+          }
+        ]
+      },
+      {
+        "cluster_id": 4,
+        "label_suggested": "Creator",
+        "size": 40,
+        "share_pct": 15.9,
+        "mean_xp_pass_rating": 0.73,
+        "top_features": [
+          {
+            "key": "aggression_aip_p90",
+            "mean_z": 1.48
+          },
+          {
+            "key": "xp_finisher_pass_index",
+            "mean_z": 1.43
+          },
+          {
+            "key": "positive_dxt_pct",
+            "mean_z": 1.22
+          },
+          {
+            "key": "risk_pass_pct",
+            "mean_z": 1.14
+          },
+          {
+            "key": "xp_archetype_finisher_display",
+            "mean_z": 1.13
+          },
+          {
+            "key": "xp_creator_index",
+            "mean_z": 1.09
+          }
+        ],
+        "xp_archetype_mix": {
+          "elite": 16,
+          "seguranca": 8,
+          "criativo": 7,
+          "impacto": 6,
+          "regular": 3
+        },
+        "progression_archetype_mix": {
+          "—": 40
+        },
+        "origin_mix": {
+          "campo_defensivo": 23,
+          "campo_ofensivo": 17
+        },
+        "examples": [
+          {
+            "player_name": "Bruno Fernandes",
+            "team": "Manchester United",
+            "xp_pass_rating": 0.8008,
+            "xp_profile_archetype_label": "Elite"
+          },
+          {
+            "player_name": "Dominik Szoboszlai",
+            "team": "Liverpool FC",
+            "xp_pass_rating": 0.795,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Bruno Guimarães",
+            "team": "Newcastle United",
+            "xp_pass_rating": 0.7909,
+            "xp_profile_archetype_label": "Elite"
+          },
+          {
+            "player_name": "Nicolò Fagioli",
+            "team": "Fiorentina",
+            "xp_pass_rating": 0.7846,
+            "xp_profile_archetype_label": "Elite"
+          },
+          {
+            "player_name": "Nicolò Barella",
+            "team": "Inter",
+            "xp_pass_rating": 0.7836,
+            "xp_profile_archetype_label": "Elite"
+          }
+        ]
+      },
+      {
+        "cluster_id": 1,
+        "label_suggested": "Balanced / mixed",
+        "size": 50,
+        "share_pct": 19.9,
+        "mean_xp_pass_rating": 0.62,
+        "top_features": [
+          {
+            "key": "xp_archetype_creator_display",
+            "mean_z": -0.93
+          },
+          {
+            "key": "xp_archetype_builder_display",
+            "mean_z": -0.93
+          },
+          {
+            "key": "xp_creator_index",
+            "mean_z": -0.85
+          },
+          {
+            "key": "xp_builder_index",
+            "mean_z": -0.82
+          },
+          {
+            "key": "impact_per_pass",
+            "mean_z": 0.82
+          },
+          {
+            "key": "xpv_per_pass",
+            "mean_z": -0.74
+          }
+        ],
+        "xp_archetype_mix": {
+          "limitado": 37,
+          "regular": 7,
+          "seguranca": 5,
+          "impacto": 1
+        },
+        "progression_archetype_mix": {
+          "—": 50
+        },
+        "origin_mix": {
+          "campo_defensivo": 48,
+          "campo_ofensivo": 2
+        },
+        "examples": [
+          {
+            "player_name": "Pathé Ismaël Ciss",
+            "team": "Rayo Vallecano",
+            "xp_pass_rating": 0.7174,
+            "xp_profile_archetype_label": "Regular"
+          },
+          {
+            "player_name": "Eduardo Camavinga",
+            "team": "Real Madrid",
+            "xp_pass_rating": 0.7159,
+            "xp_profile_archetype_label": "Limited"
+          },
+          {
+            "player_name": "Fran Beltrán",
+            "team": "Girona FC",
+            "xp_pass_rating": 0.7155,
+            "xp_profile_archetype_label": "Regular"
+          },
+          {
+            "player_name": "Pepelu",
+            "team": "Valencia",
+            "xp_pass_rating": 0.7102,
+            "xp_profile_archetype_label": "Impact"
+          },
+          {
+            "player_name": "Reece James",
+            "team": "Chelsea",
+            "xp_pass_rating": 0.708,
+            "xp_profile_archetype_label": "Limited"
+          }
+        ]
+      },
+      {
+        "cluster_id": 2,
+        "label_suggested": "Balanced / mixed",
+        "size": 66,
+        "share_pct": 26.3,
+        "mean_xp_pass_rating": 0.62,
+        "top_features": [
+          {
+            "key": "pass_completion_pct",
+            "mean_z": -0.82
+          },
+          {
+            "key": "xpass_coe_pct",
+            "mean_z": -0.73
+          },
+          {
+            "key": "xpass_expected_pct",
+            "mean_z": -0.7
+          },
+          {
+            "key": "xpass_residual_p90",
+            "mean_z": -0.69
+          },
+          {
+            "key": "xp_quality_index",
+            "mean_z": 0.65
+          },
+          {
+            "key": "pass_efficiency_display",
+            "mean_z": -0.59
+          }
+        ],
+        "xp_archetype_mix": {
+          "regular": 23,
+          "limitado": 18,
+          "elite": 9,
+          "criativo": 8,
+          "impacto": 7,
+          "seguranca": 1
+        },
+        "progression_archetype_mix": {
+          "—": 65,
+          "Associador": 1
+        },
+        "origin_mix": {
+          "campo_ofensivo": 36,
+          "campo_defensivo": 30
+        },
+        "examples": [
+          {
+            "player_name": "Lamine Camara",
+            "team": "AS Monaco",
+            "xp_pass_rating": 0.7248,
+            "xp_profile_archetype_label": "Elite"
+          },
+          {
+            "player_name": "Mamadou Sangare",
+            "team": "RC Lens",
+            "xp_pass_rating": 0.7187,
+            "xp_profile_archetype_label": "Elite"
+          },
+          {
+            "player_name": "Henrikh Mkhitaryan",
+            "team": "Inter",
+            "xp_pass_rating": 0.718,
+            "xp_profile_archetype_label": "Impact"
+          },
+          {
+            "player_name": "Casemiro",
+            "team": "Manchester United",
+            "xp_pass_rating": 0.7128,
+            "xp_profile_archetype_label": "Elite"
+          },
+          {
+            "player_name": "Adrien Rabiot",
+            "team": "AC Milan",
+            "xp_pass_rating": 0.711,
+            "xp_profile_archetype_label": "Elite"
+          }
+        ]
+      },
+      {
+        "cluster_id": 3,
+        "label_suggested": "Balanced / mixed",
+        "size": 53,
+        "share_pct": 21.1,
+        "mean_xp_pass_rating": 0.59,
+        "top_features": [
+          {
+            "key": "xp_archetype_progressor_display",
+            "mean_z": -1.19
+          },
+          {
+            "key": "pass_chance_creation_display",
+            "mean_z": -1.05
+          },
+          {
+            "key": "positive_dxt_pct",
+            "mean_z": -1.05
+          },
+          {
+            "key": "xp_progressor_index",
+            "mean_z": -1.0
+          },
+          {
+            "key": "xp_archetype_finisher_display",
+            "mean_z": -0.99
+          },
+          {
+            "key": "pass_buildup_display",
+            "mean_z": -0.95
+          }
+        ],
+        "xp_archetype_mix": {
+          "limitado": 41,
+          "seguranca": 7,
+          "regular": 5
+        },
+        "progression_archetype_mix": {
+          "—": 53
+        },
+        "origin_mix": {
+          "campo_defensivo": 41,
+          "campo_ofensivo": 12
+        },
+        "examples": [
+          {
+            "player_name": "Nico González",
+            "team": "Manchester City",
+            "xp_pass_rating": 0.7685,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "João Neves",
+            "team": "Paris Saint-Germain",
+            "xp_pass_rating": 0.7387,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Sofyan Amrabat",
+            "team": "Real Betis",
+            "xp_pass_rating": 0.7355,
+            "xp_profile_archetype_label": "Safety"
+          },
+          {
+            "player_name": "Nicolas Seiwald",
+            "team": "RB Leipzig",
+            "xp_pass_rating": 0.7139,
+            "xp_profile_archetype_label": "Regular"
+          },
+          {
+            "player_name": "Martín Zubimendi",
+            "team": "Arsenal",
+            "xp_pass_rating": 0.7071,
+            "xp_profile_archetype_label": "Safety"
+          }
+        ]
+      }
+    ]
+  },
+  "origin_segments": {
+    "campo_defensivo": {
+      "n": 169,
+      "best_k_silhouette": 2,
+      "best_silhouette": 0.257
+    },
+    "campo_ofensivo": {
+      "n": 82,
+      "best_k_silhouette": 2,
+      "best_silhouette": 0.209
+    }
+  },
+  "recommendation_text": "Statistically, silhouette peaks at **k=2** (0.226) — a coarse split between high and lower xP passers. For scouting dashboards, **3 profiles** is the better product compromise: enough granularity for Connector / Progressor / Creator / Finisher-style scouting without fragmenting into hard-to-explain micro-clusters. PCA suggests ~4 independent dimensions for 80% variance (~8 for 90%), aligning with 4 radar axes plus execution style.",
+  "options_text": "**Option A — 4 macro profiles (simplest):** Connector / Progressor / Creator / Finisher. Good for UI and compare tabs; loses specialists.\n\n**Option B — 5 data-driven profiles (recommended):** keep KMeans k=5 on the core feature set; name clusters from top z-scores (builder, creator, progressor, safety, limited).\n\n**Option C — 6 profiles (align with current xP archetypes):** reuse existing rule labels (elite, creative, safety, impact, regular, limited) — already implemented, but overlaps in practice.\n\n**Option D — 7–8 profiles (max detail):** only if you need fine-grained recruitment filters; silhouette gain vs k=5 is small and clusters become harder to explain."
+}
