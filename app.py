@@ -16,6 +16,24 @@ for _path in (_APP_ROOT, _APP_ROOT / "scripts"):
         sys.path.insert(0, _entry)
 
 
+def _load_passes_engine():
+    """Load local passes_engine.py explicitly (avoids path/shadowing on Streamlit Cloud)."""
+    import importlib.util
+
+    module_path = _APP_ROOT / "passes_engine.py"
+    if not module_path.is_file():
+        raise ImportError(f"File not found: {module_path}")
+    module_name = "passes_xt_passes_engine"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sys.modules[module_name] = module
+    sys.modules["passes_engine"] = module
+    return module
+
+
 def _load_similarity_engine():
     """Load local similarity_engine.py explicitly (avoids path/shadowing on Streamlit Cloud)."""
     import importlib.util
@@ -139,7 +157,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-import passes_engine as pe
+pe = _load_passes_engine()
 from heuristic_scoring import GROUP_COLORS, position_group_label, rating_position_group
 sim = _load_similarity_engine()
 from comparison_config import (
