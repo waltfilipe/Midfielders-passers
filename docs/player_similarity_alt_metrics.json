@@ -1,0 +1,914 @@
+{
+  "n_pool": 251,
+  "alt_metrics": [
+    {
+      "key": "long_pass_share_pct",
+      "label": "% passes longos"
+    },
+    {
+      "key": "progressive_pass_rate",
+      "label": "% passes progressivos / passe"
+    },
+    {
+      "key": "impact_v2_per_pass",
+      "label": "Impact v2 / passe"
+    },
+    {
+      "key": "xpv_per_pass",
+      "label": "xPV / passe"
+    },
+    {
+      "key": "xpv_per_game",
+      "label": "xPV / jogo"
+    },
+    {
+      "key": "xpass_coe_pct",
+      "label": "COE"
+    },
+    {
+      "key": "xpass_long_coe_pct",
+      "label": "COE long passes"
+    }
+  ],
+  "examples": {
+    "Joshua Kimmich": {
+      "team": "FC Bayern München",
+      "market_value_display": "€35.00M",
+      "metrics": {
+        "% passes longos": 13.8,
+        "% passes progressivos / passe": 9.83,
+        "Impact v2 / passe": 3.3,
+        "xPV / passe": 0.3827,
+        "xPV / jogo": 32.0031297088013,
+        "COE": 6.17,
+        "COE long passes": 6.74
+      },
+      "seven_pillars_similar": [
+        {
+          "player_name": "Pedri",
+          "team": "FC Barcelona",
+          "similarity_pct": 99.0,
+          "distance": 0.099,
+          "market_value_display": "€150.00M",
+          "xp_pass_rating": 0.8309
+        },
+        {
+          "player_name": "Manuel Locatelli",
+          "team": "Juventus",
+          "similarity_pct": 98.2,
+          "distance": 0.171,
+          "market_value_display": "€25.00M",
+          "xp_pass_rating": 0.832
+        },
+        {
+          "player_name": "Luka Modrić",
+          "team": "AC Milan",
+          "similarity_pct": 96.7,
+          "distance": 0.318,
+          "market_value_display": "€3.50M",
+          "xp_pass_rating": 0.8316
+        },
+        {
+          "player_name": "Vitinha",
+          "team": "Paris Saint-Germain",
+          "similarity_pct": 95.9,
+          "distance": 0.395,
+          "market_value_display": "€140.00M",
+          "xp_pass_rating": 0.8319
+        },
+        {
+          "player_name": "Angelo Stiller",
+          "team": "VfB Stuttgart",
+          "similarity_pct": 95.0,
+          "distance": 0.475,
+          "market_value_display": "€45.00M",
+          "xp_pass_rating": 0.8156
+        },
+        {
+          "player_name": "Aleix García",
+          "team": "Bayer 04 Leverkusen",
+          "similarity_pct": 93.7,
+          "distance": 0.604,
+          "market_value_display": "€20.00M",
+          "xp_pass_rating": 0.8319
+        },
+        {
+          "player_name": "Fabián Ruiz",
+          "team": "Paris Saint-Germain",
+          "similarity_pct": 93.5,
+          "distance": 0.624,
+          "market_value_display": "€30.00M",
+          "xp_pass_rating": 0.8137
+        },
+        {
+          "player_name": "Rodri",
+          "team": "Manchester City",
+          "similarity_pct": 92.4,
+          "distance": 0.724,
+          "market_value_display": "€55.00M",
+          "xp_pass_rating": 0.8211
+        }
+      ],
+      "alt_metrics_similar": [
+        {
+          "player_name": "Pedri",
+          "team": "FC Barcelona",
+          "similarity_pct": 82.0,
+          "distance": 1.733,
+          "market_value_display": "€150.00M",
+          "xp_pass_rating": 0.8309
+        },
+        {
+          "player_name": "Vitinha",
+          "team": "Paris Saint-Germain",
+          "similarity_pct": 82.0,
+          "distance": 1.737,
+          "market_value_display": "€140.00M",
+          "xp_pass_rating": 0.8319
+        },
+        {
+          "player_name": "Aleix García",
+          "team": "Bayer 04 Leverkusen",
+          "similarity_pct": 81.1,
+          "distance": 1.819,
+          "market_value_display": "€20.00M",
+          "xp_pass_rating": 0.8319
+        },
+        {
+          "player_name": "Rodri",
+          "team": "Manchester City",
+          "similarity_pct": 76.2,
+          "distance": 2.292,
+          "market_value_display": "€55.00M",
+          "xp_pass_rating": 0.8211
+        },
+        {
+          "player_name": "Aleksandar Pavlović",
+          "team": "FC Bayern München",
+          "similarity_pct": 71.8,
+          "distance": 2.718,
+          "market_value_display": "€90.00M",
+          "xp_pass_rating": 0.8269
+        },
+        {
+          "player_name": "Fabián Ruiz",
+          "team": "Paris Saint-Germain",
+          "similarity_pct": 70.2,
+          "distance": 2.875,
+          "market_value_display": "€30.00M",
+          "xp_pass_rating": 0.8137
+        },
+        {
+          "player_name": "Angelo Stiller",
+          "team": "VfB Stuttgart",
+          "similarity_pct": 70.1,
+          "distance": 2.885,
+          "market_value_display": "€45.00M",
+          "xp_pass_rating": 0.8156
+        },
+        {
+          "player_name": "Luka Modrić",
+          "team": "AC Milan",
+          "similarity_pct": 67.8,
+          "distance": 3.106,
+          "market_value_display": "€3.50M",
+          "xp_pass_rating": 0.8316
+        }
+      ],
+      "heatmap_similar": [
+        {
+          "player_name": "Martín Zubimendi",
+          "team": "Arsenal",
+          "similarity_pct": 97.0,
+          "origin_dominant": "midfield · right (7%)",
+          "market_value_display": "€75.00M",
+          "xp_pass_rating": 0.7071
+        },
+        {
+          "player_name": "Youssouf Fofana",
+          "team": "AC Milan",
+          "similarity_pct": 97.0,
+          "origin_dominant": "midfield · right (8%)",
+          "market_value_display": "€23.00M",
+          "xp_pass_rating": 0.5761
+        },
+        {
+          "player_name": "Adam Wharton",
+          "team": "Crystal Palace",
+          "similarity_pct": 96.6,
+          "origin_dominant": "midfield · center (8%)",
+          "market_value_display": "€70.00M",
+          "xp_pass_rating": 0.7024
+        },
+        {
+          "player_name": "Marten de Roon",
+          "team": "Atalanta",
+          "similarity_pct": 96.5,
+          "origin_dominant": "midfield · right (11%)",
+          "market_value_display": "€3.20M",
+          "xp_pass_rating": 0.7803
+        },
+        {
+          "player_name": "Mamadou Sangare",
+          "team": "RC Lens",
+          "similarity_pct": 95.8,
+          "origin_dominant": "final third · right (8%)",
+          "market_value_display": "€40.00M",
+          "xp_pass_rating": 0.7187
+        },
+        {
+          "player_name": "Hakan Çalhanoğlu",
+          "team": "Inter",
+          "similarity_pct": 95.3,
+          "origin_dominant": "midfield · right (7%)",
+          "market_value_display": "€16.00M",
+          "xp_pass_rating": 0.7962
+        },
+        {
+          "player_name": "Iván Martín",
+          "team": "Girona FC",
+          "similarity_pct": 95.2,
+          "origin_dominant": "midfield · right (7%)",
+          "market_value_display": "€5.00M",
+          "xp_pass_rating": 0.662
+        },
+        {
+          "player_name": "Niccolò Pisilli",
+          "team": "AS Roma",
+          "similarity_pct": 95.2,
+          "origin_dominant": "midfield · right (9%)",
+          "market_value_display": "€30.00M",
+          "xp_pass_rating": 0.6313
+        }
+      ],
+      "hybrid_similar": [
+        {
+          "player_name": "Vitinha",
+          "team": "Paris Saint-Germain",
+          "similarity_pct": 84.1,
+          "distance": 1.737,
+          "market_value_display": "€140.00M",
+          "xp_pass_rating": 0.8319,
+          "heatmap_similarity_pct": 88.0,
+          "origin_dominant": "midfield · left (7%)"
+        },
+        {
+          "player_name": "Aleix García",
+          "team": "Bayer 04 Leverkusen",
+          "similarity_pct": 83.3,
+          "distance": 1.819,
+          "market_value_display": "€20.00M",
+          "xp_pass_rating": 0.8319,
+          "heatmap_similarity_pct": 87.4,
+          "origin_dominant": "midfield · left (7%)"
+        },
+        {
+          "player_name": "Pedri",
+          "team": "FC Barcelona",
+          "similarity_pct": 82.7,
+          "distance": 1.733,
+          "market_value_display": "€150.00M",
+          "xp_pass_rating": 0.8309,
+          "heatmap_similarity_pct": 84.1,
+          "origin_dominant": "final third · center (10%)"
+        },
+        {
+          "player_name": "Rodri",
+          "team": "Manchester City",
+          "similarity_pct": 80.6,
+          "distance": 2.292,
+          "market_value_display": "€55.00M",
+          "xp_pass_rating": 0.8211,
+          "heatmap_similarity_pct": 88.9,
+          "origin_dominant": "midfield · left (9%)"
+        },
+        {
+          "player_name": "Aleksandar Pavlović",
+          "team": "FC Bayern München",
+          "similarity_pct": 76.9,
+          "distance": 2.718,
+          "market_value_display": "€90.00M",
+          "xp_pass_rating": 0.8269,
+          "heatmap_similarity_pct": 86.4,
+          "origin_dominant": "midfield · left (10%)"
+        },
+        {
+          "player_name": "Frenkie de Jong",
+          "team": "FC Barcelona",
+          "similarity_pct": 75.5,
+          "distance": 3.177,
+          "market_value_display": "€35.00M",
+          "xp_pass_rating": 0.8241,
+          "heatmap_similarity_pct": 91.2,
+          "origin_dominant": "final third · right (8%)"
+        },
+        {
+          "player_name": "Hakan Çalhanoğlu",
+          "team": "Inter",
+          "similarity_pct": 75.0,
+          "distance": 3.464,
+          "market_value_display": "€16.00M",
+          "xp_pass_rating": 0.7962,
+          "heatmap_similarity_pct": 95.3,
+          "origin_dominant": "midfield · right (7%)"
+        },
+        {
+          "player_name": "Angelo Stiller",
+          "team": "VfB Stuttgart",
+          "similarity_pct": 74.8,
+          "distance": 2.885,
+          "market_value_display": "€45.00M",
+          "xp_pass_rating": 0.8156,
+          "heatmap_similarity_pct": 83.5,
+          "origin_dominant": "midfield · left (8%)"
+        }
+      ]
+    },
+    "Bruno Fernandes": {
+      "team": "Manchester United",
+      "market_value_display": "€35.00M",
+      "metrics": {
+        "% passes longos": 16.5,
+        "% passes progressivos / passe": 15.03,
+        "Impact v2 / passe": 4.71,
+        "xPV / passe": 0.413,
+        "xPV / jogo": 19.044201447640976,
+        "COE": 0.96,
+        "COE long passes": 9.48
+      },
+      "seven_pillars_similar": [
+        {
+          "player_name": "Nicolò Barella",
+          "team": "Inter",
+          "similarity_pct": 93.1,
+          "distance": 0.621,
+          "market_value_display": "€50.00M",
+          "xp_pass_rating": 0.7836
+        },
+        {
+          "player_name": "Bruno Guimarães",
+          "team": "Newcastle United",
+          "similarity_pct": 90.8,
+          "distance": 0.826,
+          "market_value_display": "€70.00M",
+          "xp_pass_rating": 0.7909
+        },
+        {
+          "player_name": "Granit Xhaka",
+          "team": "Sunderland",
+          "similarity_pct": 90.5,
+          "distance": 0.854,
+          "market_value_display": "€8.00M",
+          "xp_pass_rating": 0.7608
+        },
+        {
+          "player_name": "Dominik Szoboszlai",
+          "team": "Liverpool FC",
+          "similarity_pct": 90.0,
+          "distance": 0.897,
+          "market_value_display": "€100.00M",
+          "xp_pass_rating": 0.795
+        },
+        {
+          "player_name": "Angelo Stiller",
+          "team": "VfB Stuttgart",
+          "similarity_pct": 89.4,
+          "distance": 0.948,
+          "market_value_display": "€45.00M",
+          "xp_pass_rating": 0.8156
+        },
+        {
+          "player_name": "Nadiem Amiri",
+          "team": "1. FSV Mainz 05",
+          "similarity_pct": 88.9,
+          "distance": 0.999,
+          "market_value_display": "€17.00M",
+          "xp_pass_rating": 0.7561
+        },
+        {
+          "player_name": "Branco Van den Boomen",
+          "team": "Angers",
+          "similarity_pct": 88.4,
+          "distance": 1.042,
+          "market_value_display": "€2.50M",
+          "xp_pass_rating": 0.7746
+        },
+        {
+          "player_name": "Pablo Fornals",
+          "team": "Real Betis",
+          "similarity_pct": 88.2,
+          "distance": 1.055,
+          "market_value_display": "€8.00M",
+          "xp_pass_rating": 0.7782
+        }
+      ],
+      "alt_metrics_similar": [
+        {
+          "player_name": "Nadiem Amiri",
+          "team": "1. FSV Mainz 05",
+          "similarity_pct": 83.2,
+          "distance": 1.59,
+          "market_value_display": "€17.00M",
+          "xp_pass_rating": 0.7561
+        },
+        {
+          "player_name": "Mathias Jensen",
+          "team": "Brentford",
+          "similarity_pct": 75.1,
+          "distance": 2.359,
+          "market_value_display": "€10.00M",
+          "xp_pass_rating": 0.7018
+        },
+        {
+          "player_name": "Luka Modrić",
+          "team": "AC Milan",
+          "similarity_pct": 74.7,
+          "distance": 2.397,
+          "market_value_display": "€3.50M",
+          "xp_pass_rating": 0.8316
+        },
+        {
+          "player_name": "Granit Xhaka",
+          "team": "Sunderland",
+          "similarity_pct": 73.5,
+          "distance": 2.511,
+          "market_value_display": "€8.00M",
+          "xp_pass_rating": 0.7608
+        },
+        {
+          "player_name": "Adam Wharton",
+          "team": "Crystal Palace",
+          "similarity_pct": 73.1,
+          "distance": 2.556,
+          "market_value_display": "€70.00M",
+          "xp_pass_rating": 0.7024
+        },
+        {
+          "player_name": "Nicolò Barella",
+          "team": "Inter",
+          "similarity_pct": 71.9,
+          "distance": 2.666,
+          "market_value_display": "€50.00M",
+          "xp_pass_rating": 0.7836
+        },
+        {
+          "player_name": "Bruno Guimarães",
+          "team": "Newcastle United",
+          "similarity_pct": 71.6,
+          "distance": 2.698,
+          "market_value_display": "€70.00M",
+          "xp_pass_rating": 0.7909
+        },
+        {
+          "player_name": "Branco Van den Boomen",
+          "team": "Angers",
+          "similarity_pct": 71.5,
+          "distance": 2.703,
+          "market_value_display": "€2.50M",
+          "xp_pass_rating": 0.7746
+        }
+      ],
+      "heatmap_similar": [
+        {
+          "player_name": "Hakon Arnar Haraldsson",
+          "team": "Lille",
+          "similarity_pct": 97.2,
+          "origin_dominant": "final third · left (7%)",
+          "market_value_display": "€25.00M",
+          "xp_pass_rating": 0.651
+        },
+        {
+          "player_name": "Tijjani Reijnders",
+          "team": "Manchester City",
+          "similarity_pct": 96.9,
+          "origin_dominant": "final third · left (8%)",
+          "market_value_display": "€50.00M",
+          "xp_pass_rating": 0.5932
+        },
+        {
+          "player_name": "Denis Suárez",
+          "team": "Deportivo Alavés",
+          "similarity_pct": 96.7,
+          "origin_dominant": "final third · right (7%)",
+          "market_value_display": "€1.00M",
+          "xp_pass_rating": 0.6002
+        },
+        {
+          "player_name": "Nadiem Amiri",
+          "team": "1. FSV Mainz 05",
+          "similarity_pct": 96.3,
+          "origin_dominant": "final third · left (7%)",
+          "market_value_display": "€17.00M",
+          "xp_pass_rating": 0.7561
+        },
+        {
+          "player_name": "Benjamin André",
+          "team": "Lille",
+          "similarity_pct": 96.1,
+          "origin_dominant": "final third · left (8%)",
+          "market_value_display": "€3.00M",
+          "xp_pass_rating": 0.6984
+        },
+        {
+          "player_name": "João Neves",
+          "team": "Paris Saint-Germain",
+          "similarity_pct": 96.1,
+          "origin_dominant": "final third · left (5%)",
+          "market_value_display": "€140.00M",
+          "xp_pass_rating": 0.7387
+        },
+        {
+          "player_name": "Phil Foden",
+          "team": "Manchester City",
+          "similarity_pct": 95.9,
+          "origin_dominant": "final third · right (9%)",
+          "market_value_display": "€70.00M",
+          "xp_pass_rating": 0.639
+        },
+        {
+          "player_name": "Sergi Darder",
+          "team": "Mallorca",
+          "similarity_pct": 95.7,
+          "origin_dominant": "midfield · left (8%)",
+          "market_value_display": "€3.00M",
+          "xp_pass_rating": 0.6447
+        }
+      ],
+      "hybrid_similar": [
+        {
+          "player_name": "Nadiem Amiri",
+          "team": "1. FSV Mainz 05",
+          "similarity_pct": 87.8,
+          "distance": 1.59,
+          "market_value_display": "€17.00M",
+          "xp_pass_rating": 0.7561,
+          "heatmap_similarity_pct": 96.3,
+          "origin_dominant": "final third · left (7%)"
+        },
+        {
+          "player_name": "Mathias Jensen",
+          "team": "Brentford",
+          "similarity_pct": 81.9,
+          "distance": 2.359,
+          "market_value_display": "€10.00M",
+          "xp_pass_rating": 0.7018,
+          "heatmap_similarity_pct": 94.5,
+          "origin_dominant": "midfield · left (7%)"
+        },
+        {
+          "player_name": "Luka Modrić",
+          "team": "AC Milan",
+          "similarity_pct": 80.2,
+          "distance": 2.397,
+          "market_value_display": "€3.50M",
+          "xp_pass_rating": 0.8316,
+          "heatmap_similarity_pct": 90.4,
+          "origin_dominant": "midfield · left (7%)"
+        },
+        {
+          "player_name": "Granit Xhaka",
+          "team": "Sunderland",
+          "similarity_pct": 79.4,
+          "distance": 2.511,
+          "market_value_display": "€8.00M",
+          "xp_pass_rating": 0.7608,
+          "heatmap_similarity_pct": 90.5,
+          "origin_dominant": "midfield · right (8%)"
+        },
+        {
+          "player_name": "Moi Gómez",
+          "team": "Osasuna",
+          "similarity_pct": 78.8,
+          "distance": 2.766,
+          "market_value_display": "€1.50M",
+          "xp_pass_rating": 0.7438,
+          "heatmap_similarity_pct": 93.8,
+          "origin_dominant": "final third · left (8%)"
+        },
+        {
+          "player_name": "Bruno Guimarães",
+          "team": "Newcastle United",
+          "similarity_pct": 78.0,
+          "distance": 2.698,
+          "market_value_display": "€70.00M",
+          "xp_pass_rating": 0.7909,
+          "heatmap_similarity_pct": 89.9,
+          "origin_dominant": "final third · right (9%)"
+        },
+        {
+          "player_name": "Arda Güler",
+          "team": "Real Madrid",
+          "similarity_pct": 77.9,
+          "distance": 2.947,
+          "market_value_display": "€90.00M",
+          "xp_pass_rating": 0.762,
+          "heatmap_similarity_pct": 94.7,
+          "origin_dominant": "final third · left (7%)"
+        },
+        {
+          "player_name": "Branco Van den Boomen",
+          "team": "Angers",
+          "similarity_pct": 77.0,
+          "distance": 2.703,
+          "market_value_display": "€2.50M",
+          "xp_pass_rating": 0.7746,
+          "heatmap_similarity_pct": 87.3,
+          "origin_dominant": "midfield · left (7%)"
+        }
+      ]
+    },
+    "João Neves": {
+      "team": "Paris Saint-Germain",
+      "market_value_display": "€140.00M",
+      "metrics": {
+        "% passes longos": 11.4,
+        "% passes progressivos / passe": 4.43,
+        "Impact v2 / passe": 2.84,
+        "xPV / passe": 0.3183,
+        "xPV / jogo": 14.400669337607075,
+        "COE": 3.14,
+        "COE long passes": 1.97
+      },
+      "seven_pillars_similar": [
+        {
+          "player_name": "Mateus Fernandes",
+          "team": "West Ham United",
+          "similarity_pct": 87.4,
+          "distance": 0.883,
+          "market_value_display": "€50.00M",
+          "xp_pass_rating": 0.7311
+        },
+        {
+          "player_name": "Reece James",
+          "team": "Chelsea",
+          "similarity_pct": 85.7,
+          "distance": 1.003,
+          "market_value_display": "€60.00M",
+          "xp_pass_rating": 0.708
+        },
+        {
+          "player_name": "Stanislav Lobotka",
+          "team": "SSC Napoli",
+          "similarity_pct": 85.2,
+          "distance": 1.041,
+          "market_value_display": "€10.00M",
+          "xp_pass_rating": 0.7766
+        },
+        {
+          "player_name": "Samir El Mourabet",
+          "team": "RC Strasbourg",
+          "similarity_pct": 84.8,
+          "distance": 1.065,
+          "market_value_display": "€22.00M",
+          "xp_pass_rating": 0.6956
+        },
+        {
+          "player_name": "Bernardo Silva",
+          "team": "Manchester City",
+          "similarity_pct": 83.5,
+          "distance": 1.157,
+          "market_value_display": "€22.00M",
+          "xp_pass_rating": 0.7492
+        },
+        {
+          "player_name": "Lucas Da Cunha",
+          "team": "Como",
+          "similarity_pct": 82.8,
+          "distance": 1.208,
+          "market_value_display": "€20.00M",
+          "xp_pass_rating": 0.7657
+        },
+        {
+          "player_name": "Michel Aebischer",
+          "team": "Pisa",
+          "similarity_pct": 82.2,
+          "distance": 1.248,
+          "market_value_display": "€4.00M",
+          "xp_pass_rating": 0.6887
+        },
+        {
+          "player_name": "James Garner",
+          "team": "Everton",
+          "similarity_pct": 81.7,
+          "distance": 1.286,
+          "market_value_display": "€45.00M",
+          "xp_pass_rating": 0.7367
+        }
+      ],
+      "alt_metrics_similar": [
+        {
+          "player_name": "Marc Roca",
+          "team": "Real Betis",
+          "similarity_pct": 83.7,
+          "distance": 1.311,
+          "market_value_display": "€4.00M",
+          "xp_pass_rating": 0.6476
+        },
+        {
+          "player_name": "Sergi Altimira",
+          "team": "Real Betis",
+          "similarity_pct": 83.1,
+          "distance": 1.36,
+          "market_value_display": "€20.00M",
+          "xp_pass_rating": 0.6341
+        },
+        {
+          "player_name": "Phil Foden",
+          "team": "Manchester City",
+          "similarity_pct": 82.0,
+          "distance": 1.445,
+          "market_value_display": "€70.00M",
+          "xp_pass_rating": 0.639
+        },
+        {
+          "player_name": "Samir El Mourabet",
+          "team": "RC Strasbourg",
+          "similarity_pct": 81.2,
+          "distance": 1.51,
+          "market_value_display": "€22.00M",
+          "xp_pass_rating": 0.6956
+        },
+        {
+          "player_name": "Iván Martín",
+          "team": "Girona FC",
+          "similarity_pct": 80.4,
+          "distance": 1.577,
+          "market_value_display": "€5.00M",
+          "xp_pass_rating": 0.662
+        },
+        {
+          "player_name": "Fran Beltrán",
+          "team": "Girona FC",
+          "similarity_pct": 79.3,
+          "distance": 1.663,
+          "market_value_display": "€4.00M",
+          "xp_pass_rating": 0.7155
+        },
+        {
+          "player_name": "Bernardo Silva",
+          "team": "Manchester City",
+          "similarity_pct": 79.0,
+          "distance": 1.692,
+          "market_value_display": "€22.00M",
+          "xp_pass_rating": 0.7492
+        },
+        {
+          "player_name": "Ellyes Skhiri",
+          "team": "Eintracht Frankfurt",
+          "similarity_pct": 78.9,
+          "distance": 1.695,
+          "market_value_display": "€5.00M",
+          "xp_pass_rating": 0.6361
+        }
+      ],
+      "heatmap_similar": [
+        {
+          "player_name": "Pablo Fornals",
+          "team": "Real Betis",
+          "similarity_pct": 97.1,
+          "origin_dominant": "final third · right (6%)",
+          "market_value_display": "€8.00M",
+          "xp_pass_rating": 0.7782
+        },
+        {
+          "player_name": "Ayyoub Bouaddi",
+          "team": "Lille",
+          "similarity_pct": 96.7,
+          "origin_dominant": "final third · right (6%)",
+          "market_value_display": "€80.00M",
+          "xp_pass_rating": 0.5627
+        },
+        {
+          "player_name": "Denis Suárez",
+          "team": "Deportivo Alavés",
+          "similarity_pct": 96.6,
+          "origin_dominant": "final third · right (7%)",
+          "market_value_display": "€1.00M",
+          "xp_pass_rating": 0.6002
+        },
+        {
+          "player_name": "Johann Lepenant",
+          "team": "Nantes",
+          "similarity_pct": 96.6,
+          "origin_dominant": "midfield · right (6%)",
+          "market_value_display": "€7.00M",
+          "xp_pass_rating": 0.5331
+        },
+        {
+          "player_name": "Joel Chima Fujita",
+          "team": "FC St. Pauli",
+          "similarity_pct": 96.4,
+          "origin_dominant": "final third · left (5%)",
+          "market_value_display": "€10.00M",
+          "xp_pass_rating": 0.5098
+        },
+        {
+          "player_name": "Pascal Groß",
+          "team": "Brighton & Hove Albion",
+          "similarity_pct": 96.4,
+          "origin_dominant": "midfield · center (6%)",
+          "market_value_display": "€2.50M",
+          "xp_pass_rating": 0.7484
+        },
+        {
+          "player_name": "Bruno Fernandes",
+          "team": "Manchester United",
+          "similarity_pct": 96.1,
+          "origin_dominant": "final third · right (7%)",
+          "market_value_display": "€35.00M",
+          "xp_pass_rating": 0.8008
+        },
+        {
+          "player_name": "Mateus Fernandes",
+          "team": "West Ham United",
+          "similarity_pct": 96.1,
+          "origin_dominant": "midfield · right (6%)",
+          "market_value_display": "€50.00M",
+          "xp_pass_rating": 0.7311
+        }
+      ],
+      "hybrid_similar": [
+        {
+          "player_name": "Phil Foden",
+          "team": "Manchester City",
+          "similarity_pct": 85.9,
+          "distance": 1.445,
+          "market_value_display": "€70.00M",
+          "xp_pass_rating": 0.639,
+          "heatmap_similarity_pct": 93.1,
+          "origin_dominant": "final third · right (9%)"
+        },
+        {
+          "player_name": "Sergi Altimira",
+          "team": "Real Betis",
+          "similarity_pct": 85.7,
+          "distance": 1.36,
+          "market_value_display": "€20.00M",
+          "xp_pass_rating": 0.6341,
+          "heatmap_similarity_pct": 90.6,
+          "origin_dominant": "midfield · left (7%)"
+        },
+        {
+          "player_name": "Marc Roca",
+          "team": "Real Betis",
+          "similarity_pct": 84.6,
+          "distance": 1.311,
+          "market_value_display": "€4.00M",
+          "xp_pass_rating": 0.6476,
+          "heatmap_similarity_pct": 86.3,
+          "origin_dominant": "midfield · center (9%)"
+        },
+        {
+          "player_name": "Bernardo Silva",
+          "team": "Manchester City",
+          "similarity_pct": 84.4,
+          "distance": 1.692,
+          "market_value_display": "€22.00M",
+          "xp_pass_rating": 0.7492,
+          "heatmap_similarity_pct": 94.3,
+          "origin_dominant": "final third · right (8%)"
+        },
+        {
+          "player_name": "Iván Martín",
+          "team": "Girona FC",
+          "similarity_pct": 83.7,
+          "distance": 1.577,
+          "market_value_display": "€5.00M",
+          "xp_pass_rating": 0.662,
+          "heatmap_similarity_pct": 89.7,
+          "origin_dominant": "midfield · right (7%)"
+        },
+        {
+          "player_name": "Fran Beltrán",
+          "team": "Girona FC",
+          "similarity_pct": 82.3,
+          "distance": 1.663,
+          "market_value_display": "€4.00M",
+          "xp_pass_rating": 0.7155,
+          "heatmap_similarity_pct": 88.0,
+          "origin_dominant": "final third · center (8%)"
+        },
+        {
+          "player_name": "Stanislav Lobotka",
+          "team": "SSC Napoli",
+          "similarity_pct": 82.3,
+          "distance": 1.724,
+          "market_value_display": "€10.00M",
+          "xp_pass_rating": 0.7766,
+          "heatmap_similarity_pct": 89.2,
+          "origin_dominant": "midfield · center (7%)"
+        },
+        {
+          "player_name": "Lucas Da Cunha",
+          "team": "Como",
+          "similarity_pct": 81.5,
+          "distance": 1.887,
+          "market_value_display": "€20.00M",
+          "xp_pass_rating": 0.7657,
+          "heatmap_similarity_pct": 90.8,
+          "origin_dominant": "midfield · left (8%)"
+        }
+      ]
+    }
+  }
+}
