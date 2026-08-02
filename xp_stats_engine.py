@@ -378,6 +378,14 @@ def test_impact_v2_attempt_pool_mask(
     return out
 
 
+def _test_impact_v2_start_final_third_count(ti_v2: pd.DataFrame) -> int:
+    """Test Impact v2 passes that originate in the attacking third (x_start >= FINAL_X_MIN)."""
+    if ti_v2 is None or ti_v2.empty or "x_start" not in ti_v2.columns:
+        return 0
+    x_start = ti_v2["x_start"].astype(float).to_numpy()
+    return int((x_start >= FINAL_X_MIN).sum())
+
+
 def compute_test_impact_v2_attempt_metrics(
     grp: pd.DataFrame,
     *,
@@ -388,6 +396,7 @@ def compute_test_impact_v2_attempt_metrics(
 
     empty: dict[str, float | int | None] = {
         "test_impact_v2_count": 0,
+        "test_impact_v2_start_final_third_count": 0,
         "test_impact_v2_attempts": 0,
         "test_impact_v2_attempt_completion_pct": None,
         "test_impact_v2_attempt_coe_pct": None,
@@ -398,9 +407,14 @@ def compute_test_impact_v2_attempt_metrics(
     pool_mask = test_impact_v2_attempt_pool_mask(grp, progress_cutoffs=progress_cutoffs)
     pool = grp.loc[pool_mask]
     ti_v2 = xe_mod.filter_test_impact_v2_passes(grp)
+    ti_v2_start_ft = _test_impact_v2_start_final_third_count(ti_v2)
     attempts = int(pool_mask.sum())
     if attempts <= 0:
-        return {**empty, "test_impact_v2_count": int(len(ti_v2))}
+        return {
+            **empty,
+            "test_impact_v2_count": int(len(ti_v2)),
+            "test_impact_v2_start_final_third_count": ti_v2_start_ft,
+        }
 
     import xpass_engine as xpass_mod
     if xpass_mod.XPASS_COL not in pool.columns:
@@ -411,6 +425,7 @@ def compute_test_impact_v2_attempt_metrics(
     coe_pp = 100.0 * (won / attempts - xpass_mean)
     return {
         "test_impact_v2_count": int(len(ti_v2)),
+        "test_impact_v2_start_final_third_count": ti_v2_start_ft,
         "test_impact_v2_attempts": attempts,
         "test_impact_v2_attempt_completion_pct": round(completion_pct, 1),
         "test_impact_v2_attempt_coe_pct": round(coe_pp, 1),
@@ -844,6 +859,7 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
         metrics["threat_passes_p90"] = 0.0
         metrics["impact_passes_p90"] = 0.0
         metrics["test_impact_v2_p90"] = 0.0
+        metrics["test_impact_v2_start_final_third_p90"] = 0.0
         metrics["ip_dest_first_two_thirds_p90"] = 0.0
         metrics["ip_dest_final_third_p90"] = 0.0
         for sp_key in SPECIAL_PASS_COUNT_KEYS:
@@ -858,6 +874,9 @@ def apply_per90_metrics(metrics: dict[str, float | int], minutes: float | None) 
     metrics["threat_passes_p90"] = float(threat_count) * factor
     metrics["impact_passes_p90"] = metrics["threat_passes_p90"]
     metrics["test_impact_v2_p90"] = float(metrics.get("test_impact_v2_count", 0) or 0) * factor
+    metrics["test_impact_v2_start_final_third_p90"] = float(
+        metrics.get("test_impact_v2_start_final_third_count", 0) or 0
+    ) * factor
     metrics["ip_dest_first_two_thirds_p90"] = float(
         int(metrics.get("ip_dest_first_two_thirds_count", 0))
     ) * factor
@@ -1279,6 +1298,7 @@ XP_STATS_LABELS: dict[str, str] = {
     "xp_m4_per_pass": "xP/Pass",
     "xpv_per_pass": "xPV/Pass",
     "test_impact_v2_p90": "Pass Impact v2 / game",
+    "test_impact_v2_start_final_third_p90": "Impact v2 — origem terço final / game",
     "xp_m4_per_threat_pass": f"xP/{IMPACT_PASS_ABBR}",
     "xp_m4_threat_rate": f"% {IMPACT_PASS_ABBR}",
     "xp_m4_per_pass_short": "xP/Pass",
@@ -1347,6 +1367,7 @@ XP_PA_LABELS: dict[str, str] = {
     "xp_m4_per_pass": "xP / pass",
     "xpv_per_pass": "xPV / pass",
     "test_impact_v2_p90": "Pass Impact v2 / game",
+    "test_impact_v2_start_final_third_p90": "Impact v2 — origem terço final / game",
     "xp_m4_per_threat_pass": f"xP / {IMPACT_PASS_ABBR}",
     "xp_m4_threat_rate": f"% {IMPACT_PASS_ABBR}",
     "xp_residual_median": "Median residual",
@@ -1368,6 +1389,10 @@ XP_PA_TOOLTIPS: dict[str, str] = {
     "test_impact_v2_p90": (
         "Pass Impact v2 per game — completed passes with high composite impact, "
         "xPass below 67%, strong progression and outside the byline."
+    ),
+    "test_impact_v2_start_final_third_p90": (
+        "Pass Impact v2 per game originating in the final third (x_start ≥ 72 m) — "
+        "same selection rule as Pass Impact v2."
     ),
     "xp_m4_per_threat_pass": f"Average xP on {IMPACT_PASS_ABBR} (surprise + high value for distance).",
     "xp_m4_threat_rate": f"Share of passes classified as {IMPACT_PASS_ABBR}.",
@@ -1566,6 +1591,7 @@ XP_REGULAR_STAT_RANK_KEYS: tuple[str, ...] = (
     "special_line_break_p90",
     "impact_passes_p90",
     "test_impact_v2_p90",
+    "test_impact_v2_start_final_third_p90",
     "test_impact_v2_attempt_completion_pct",
     "test_impact_v2_attempt_coe_pct",
     "pass_volume_index",
@@ -1594,6 +1620,7 @@ PASS_BUILDUP_METRICS: tuple[str, ...] = (
 PASS_CHANCE_CREATION_METRICS: tuple[str, ...] = (
     "key_passes",
     "passes_to_box",
+    "test_impact_v2_start_final_third_p90",
 )
 PASS_IMPACT_METRICS: tuple[str, ...] = (
     "test_impact_v2_p90",
@@ -1643,10 +1670,12 @@ PASS_SCORE_TOOLTIPS: dict[str, str] = {
         "and line-breaking passes per game."
     ),
     "pass_chance_creation_index": (
-        "Within-position composite of key passes and passes into the box per game."
+        "Within-position composite of key passes, passes into the box, and Test Impact v2 "
+        "passes originating in the final third per game."
     ),
     "pass_chance_creation_display": (
-        "Within-position composite of key passes and passes into the box per game."
+        "Within-position composite of key passes, passes into the box, and Test Impact v2 "
+        "passes originating in the final third per game."
     ),
     "pass_impact_index": (
         "Within-position composite of Test Impact v2 volume, attempt-pool completion "
@@ -2790,7 +2819,13 @@ def format_pa_stats_value(key: str, value: float | int | None) -> str:
         return f"{val:+.2f}"
     if key in {"xp_m4_per_pass", "xp_m4_per_threat_pass", "xpv_per_pass"}:
         return f"{val:.2f}"
-    if key in {"xp_per_90", "threat_passes_p90", "xpass_residual_p90", "test_impact_v2_p90"}:
+    if key in {
+        "xp_per_90",
+        "threat_passes_p90",
+        "xpass_residual_p90",
+        "test_impact_v2_p90",
+        "test_impact_v2_start_final_third_p90",
+    }:
         return f"{val:.1f}"
     if (
         key == "xpass_hard_coe_pct"
@@ -2835,7 +2870,7 @@ def format_stats_value(key: str, value: float | int | None) -> str:
         return f"{val:.2f}"
     if key in {
         "long_balls", "progressive_passes", "final_third_passes",
-        "passes_to_box", "key_passes",
+        "passes_to_box", "key_passes", "test_impact_v2_start_final_third_p90",
     }:
         return f"{val:.1f}"
     if key == "pass_mean_distance":

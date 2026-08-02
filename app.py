@@ -9370,6 +9370,7 @@ XP_PA_REGULAR_SCORE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...
         (
             "key_passes",
             "passes_to_box",
+            "test_impact_v2_start_final_third_p90",
         ),
     ),
     (
@@ -9400,6 +9401,7 @@ XP_PA_REGULAR_COMPONENT_LABELS: dict[str, str] = {
     "key_passes": "Key passes / game",
     "special_line_break_p90": "Line breaking passes / game",
     "test_impact_v2_p90": "Test Impact v2 / game",
+    "test_impact_v2_start_final_third_p90": "Impact v2 — origem terço final / game",
     "test_impact_v2_attempt_completion_pct": "Attempt pool completion %",
     "test_impact_v2_attempt_coe_pct": "Attempt pool COE",
 }
@@ -9435,6 +9437,10 @@ XP_PA_REGULAR_COMPONENT_TOOLTIPS: dict[str, str] = {
         "Completed Test Impact v2 passes per game — P89 composite score, completion xP below 67%, "
         "excluding byline short passes."
     ),
+    "test_impact_v2_start_final_third_p90": (
+        "Test Impact v2 passes per game that originate in the final third (x_start ≥ 72 m) — "
+        "same P89 / xPass < 67% rule as Pass Impact v2."
+    ),
     "test_impact_v2_attempt_completion_pct": (
         "Completion rate on the attempt pool: xPass below 67%, progress at or above P65 per "
         "distance band, excluding byline short passes."
@@ -9459,6 +9465,7 @@ XP_PA_REGULAR_COMPONENT_KIND: dict[str, str] = {
     "key_passes": "p90",
     "special_line_break_p90": "p90",
     "test_impact_v2_p90": "p90",
+    "test_impact_v2_start_final_third_p90": "p90",
     "test_impact_v2_attempt_completion_pct": "pct",
     "test_impact_v2_attempt_coe_pct": "pp",
 }
@@ -9478,7 +9485,8 @@ XP_PA_REGULAR_SCORE_TOOLTIPS: dict[str, str] = {
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
     "pass_chance_creation_display": (
-        "Within-position composite of key passes and passes into the box per game. "
+        "Within-position composite of key passes, passes into the box, and Test Impact v2 "
+        "passes originating in the final third per game. "
         "Component z-scores are winsorized at P5–P95 before averaging."
     ),
     "pass_impact_display": (
