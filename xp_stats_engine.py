@@ -188,9 +188,8 @@ MAPS_TEST_IMPACT_PASS_KEYS: frozenset[str] = frozenset(
     {MAPS_TEST_IMPACT_PASS_KEY, MAPS_TEST_IMPACT_V2_PASS_KEY}
 )
 MAPS_SPECIAL_PASS_OPTIONS: tuple[tuple[str, str], ...] = (
-    ("xp_threat_all", "Impact Passes"),
+    (MAPS_TEST_IMPACT_V2_PASS_KEY, "Impact Passes"),
     (MAPS_TEST_IMPACT_PASS_KEY, "Test Impact"),
-    (MAPS_TEST_IMPACT_V2_PASS_KEY, "Test Impact v2"),
     ("high_difficulty_50", "High difficulty passes <50%"),
     ("high_difficulty_60", "High difficulty passes <60%"),
     (
@@ -214,6 +213,27 @@ MAPS_STAT_TYPE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("regular", "Regular Stats"),
     ("special", "xP Stats"),
 )
+MAPS_TAB_VIEW_SCATTER = "scatter"
+MAPS_TAB_VIEW_PASS_MAP = "pass_map"
+MAPS_TAB_VIEW_OPTIONS: tuple[tuple[str, str], ...] = (
+    (MAPS_TAB_VIEW_SCATTER, "Scatter"),
+    (MAPS_TAB_VIEW_PASS_MAP, "Pass map"),
+)
+MAPS_TAB_SCATTER_METRIC_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("xpass_coe_pct", "COE"),
+    ("test_impact_v2_p90", "Impact Passes"),
+    ("xpv_per_pass_p90", "xPV/Game"),
+    ("xpv_per_pass", "xPV/Pass"),
+    ("xp_per_90", "xP"),
+)
+MAPS_TAB_PASS_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("progressive", "Progressive Passes"),
+    ("key_passes", "Key passes"),
+    (MAPS_TEST_IMPACT_V2_PASS_KEY, "Impact Passes"),
+    ("line_break", "Line Break"),
+)
+MAPS_TAB_SCATTER_METRIC_LABELS: dict[str, str] = dict(MAPS_TAB_SCATTER_METRIC_OPTIONS)
+MAPS_TAB_PASS_LABELS: dict[str, str] = dict(MAPS_TAB_PASS_OPTIONS)
 MAPS_PASS_TYPE_OPTIONS: tuple[tuple[str, str], ...] = (
     *MAPS_REGULAR_PASS_OPTIONS,
     *MAPS_SPECIAL_PASS_OPTIONS,
@@ -226,6 +246,26 @@ MAPS_SPECIAL_PASS_TYPE_KEYS: frozenset[str] = frozenset(
 
 def maps_stat_type_options() -> tuple[tuple[str, str], ...]:
     return MAPS_STAT_TYPE_OPTIONS
+
+
+def maps_tab_view_options() -> tuple[tuple[str, str], ...]:
+    return MAPS_TAB_VIEW_OPTIONS
+
+
+def maps_tab_scatter_metric_options() -> tuple[tuple[str, str], ...]:
+    return MAPS_TAB_SCATTER_METRIC_OPTIONS
+
+
+def maps_tab_pass_options() -> tuple[tuple[str, str], ...]:
+    return MAPS_TAB_PASS_OPTIONS
+
+
+def maps_tab_scatter_metric_label(key: str) -> str:
+    return MAPS_TAB_SCATTER_METRIC_LABELS.get(str(key), str(key))
+
+
+def maps_tab_pass_label(key: str) -> str:
+    return MAPS_TAB_PASS_LABELS.get(str(key), maps_pass_type_label(key))
 
 
 def maps_pass_options_for_type(stat_type: str) -> tuple[tuple[str, str], ...]:
@@ -268,7 +308,7 @@ def is_maps_test_impact_pass(filter_key: str) -> bool:
 def maps_test_impact_pass_label(filter_key: str) -> str:
     key = str(filter_key or "").strip()
     if key == MAPS_TEST_IMPACT_V2_PASS_KEY:
-        return "Test Impact v2"
+        return "Impact Passes"
     if key == MAPS_TEST_IMPACT_PASS_KEY:
         return "Test Impact"
     return str(filter_key)
@@ -501,6 +541,10 @@ def filter_passes_for_map(passes: pd.DataFrame, filter_key: str) -> pd.DataFrame
     if key == MAPS_TEST_IMPACT_V2_PASS_KEY:
         import xp_engine as xe_mod
         return xe_mod.filter_test_impact_v2_passes(passes)
+    if key == "key_passes":
+        if "is_key_pass" in work.columns:
+            return work[work["is_key_pass"].astype(bool)].copy()
+        return work.iloc[0:0].copy()
     threat_band = _xp_threat_map_band(key)
     if threat_band is not None:
         return filter_passes_by_threat_type(work, threat_band)

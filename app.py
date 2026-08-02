@@ -163,7 +163,6 @@ import midfield_origin as mo
 import nationality_groups as ng
 import player_profiles as pp
 import transfermarkt_profiles as tm
-import european_similarity_engine as esim
 from carries_maps import (
     draw_all_carries_map,
     draw_dribble_map,
@@ -254,15 +253,11 @@ PA_COMPARE_FILTER_NATIONALITY_REGIONS_KEY = "cmp_filter_nationality_regions"
 PA_COMPARE_FILTER_NATIONALITY_COUNTRIES_KEY = "cmp_filter_nationality_countries"
 PA_COMPARE_PLAYER_A_KEY = "cmp_filter_player_a"
 PA_COMPARE_PLAYER_B_KEY = "cmp_filter_player_b"
-PA_SIM_FILTER_LEAGUE_KEY = "sim_filter_league"
-PA_SIM_FILTER_AGE_KEY = "sim_filter_age"
-PA_SIM_FILTER_AGE_SLIDER_KEY = "sim_filter_age_slider"
-PA_SIM_FILTER_FOOT_KEY = "sim_filter_foot"
-PA_SIM_FILTER_VALUE_SLIDER_KEY = "sim_filter_value_slider"
-PA_SIM_FILTER_CONTRACT_YEAR_KEY = "sim_filter_contract_year"
-PA_SIM_FILTER_NATIONALITY_REGIONS_KEY = "sim_filter_nationality_regions"
-PA_SIM_FILTER_NATIONALITY_COUNTRIES_KEY = "sim_filter_nationality_countries"
-PA_SIM_FILTER_PLAYER_KEY = "sim_filter_player"
+MAPS_TAB_PLAYER_KEY = "maps_tab_player"
+MAPS_TAB_VIEW_KEY = "maps_tab_view"
+MAPS_TAB_SCATTER_X_KEY = "maps_tab_scatter_x"
+MAPS_TAB_SCATTER_Y_KEY = "maps_tab_scatter_y"
+MAPS_TAB_PASS_FILTER_KEY = "maps_tab_pass_filter"
 PA_VIEW_SCATTER = "scatter"
 PA_VIEW_MAPS = "maps"
 PA_VIEW_LABELS: dict[str, str] = {
@@ -12002,15 +11997,15 @@ def _render_pa_filter_card(
     progression_by_id: dict[str, dict],
     *,
     xp_by_id: dict[str, dict] | None,
-) -> tuple[str | None, bool, bool]:
-    """Full-width horizontal filter bar: league, age, foot, sliders, player and views."""
+) -> str | None:
+    """Full-width horizontal filter bar: league, age, foot, sliders, player."""
     with st.container(key="pa_filter_card"):
         st.markdown(
             '<div class="pa-filter-head">'
             '<span class="pa-filter-title">'
             '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
-            '<span class="pa-filter-sub">Refine o grupo de meio-campistas, selecione o jogador '
-            "e abra gráficos ou mapas sob demanda (aba Player Profile).</span>"
+            '<span class="pa-filter-sub">Refine o grupo de meio-campistas e selecione o jogador '
+            "para ver o perfil (aba Player Profile).</span>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -12028,7 +12023,6 @@ def _render_pa_filter_card(
             clear_button_key="pa_filter_clear",
         )
 
-        col_player, col_views = st.columns([2.4, 1.35], gap="medium")
         pool = _filter_pa_pool(all_players, progression_by_id, **filters)
         all_codes, all_groups = _all_position_filters()
         options = _player_analysis_options(
@@ -12040,34 +12034,21 @@ def _render_pa_filter_card(
         )
 
         player_id: str | None = None
-        with col_player:
-            if not options:
-                st.selectbox("Jogador", options=["—"], disabled=True, key="pa_player_empty")
-            else:
-                labels = [opt[3] for opt in options]
-                id_by_label = {opt[3]: opt[0] for opt in options}
-                if st.session_state.get(PA_FILTER_PLAYER_KEY) not in labels:
-                    st.session_state[PA_FILTER_PLAYER_KEY] = labels[0]
-                selected_label = st.selectbox(
-                    "Jogador",
-                    options=labels,
-                    key=PA_FILTER_PLAYER_KEY,
-                )
-                player_id = id_by_label.get(selected_label)
+        if not options:
+            st.selectbox("Jogador", options=["—"], disabled=True, key="pa_player_empty")
+        else:
+            labels = [opt[3] for opt in options]
+            id_by_label = {opt[3]: opt[0] for opt in options}
+            if st.session_state.get(PA_FILTER_PLAYER_KEY) not in labels:
+                st.session_state[PA_FILTER_PLAYER_KEY] = labels[0]
+            selected_label = st.selectbox(
+                "Jogador",
+                options=labels,
+                key=PA_FILTER_PLAYER_KEY,
+            )
+            player_id = id_by_label.get(selected_label)
 
-        with col_views:
-            selected_views = st.segmented_control(
-                "Visualizações",
-                options=[PA_VIEW_SCATTER, PA_VIEW_MAPS],
-                format_func=lambda key: PA_VIEW_LABELS[key],
-                selection_mode="multi",
-                key=PA_VIEW_SELECT_KEY,
-                help="Abra gráficos e mapas apenas quando precisar — mantém o app leve.",
-            ) or []
-        show_scatter = PA_VIEW_SCATTER in selected_views
-        show_maps = PA_VIEW_MAPS in selected_views
-
-    return player_id, show_scatter, show_maps
+    return player_id
 
 
 def _compare_pool_options(
@@ -12462,18 +12443,8 @@ def _render_interactive_cell_map(top_n: int) -> None:
     )
 
 
-def render_xp_maps_analysis_tab() -> None:
-    """Visual answer: where midfielder passes are most common vs. most rare (xP)."""
-    st.subheader("xP — Maps Analysis")
-    st.markdown(
-        "<p style='color:#94a3b8;font-size:0.92rem;margin:0 0 0.75rem 0;'>"
-        "O xP mede <strong>raridade</strong>: passes que terminam em zonas pouco frequentes "
-        "valem mais. Aqui você vê, de forma simples, <strong>onde os meio-campistas mais "
-        "passam</strong> (volume) e <strong>onde os passes são mais raros</strong> "
-        "(xP médio por destino), célula a célula no grid do modelo."
-        "</p>",
-        unsafe_allow_html=True,
-    )
+def _render_xp_maps_analysis_content() -> None:
+    """Aggregated xP midfield maps (interactive + volume/rarity heatmaps)."""
 
     top_n = int(xstats.XP_PROFILE_TOP_PASS_POOL_SIZE)
     analysis = load_midfielder_pass_maps_analysis(top_n)
@@ -12566,6 +12537,223 @@ def render_xp_maps_analysis_tab() -> None:
             f"- **Amostra:** apenas os {top_n} meio-campistas com maior volume de passes — "
             "o mesmo recorte usado no xP Profile."
         )
+
+
+def _render_maps_tab_scatter(
+    all_players: list[dict],
+    progression_by_id: dict[str, dict],
+    *,
+    xp_by_id: dict[str, dict] | None,
+    highlight_player_id: str | None,
+) -> None:
+    metric_options = xstats.maps_tab_scatter_metric_options()
+    metric_keys = [key for key, _label in metric_options]
+    metric_labels = {key: label for key, label in metric_options}
+    axis_x, axis_y = st.columns(2, gap="small")
+    with axis_x:
+        x_key = st.selectbox(
+            "Eixo X",
+            options=metric_keys,
+            format_func=lambda key: metric_labels[key],
+            index=0,
+            key=MAPS_TAB_SCATTER_X_KEY,
+        )
+    with axis_y:
+        y_key = st.selectbox(
+            "Eixo Y",
+            options=metric_keys,
+            format_func=lambda key: metric_labels[key],
+            index=min(1, len(metric_keys) - 1),
+            key=MAPS_TAB_SCATTER_Y_KEY,
+        )
+
+    all_codes, all_groups = _all_position_filters()
+    scatter_pool, _thresholds = _scatter_pool_players(
+        all_players,
+        progression_by_id,
+        xp_by_id=xp_by_id,
+        position_codes=all_codes,
+        position_groups=all_groups,
+    )
+    if not scatter_pool:
+        st.info(
+            f"Sem jogadores elegíveis (passes ≥ P{xstats.DISTANCE_INDEX_MIN_PASS_PERCENTILE} na posição)."
+        )
+        return
+
+    fig = build_stats_scatter_figure(
+        scatter_pool,
+        x_key=x_key,
+        y_key=y_key,
+        x_label=xstats.maps_tab_scatter_metric_label(x_key),
+        y_label=xstats.maps_tab_scatter_metric_label(y_key),
+        position_label="Meio-campistas",
+        highlight_player_id=highlight_player_id,
+    )
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={"displayModeBar": False, "responsive": True},
+    )
+    st.caption(
+        f"{len(scatter_pool)} meio-campistas elegíveis · destaque = jogador selecionado."
+    )
+
+
+def _render_maps_tab_pass_map(player: dict, player_id: str) -> None:
+    xp_passes_by_player = load_player_analysis_xp_passes()
+    pass_options = xstats.maps_tab_pass_options()
+    pass_keys = [key for key, _label in pass_options]
+    pass_labels = {key: label for key, label in pass_options}
+    map_filter_key = st.selectbox(
+        "Tipo de passe",
+        options=pass_keys,
+        format_func=lambda key: pass_labels[key],
+        key=MAPS_TAB_PASS_FILTER_KEY,
+    )
+    map_category_label = xstats.maps_tab_pass_label(map_filter_key)
+
+    st.markdown('<div class="pa-maps-compact">', unsafe_allow_html=True)
+    raw_passes = xp_passes_by_player.get(str(player_id))
+    round_keys, round_labels = _pass_map_round_options(raw_passes)
+    round_key = st.selectbox(
+        "Rodada",
+        options=round_keys,
+        format_func=lambda key: round_labels[key],
+        key=f"maps_tab_round_{player_id}",
+    )
+    scoped_passes = _filter_pass_map_round(raw_passes, round_key)
+    passes_df = xstats.filter_passes_for_map(scoped_passes, map_filter_key)
+    if passes_df is None or passes_df.empty:
+        st.info("Nenhum passe completo para este jogador com o filtro selecionado.")
+    else:
+        work = _maps_passes_table(
+            passes_df,
+            sort_by_residual=xstats.is_maps_top_residual_pass(map_filter_key),
+        )
+        player_name = str(player.get("player_name", "—"))
+        season_label = _pass_map_scope_label(round_key, round_labels)
+        fig_passes, fig_dest, pass_caption = _render_pass_map_figures(
+            work=work,
+            player_name=player_name,
+            map_filter_key=map_filter_key,
+            map_category_label=map_category_label,
+            season_label=season_label,
+            captions_language="pt",
+        )
+        map_col, dest_col = st.columns(2, gap="small")
+        with map_col:
+            st.pyplot(fig_passes, clear_figure=True, use_container_width=True)
+            st.caption(pass_caption)
+        with dest_col:
+            st.pyplot(fig_dest, clear_figure=True, use_container_width=True)
+            st.caption("Mapa de calor de destino · onde os passes terminam")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_maps_tab_section(
+    all_players: list[dict],
+    progression_by_id: dict[str, dict],
+    *,
+    xp_by_id: dict[str, dict] | None = None,
+) -> None:
+    if not all_players:
+        st.info("No players available.")
+        return
+    if not xp_by_id:
+        st.info("xP metrics unavailable for maps.")
+        return
+
+    st.markdown('<div class="cmp-shell">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="pa-compare-hero cmp-compare-hero">'
+        '<span class="pa-compare-hero-icon"><i class="fa-solid fa-map-location-dot"></i></span>'
+        '<span class="pa-compare-hero-text">'
+        '<span class="pa-compare-hero-title">Maps</span>'
+        '<span class="pa-compare-hero-sub">Scatter ou mapa de passes por jogador, '
+        "mais a visão agregada de xP por destino</span>"
+        "</span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    all_codes, all_groups = _all_position_filters()
+    options = _player_analysis_options(
+        all_players,
+        progression_by_id,
+        position_codes=all_codes,
+        position_groups=all_groups,
+        xp_by_id=xp_by_id,
+        sort_by="xp_pass_rating",
+    )
+    if not options:
+        st.info("Nenhum jogador disponível.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    col_player, col_view = st.columns([2.4, 1.35], gap="medium")
+    player_id: str | None = None
+    with col_player:
+        labels = [opt[3] for opt in options]
+        id_by_label = {opt[3]: opt[0] for opt in options}
+        if st.session_state.get(MAPS_TAB_PLAYER_KEY) not in labels:
+            st.session_state[MAPS_TAB_PLAYER_KEY] = labels[0]
+        selected_label = st.selectbox(
+            "Jogador",
+            options=labels,
+            key=MAPS_TAB_PLAYER_KEY,
+        )
+        player_id = id_by_label.get(selected_label)
+
+    view_keys = [key for key, _label in xstats.maps_tab_view_options()]
+    view_labels = {key: label for key, label in xstats.maps_tab_view_options()}
+    with col_view:
+        view_type = st.segmented_control(
+            "Visualização",
+            options=view_keys,
+            format_func=lambda key: view_labels[key],
+            selection_mode="single",
+            key=MAPS_TAB_VIEW_KEY,
+        ) or xstats.MAPS_TAB_VIEW_SCATTER
+
+    if not player_id:
+        st.info("Selecione um jogador.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    player = (xp_by_id or {}).get(str(player_id)) or progression_by_id.get(str(player_id))
+    if not player:
+        st.warning("Não foi possível carregar o jogador selecionado.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    if view_type == xstats.MAPS_TAB_VIEW_PASS_MAP:
+        _render_maps_tab_pass_map(player, player_id)
+    else:
+        _render_maps_tab_scatter(
+            all_players,
+            progression_by_id,
+            xp_by_id=xp_by_id,
+            highlight_player_id=player_id,
+        )
+
+    st.markdown("---")
+    st.markdown(
+        '<div class="pa-ondemand-head">'
+        '<span class="pa-ondemand-ic"><i class="fa-solid fa-layer-group"></i></span>'
+        "xP — Maps Analysis</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<p style='color:#94a3b8;font-size:0.92rem;margin:0 0 0.75rem 0;'>"
+        "O xP mede <strong>raridade</strong>: passes que terminam em zonas pouco frequentes "
+        "valem mais. Aqui você vê <strong>onde os meio-campistas mais passam</strong> "
+        "(volume) e <strong>onde os passes são mais raros</strong> (xP médio por destino)."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+    _render_xp_maps_analysis_content()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_pa_scatter_panel(
@@ -12731,7 +12919,7 @@ def render_player_analysis_section(
 
     st.markdown('<div class="pa-shell">', unsafe_allow_html=True)
 
-    player_id, show_scatter, show_maps = _render_pa_filter_card(
+    player_id = _render_pa_filter_card(
         all_players,
         progression_by_id,
         xp_by_id=xp_by_id,
@@ -12788,33 +12976,6 @@ def render_player_analysis_section(
         confidence_minutes=RATING_CONFIDENCE_MINUTES,
         confidence_passes=RATING_CONFIDENCE_PASSES,
     )
-
-    if show_scatter:
-        st.markdown("---")
-        st.markdown(
-            '<div class="pa-ondemand-head">'
-            '<span class="pa-ondemand-ic"><i class="fa-solid fa-braille"></i></span>'
-            "Scatter — comparação com todos os meio-campistas</div>",
-            unsafe_allow_html=True,
-        )
-        # Scatter always compares the full pool: the filter bar only drives the
-        # player pick and the profile above, never the comparison universe.
-        _render_pa_scatter_panel(
-            all_players,
-            progression_by_id,
-            xp_by_id=xp_by_id,
-            highlight_player_id=player_id,
-        )
-
-    if show_maps:
-        st.markdown("---")
-        st.markdown(
-            '<div class="pa-ondemand-head">'
-            '<span class="pa-ondemand-ic"><i class="fa-solid fa-location-dot"></i></span>'
-            f"Mapas de passe — {html.escape(str(player.get('player_name', '—')))}</div>",
-            unsafe_allow_html=True,
-        )
-        _render_pa_maps_panel(player, player_id)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -13665,256 +13826,9 @@ def _render_similarity_results_tab(
     )
 
 
-def _similarity_pool_options(
-    all_players: list[dict],
-    progression_by_id: dict[str, dict],
-    *,
-    xp_by_id: dict[str, dict] | None,
-    league: str,
-    age_min: int | None,
-    age_max: int | None,
-    age_slider_min: int,
-    age_slider_max: int,
-    foot: str,
-    value_min_eur: int,
-    value_max_eur: int,
-    contract_year_min: int,
-    contract_year_max: int,
-    allowed_nationalities: set[str] | None,
-) -> list[tuple]:
-    pool = _filter_pa_pool(
-        all_players,
-        progression_by_id,
-        league=league,
-        age_min=age_min,
-        age_max=age_max,
-        age_slider_min=age_slider_min,
-        age_slider_max=age_slider_max,
-        foot=foot,
-        value_min_eur=value_min_eur,
-        value_max_eur=value_max_eur,
-        contract_year_min=contract_year_min,
-        contract_year_max=contract_year_max,
-        allowed_nationalities=allowed_nationalities,
-    )
-    all_codes, all_groups = _all_position_filters()
-    return _player_analysis_options(
-        pool,
-        progression_by_id,
-        position_codes=all_codes,
-        position_groups=all_groups,
-        xp_by_id=xp_by_id,
-        sort_by="xp_pass_rating",
-    )
-
-
-def _render_similarity_filter_header(
-    all_players: list[dict],
-    progression_by_id: dict[str, dict],
-    *,
-    xp_by_id: dict[str, dict] | None,
-) -> tuple[list[tuple], str | None]:
-    with st.container(key="sim_filter_card"):
-        st.markdown(
-            '<div class="pa-filter-head">'
-            '<span class="pa-filter-title">'
-            '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
-            '<span class="pa-filter-sub">Refine o grupo de meio-campistas e selecione o jogador '
-            "de referência para ver atletas similares.</span>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
-        filters = _render_pool_filter_controls(
-            league_key=PA_SIM_FILTER_LEAGUE_KEY,
-            age_band_key=PA_SIM_FILTER_AGE_KEY,
-            age_slider_key=PA_SIM_FILTER_AGE_SLIDER_KEY,
-            foot_key=PA_SIM_FILTER_FOOT_KEY,
-            value_slider_key=PA_SIM_FILTER_VALUE_SLIDER_KEY,
-            contract_year_key=PA_SIM_FILTER_CONTRACT_YEAR_KEY,
-            nationality_regions_key=PA_SIM_FILTER_NATIONALITY_REGIONS_KEY,
-            nationality_countries_key=PA_SIM_FILTER_NATIONALITY_COUNTRIES_KEY,
-            available_nationalities=_available_nationalities_from_players(all_players),
-            clear_button_key="sim_filter_clear",
-        )
-
-        options = _similarity_pool_options(
-            all_players,
-            progression_by_id,
-            xp_by_id=xp_by_id,
-            **filters,
-        )
-
-        player_id: str | None = None
-        if not options:
-            st.selectbox("Jogador", options=["—"], disabled=True, key="sim_player_empty")
-        else:
-            labels = [opt[3] for opt in options]
-            id_by_label = {opt[3]: opt[0] for opt in options}
-            if st.session_state.get(PA_SIM_FILTER_PLAYER_KEY) not in labels:
-                st.session_state[PA_SIM_FILTER_PLAYER_KEY] = labels[0]
-            selected_label = st.selectbox(
-                "Jogador",
-                options=labels,
-                key=PA_SIM_FILTER_PLAYER_KEY,
-            )
-            player_id = id_by_label.get(selected_label)
-
-    return options, player_id
-
-
-def _similarity_results_dataframe(results: list[dict], *, include_origin: bool = False):
-    import pandas as pd
-
-    rows = []
-    for rank, row in enumerate(results, start=1):
-        entry = {
-            "#": rank,
-            "Sim.": f"{row.get('similarity_pct', 0):.1f}%",
-            "Jogador": row.get("player_name", "—"),
-            "Equipa": row.get("team", "—"),
-            "Valor": row.get("market_value_display", "—"),
-            "xP passe": (
-                f"{float(row['xp_pass_rating']):.2f}"
-                if row.get("xp_pass_rating") is not None
-                else "—"
-            ),
-        }
-        if include_origin:
-            entry["Origem dominante"] = row.get("origin_dominant", "—")
-        rows.append(entry)
-    return pd.DataFrame(rows)
-
-
-def _format_alt_metric_value(label: str, value: float) -> str:
-    if "COE" in label:
-        return f"{value:+.1f}pp"
-    if label in {"xPV / jogo", "xPV / passe"}:
-        return f"{value:.3f}"
-    return f"{value:.2f}"
-
-
-def render_similarity_section(
-    all_players: list[dict],
-    passes_by_player: dict,
-    progression_by_id: dict[str, dict],
-    pass_by_id: dict[str, dict],
-    *,
-    xp_by_id: dict[str, dict] | None = None,
-) -> None:
-    if not all_players:
-        st.info("No players available.")
-        return
-    if not xp_by_id:
-        st.info("xP metrics unavailable for similarity.")
-        return
-
-    st.markdown('<div class="cmp-shell">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="pa-compare-hero cmp-compare-hero">'
-        '<span class="pa-compare-hero-icon"><i class="fa-solid fa-people-arrows"></i></span>'
-        '<span class="pa-compare-hero-text">'
-        '<span class="pa-compare-hero-title">Similaridade</span>'
-        '<span class="pa-compare-hero-sub">Dois modelos independentes: métricas alternativas e heatmap de origem dos passes</span>'
-        "</span>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-    options, target_id = _render_similarity_filter_header(
-        all_players,
-        progression_by_id,
-        xp_by_id=xp_by_id,
-    )
-    if not options or not target_id:
-        st.info("Nenhum jogador disponível para os filtros selecionados.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    similarity_pool = esim.build_similarity_pool(all_players, xp_by_id, pass_by_id=pass_by_id)
-    target = next(
-        (player for player in similarity_pool if str(player["player_id"]) == str(target_id)),
-        None,
-    )
-    if target is None:
-        st.warning(
-            "O jogador selecionado não está no pool elegível de similaridade "
-            "(precisa de xP profile completo e todas as métricas alternativas)."
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    with st.spinner("A calcular similaridades…"):
-        alt_results = esim.knn_alt_metrics_similarity(
-            target,
-            similarity_pool,
-            top_k=SIMILARITY_TOP_K,
-        )
-        heat_results = esim.heatmap_similarity(
-            target,
-            similarity_pool,
-            passes_by_player,
-            top_k=SIMILARITY_TOP_K,
-        )
-
-    target_name = html.escape(str(target.get("player_name", "—")))
-    target_team = html.escape(str(target.get("team", "—")))
-    target_mv = html.escape(str(target.get("market_value") or "—"))
-    st.markdown(
-        f"**Referência:** {target_name} · {target_team} · {target_mv} · "
-        f"pool de **{len(similarity_pool)}** meio-campistas elegíveis.",
-        unsafe_allow_html=True,
-    )
-
-    metric_bits = [
-        f"{label} {_format_alt_metric_value(label, value)}"
-        for label, value in esim.metric_snapshot(target).items()
-    ]
-    st.caption(" · ".join(metric_bits))
-
-    col_alt, col_heat = st.columns(2, gap="medium")
-    with col_alt:
-        st.markdown("#### Métricas alternativas")
-        st.caption(
-            "k-NN em z-scores: % longos, % progressivos, Impact v2/passe, xPV/passe, "
-            "xPV/jogo, COE e COE long passes."
-        )
-        if alt_results:
-            st.dataframe(
-                _similarity_results_dataframe(alt_results),
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.info("Sem resultados para métricas alternativas.")
-
-    with col_heat:
-        st.markdown("#### Heatmap (origem dos passes)")
-        st.caption("Similaridade de cosseno entre grelhas 8×6 de origem dos passes completados.")
-        if heat_results:
-            st.dataframe(
-                _similarity_results_dataframe(heat_results, include_origin=True),
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.info("Sem dados de heatmap para este jogador.")
-
-    with st.expander("Métricas usadas em cada modelo"):
-        st.markdown("**Métricas alternativas**")
-        st.write(", ".join(label for _, label in esim.ALT_METRICS))
-        st.markdown("**Heatmap**")
-        st.write(
-            f"Grelha {sim.ORIGIN_GRID_COLS}×{sim.ORIGIN_GRID_ROWS} de origem dos passes "
-            "(coordenadas StatsBomb), normalizada e comparada por cosseno."
-        )
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
 def main() -> None:
-    tab_pres, tab_profile, tab_compare, tab_similarity, tab_xp_maps = st.tabs(
-        ["Overview", "Player Profile", "Compare", "Similarity", "xP - Maps Analysis"]
+    tab_pres, tab_profile, tab_compare, tab_maps = st.tabs(
+        ["Overview", "Player Profile", "Compare", "Maps"]
     )
     with tab_pres:
         render_presentation_tab([], {}, {}, {}, rated=[], xp_players=[])
@@ -13964,29 +13878,25 @@ def main() -> None:
                 _cmp_players_by_id,
                 xp_by_id=cmp_xp_by_id,
             )
-    with tab_similarity:
-        bundle = _european_midfielder_bundle_or_prompt(button_key="load_sim_bundle")
+    with tab_maps:
+        bundle = _european_midfielder_bundle_or_prompt(button_key="load_maps_bundle")
         if bundle:
             (
-                sim_players,
-                sim_passes_by_player,
-                sim_progression_by_id,
-                sim_players_by_id,
-                _sim_carries_by_id,
-                _sim_progression_pool,
-                _sim_pool,
-                _sim_carries_pool,
-                sim_xp_by_id,
+                maps_players,
+                _maps_passes_by_player,
+                maps_progression_by_id,
+                _maps_players_by_id,
+                _maps_carries_by_id,
+                _maps_progression_pool,
+                _maps_pool,
+                _maps_carries_pool,
+                maps_xp_by_id,
             ) = bundle
-            render_similarity_section(
-                sim_players,
-                sim_passes_by_player,
-                sim_progression_by_id,
-                sim_players_by_id,
-                xp_by_id=sim_xp_by_id,
+            render_maps_tab_section(
+                maps_players,
+                maps_progression_by_id,
+                xp_by_id=maps_xp_by_id,
             )
-    with tab_xp_maps:
-        render_xp_maps_analysis_tab()
 
 
 main()
