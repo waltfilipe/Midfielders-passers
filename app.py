@@ -34,6 +34,17 @@ def _load_passes_engine():
     return module
 
 
+_PASSES_ENGINE_ANALYSIS = None
+
+
+def _passes_engine_for_analysis():
+    """Explicit passes_engine for European position-family loads (lazy, cloud-safe)."""
+    global _PASSES_ENGINE_ANALYSIS
+    if _PASSES_ENGINE_ANALYSIS is None:
+        _PASSES_ENGINE_ANALYSIS = _load_passes_engine()
+    return _PASSES_ENGINE_ANALYSIS
+
+
 def _load_similarity_engine():
     """Load local similarity_engine.py explicitly (avoids path/shadowing on Streamlit Cloud)."""
     import importlib.util
@@ -157,7 +168,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-pe = _load_passes_engine()
+import passes_engine as pe
 from heuristic_scoring import GROUP_COLORS, position_group_label, rating_position_group
 sim = _load_similarity_engine()
 from comparison_config import (
@@ -6714,7 +6725,7 @@ def _call_load_european_passes_grouped(
     classification_model: str,
     xt_surface_mode: str,
 ):
-    return pe.load_european_league_passes_grouped(
+    return _passes_engine_for_analysis().load_european_league_passes_grouped(
         cache_version,
         position_family,
         tier_model=tier_model,
@@ -6750,7 +6761,7 @@ def load_player_analysis_players(
     xt_surface_mode: str = FIXED_XT_SURFACE_MODE,
 ):
     family = pf.normalize_position_family(position_family)
-    return pe.build_european_league_players(
+    return _passes_engine_for_analysis().build_european_league_players(
         family,
         _cache_version,
         tier_model=normalize_tier_model(tier_model),
@@ -6772,7 +6783,7 @@ def load_player_analysis_bundle(
 ):
     """Single cached load for one European position family."""
     family = pf.normalize_position_family(position_family)
-    analysis_players = pe.build_european_league_players(family, _pass_cache)
+    analysis_players = _passes_engine_for_analysis().build_european_league_players(family, _pass_cache)
     passes_by_player = load_player_analysis_passes(family, _pass_cache)
     empty_carries: dict[str, pd.DataFrame] = {}
     if family == "midfielders":
