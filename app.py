@@ -160,6 +160,7 @@ from passes_maps import (
 )
 import carries_engine as ce
 import midfield_origin as mo
+import position_families as pf
 import nationality_groups as ng
 import player_profiles as pp
 import transfermarkt_profiles as tm
@@ -253,6 +254,8 @@ PA_COMPARE_FILTER_NATIONALITY_REGIONS_KEY = "cmp_filter_nationality_regions"
 PA_COMPARE_FILTER_NATIONALITY_COUNTRIES_KEY = "cmp_filter_nationality_countries"
 PA_COMPARE_PLAYER_A_KEY = "cmp_filter_player_a"
 PA_COMPARE_PLAYER_B_KEY = "cmp_filter_player_b"
+PA_COMPARE_POSITION_FAMILY_KEY = "cmp_position_family"
+MAPS_TAB_POSITION_FAMILY_KEY = "maps_tab_position_family"
 MAPS_TAB_PLAYER_KEY = "maps_tab_player"
 MAPS_TAB_VIEW_KEY = "maps_tab_view"
 MAPS_TAB_SCATTER_X_KEY = "maps_tab_scatter_x"
@@ -6688,33 +6691,32 @@ def load_core_data(
 
 def _call_load_european_passes_grouped(
     cache_version: int,
+    position_family: str,
     tier_model: str,
     classification_model: str,
     xt_surface_mode: str,
 ):
-    sig = inspect.signature(pe.load_european_league_passes_grouped)
-    params = sig.parameters
-    kwargs: dict = {}
-    if "tier_model" in params:
-        kwargs["tier_model"] = tier_model
-    if "classification_model" in params:
-        kwargs["classification_model"] = classification_model
-    if "xt_surface_mode" in params:
-        kwargs["xt_surface_mode"] = xt_surface_mode
-    if kwargs:
-        return pe.load_european_league_passes_grouped(cache_version, **kwargs)
-    return pe.load_european_league_passes_grouped(cache_version)
+    return pe.load_european_league_passes_grouped(
+        cache_version,
+        position_family,
+        tier_model=tier_model,
+        classification_model=classification_model,
+        xt_surface_mode=xt_surface_mode,
+    )
 
 
 @st.cache_data(show_spinner=False)
 def load_player_analysis_passes(
+    position_family: str,
     _cache_version: int = DATA_CACHE_VERSION,
     tier_model: str = TIER_MODEL_DEFAULT,
     classification_model: str = CLASSIFICATION_MODEL_DEFAULT,
     xt_surface_mode: str = FIXED_XT_SURFACE_MODE,
 ):
+    family = pf.normalize_position_family(position_family)
     return _call_load_european_passes_grouped(
         _cache_version,
+        family,
         normalize_tier_model(tier_model),
         normalize_classification_model(classification_model),
         normalize_xt_surface_mode(xt_surface_mode),
@@ -6723,12 +6725,15 @@ def load_player_analysis_passes(
 
 @st.cache_data(show_spinner=False)
 def load_player_analysis_players(
+    position_family: str,
     _cache_version: int = DATA_CACHE_VERSION,
     tier_model: str = TIER_MODEL_DEFAULT,
     classification_model: str = CLASSIFICATION_MODEL_DEFAULT,
     xt_surface_mode: str = FIXED_XT_SURFACE_MODE,
 ):
-    return pe.build_european_league_midfielders(
+    family = pf.normalize_position_family(position_family)
+    return pe.build_european_league_players(
+        family,
         _cache_version,
         tier_model=normalize_tier_model(tier_model),
         classification_model=normalize_classification_model(classification_model),
@@ -6736,21 +6741,28 @@ def load_player_analysis_players(
     )
 
 
-@st.cache_data(show_spinner="Loading European midfielders…")
+def _bundle_session_key(position_family: str) -> str:
+    return f"player_analysis_bundle_{pf.normalize_position_family(position_family)}"
+
+
+@st.cache_data(show_spinner=False)
 def load_player_analysis_bundle(
+    position_family: str,
     _pass_cache: int = DATA_CACHE_VERSION,
     _xp_cache: int = XP_DATA_CACHE_VERSION,
     _carry_cache: int = CARRIES_DATA_CACHE_VERSION,
 ):
-    """Single cached load for Player Analysis (European-league midfielders)."""
-    analysis_players = pe.build_european_league_midfielders(_pass_cache)
-    passes_by_player = load_player_analysis_passes(_pass_cache)
+    """Single cached load for one European position family."""
+    family = pf.normalize_position_family(position_family)
+    analysis_players = pe.build_european_league_players(family, _pass_cache)
+    passes_by_player = load_player_analysis_passes(family, _pass_cache)
     empty_carries: dict[str, pd.DataFrame] = {}
-    analysis_players = mo.apply_midfield_position_groups(
-        analysis_players,
-        passes_by_player,
-        empty_carries,
-    )
+    if family == "midfielders":
+        analysis_players = mo.apply_midfield_position_groups(
+            analysis_players,
+            passes_by_player,
+            empty_carries,
+        )
     _, players_by_id, pool_by_position = compute_pass_ratings(analysis_players)
     carries_by_id: dict[str, dict] = {}
     carries_pool_by_position: dict[str, list[dict]] = {}
@@ -6760,11 +6772,15 @@ def load_player_analysis_bundle(
         pass_by_id=players_by_id,
         carry_by_id=carries_by_id,
     )
-    _, xp_players = xe.build_european_league_xp_analytics(_xp_cache)
+    _, xp_players = xe.build_european_league_xp_analytics(
+        _xp_cache,
+        position_family=family,
+    )
 
     origin_by_id = {
         str(p["player_id"]): {
             "position_group": p.get("position_group"),
+            "position_family": family,
             "midfield_offensive_origin_pct": p.get("midfield_offensive_origin_pct"),
             "midfield_origin_profile": p.get("midfield_origin_profile"),
             "league": p.get("league"),
@@ -6774,6 +6790,7 @@ def load_player_analysis_bundle(
     }
     for player in analysis_players:
         pid = str(player["player_id"])
+        player["position_family"] = family
         player["age"] = pp.read_cached_age(pid)
         player["height"] = pp.read_cached_height_display(pid)
         player["nationality"] = pp.read_cached_nationality(pid)
@@ -6784,6 +6801,7 @@ def load_player_analysis_bundle(
         player["photo_url"] = pp.read_cached_photo_url(pid)
     for xp_profile in xp_players:
         pid = str(xp_profile["player_id"])
+        xp_profile["position_family"] = family
         xp_profile["age"] = pp.read_cached_age(pid)
         xp_profile["height"] = pp.read_cached_height_display(pid)
         xp_profile["nationality"] = pp.read_cached_nationality(pid)
@@ -6799,10 +6817,12 @@ def load_player_analysis_bundle(
             xp_profile["position_group"] = origin.get("position_group") or xp_profile.get("position_group")
             xp_profile["midfield_offensive_origin_pct"] = origin.get("midfield_offensive_origin_pct")
             xp_profile["midfield_origin_profile"] = origin.get("midfield_origin_profile")
-    xe.refresh_xp_midfield_origin_rankings(xp_players)
+    if family == "midfielders":
+        xe.refresh_xp_midfield_origin_rankings(xp_players)
     xp_by_id = {str(p["player_id"]): p for p in xp_players}
     for prof in progression_by_id.values():
         pid = str(prof.get("player_id"))
+        prof["position_family"] = family
         prof["age"] = pp.read_cached_age(pid)
         prof["height"] = pp.read_cached_height_display(pid)
         prof["nationality"] = pp.read_cached_nationality(pid)
@@ -6816,6 +6836,7 @@ def load_player_analysis_bundle(
             prof.setdefault("league", origin.get("league"))
             prof.setdefault("league_source", origin.get("league_source"))
     return (
+        family,
         analysis_players,
         passes_by_player,
         progression_by_id,
@@ -6828,21 +6849,100 @@ def load_player_analysis_bundle(
     )
 
 
-PLAYER_ANALYSIS_BUNDLE_KEY = "player_analysis_bundle"
-EUROPEAN_MIDFIELDER_LOAD_MSG = (
-    "Premier League, Serie A (Italy), La Liga, Bundesliga and Ligue 1 midfielders. "
-    "Load this pool on demand to keep the app startup light."
+EUROPEAN_POSITION_LOAD_MSG = (
+    "Premier League, Serie A (Italy), La Liga, Bundesliga e Ligue 1. "
+    "Carregue cada posição sob demanda para manter o app leve."
 )
 
 
-def _european_midfielder_bundle_or_prompt(*, button_key: str) -> tuple | None:
-    if PLAYER_ANALYSIS_BUNDLE_KEY not in st.session_state:
-        st.info(f"**European midfielders** — {EUROPEAN_MIDFIELDER_LOAD_MSG}")
-        if st.button("Load European midfielders", key=button_key, type="primary"):
-            st.session_state[PLAYER_ANALYSIS_BUNDLE_KEY] = load_player_analysis_bundle()
+def _european_position_bundle_or_prompt(
+    position_family: str,
+    *,
+    button_key: str,
+) -> tuple | None:
+    family = pf.normalize_position_family(position_family)
+    label = pf.position_family_label(family)
+    session_key = _bundle_session_key(family)
+    if session_key not in st.session_state:
+        st.info(f"**{label}** — {EUROPEAN_POSITION_LOAD_MSG}")
+        if st.button(f"Carregar {label.lower()}", key=button_key, type="primary"):
+            with st.spinner(f"A carregar {label.lower()}…"):
+                st.session_state[session_key] = load_player_analysis_bundle(family)
             st.rerun()
         return None
-    return st.session_state[PLAYER_ANALYSIS_BUNDLE_KEY]
+    return st.session_state[session_key]
+
+
+def _unpack_position_bundle(bundle: tuple) -> tuple:
+    (
+        _family,
+        players,
+        passes_by_player,
+        progression_by_id,
+        players_by_id,
+        carries_by_id,
+        progression_pool_by_position,
+        pool_by_position,
+        carries_pool_by_position,
+        xp_by_id,
+    ) = bundle
+    return (
+        players,
+        passes_by_player,
+        progression_by_id,
+        players_by_id,
+        carries_by_id,
+        progression_pool_by_position,
+        pool_by_position,
+        carries_pool_by_position,
+        xp_by_id,
+    )
+
+
+def _render_position_profile_tab(position_family: str, *, button_key: str) -> None:
+    bundle = _european_position_bundle_or_prompt(position_family, button_key=button_key)
+    if not bundle:
+        return
+    (
+        players,
+        passes_by_player,
+        progression_by_id,
+        players_by_id,
+        carries_by_id,
+        progression_pool_by_position,
+        pool_by_position,
+        carries_pool_by_position,
+        xp_by_id,
+    ) = _unpack_position_bundle(bundle)
+    render_player_analysis_section(
+        players,
+        passes_by_player,
+        progression_by_id,
+        players_by_id,
+        carries_by_id,
+        progression_pool_by_position,
+        pool_by_position,
+        carries_pool_by_position,
+        position_family=position_family,
+        xp_by_id=xp_by_id,
+    )
+
+
+def _render_position_family_picker(
+    *,
+    widget_key: str,
+    label: str = "Posição",
+) -> str:
+    options = [key for key, _label in pf.EUROPEAN_POSITION_FAMILIES]
+    labels = {key: text for key, text in pf.EUROPEAN_POSITION_FAMILIES}
+    if st.session_state.get(widget_key) not in options:
+        st.session_state[widget_key] = options[0]
+    return st.selectbox(
+        label,
+        options=options,
+        format_func=lambda key: labels[key],
+        key=widget_key,
+    )
 
 
 def _norm(s: str) -> str:
@@ -7318,6 +7418,15 @@ def _all_position_filters() -> tuple[frozenset[str], frozenset[str]]:
         if rating_group:
             groups.add(rating_group)
     return frozenset(codes), frozenset(groups)
+
+
+def _position_filters_for_family(
+    position_family: str,
+) -> tuple[frozenset[str], frozenset[str]]:
+    family = pf.normalize_position_family(position_family)
+    if family == "midfielders":
+        return _all_position_filters()
+    return frozenset(), pf.rating_groups_for_family(family)
 
 
 def _render_player_only_slicer(
@@ -11997,15 +12106,17 @@ def _render_pa_filter_card(
     progression_by_id: dict[str, dict],
     *,
     xp_by_id: dict[str, dict] | None,
+    position_family: str,
 ) -> str | None:
     """Full-width horizontal filter bar: league, age, foot, sliders, player."""
+    family_label = pf.position_family_label(position_family)
     with st.container(key="pa_filter_card"):
         st.markdown(
             '<div class="pa-filter-head">'
             '<span class="pa-filter-title">'
             '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
-            '<span class="pa-filter-sub">Refine o grupo de meio-campistas e selecione o jogador '
-            "para ver o perfil (aba Player Profile).</span>"
+            f'<span class="pa-filter-sub">Refine o grupo de {html.escape(family_label.lower())} '
+            "e selecione o jogador para ver o perfil.</span>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -12024,12 +12135,12 @@ def _render_pa_filter_card(
         )
 
         pool = _filter_pa_pool(all_players, progression_by_id, **filters)
-        all_codes, all_groups = _all_position_filters()
+        position_codes, position_groups = _position_filters_for_family(position_family)
         options = _player_analysis_options(
             pool,
             progression_by_id,
-            position_codes=all_codes,
-            position_groups=all_groups,
+            position_codes=position_codes,
+            position_groups=position_groups,
             xp_by_id=xp_by_id,
         )
 
@@ -12056,6 +12167,7 @@ def _compare_pool_options(
     progression_by_id: dict[str, dict],
     *,
     xp_by_id: dict[str, dict] | None,
+    position_family: str,
     league: str,
     age_min: int | None,
     age_max: int | None,
@@ -12083,7 +12195,7 @@ def _compare_pool_options(
         contract_year_max=contract_year_max,
         allowed_nationalities=allowed_nationalities,
     )
-    all_codes, all_groups = _all_position_filters()
+    all_codes, all_groups = _position_filters_for_family(position_family)
     return _player_analysis_options(
         pool,
         progression_by_id,
@@ -12099,15 +12211,17 @@ def _render_compare_filter_header(
     progression_by_id: dict[str, dict],
     *,
     xp_by_id: dict[str, dict] | None,
+    position_family: str,
 ) -> list[tuple]:
     """Full-width horizontal filter bar for Compare (same filters as Player Profile)."""
+    family_label = pf.position_family_label(position_family)
     with st.container(key="cmp_filter_card"):
         st.markdown(
             '<div class="pa-filter-head">'
             '<span class="pa-filter-title">'
             '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
-            '<span class="pa-filter-sub">Refine o grupo de meio-campistas e compare dois jogadores '
-            "lado a lado.</span>"
+            f'<span class="pa-filter-sub">Refine o grupo de {html.escape(family_label.lower())} '
+            "e compare dois jogadores da mesma posição.</span>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -12129,6 +12243,7 @@ def _render_compare_filter_header(
         all_players,
         progression_by_id,
         xp_by_id=xp_by_id,
+        position_family=position_family,
         **filters,
     )
 
@@ -12163,10 +12278,12 @@ def render_compare_section(
     progression_by_id: dict[str, dict],
     pass_by_id: dict[str, dict],
     *,
+    position_family: str,
     xp_by_id: dict[str, dict] | None = None,
     fmt_pct_fn=pg_fmt_pct,
 ) -> None:
     """Compare tab: filter header + three columns (player, metrics, player)."""
+    family_label = pf.position_family_label(position_family)
     if not all_players:
         st.info("No players available.")
         return
@@ -12180,7 +12297,8 @@ def render_compare_section(
         '<span class="pa-compare-hero-icon"><i class="fa-solid fa-code-compare"></i></span>'
         '<span class="pa-compare-hero-text">'
         '<span class="pa-compare-hero-title">Compare players</span>'
-        '<span class="pa-compare-hero-sub">Filtre o grupo e compare perfis lado a lado</span>'
+        '<span class="pa-compare-hero-sub">Filtre o grupo de '
+        f'{html.escape(family_label.lower())} e compare perfis lado a lado</span>'
         "</span>"
         "</div>",
         unsafe_allow_html=True,
@@ -12190,6 +12308,7 @@ def render_compare_section(
         all_players,
         progression_by_id,
         xp_by_id=xp_by_id,
+        position_family=position_family,
     )
     if not options:
         st.info("Nenhum jogador disponível para os filtros selecionados.")
@@ -12297,18 +12416,24 @@ def render_compare_section(
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-@st.cache_data(show_spinner="Carregando mapas de passe…")
-def load_player_analysis_xp_passes(_cache_version: int = XP_DATA_CACHE_VERSION):
-    return xe.load_european_league_xp_passes_grouped(_cache_version)
+@st.cache_data(show_spinner=False)
+def load_player_analysis_xp_passes(
+    position_family: str,
+    _cache_version: int = XP_DATA_CACHE_VERSION,
+):
+    family = pf.normalize_position_family(position_family)
+    return xe.load_european_league_xp_passes_grouped(family, _cache_version)
 
 
-@st.cache_data(show_spinner="Agregando passes dos meio-campistas…")
-def load_midfielder_pass_maps_analysis(
+@st.cache_data(show_spinner=False)
+def load_position_pass_maps_analysis(
+    position_family: str,
     top_n: int,
     _xp_cache: int = XP_DATA_CACHE_VERSION,
 ) -> dict:
-    """Aggregate destination volume and mean xP for the top-N midfielders by passes."""
-    season = xe.load_european_league_season_passes(_xp_cache)
+    """Aggregate destination volume and mean xP for the top-N players in one family."""
+    family = pf.normalize_position_family(position_family)
+    season = xe.load_european_league_season_passes(family, _xp_cache)
     if season is None or season.empty:
         return {
             "count_grid": None,
@@ -12330,15 +12455,15 @@ def load_midfielder_pass_maps_analysis(
             "min_passes_cutoff": 0,
         }
 
-    pool = _top_midfielder_pass_pool(completed, top_n)
+    pool = _top_position_pass_pool(completed, top_n)
     agg = xpe.aggregate_pass_destination_grids(pool["passes"])
     agg["player_count"] = pool["player_count"]
     agg["min_passes_cutoff"] = pool["min_passes_cutoff"]
     return agg
 
 
-def _top_midfielder_pass_pool(completed: pd.DataFrame, top_n: int) -> dict:
-    """Completed passes restricted to the top-N midfielders by pass volume."""
+def _top_position_pass_pool(completed: pd.DataFrame, top_n: int) -> dict:
+    """Completed passes restricted to the top-N players by pass volume."""
     pass_counts = (
         completed.groupby("player_id", sort=False)
         .size()
@@ -12353,21 +12478,23 @@ def _top_midfielder_pass_pool(completed: pd.DataFrame, top_n: int) -> dict:
     }
 
 
-@st.cache_data(show_spinner="Agregando rotas por célula do grid…")
-def load_midfielder_cell_heatmaps(
+@st.cache_data(show_spinner=False)
+def load_position_cell_heatmaps(
+    position_family: str,
     top_n: int,
     _xp_cache: int = XP_DATA_CACHE_VERSION,
     _map_cache: int = INTERACTIVE_CELL_MAP_CACHE_VERSION,
 ) -> dict:
     """Destination heatmaps (volume and mean xP) for passes leaving each 12x8 cell."""
     _ = _map_cache
-    season = xe.load_european_league_season_passes(_xp_cache)
+    family = pf.normalize_position_family(position_family)
+    season = xe.load_european_league_season_passes(family, _xp_cache)
     if season is None or season.empty:
         return {}
     completed = season[season["is_won"] & season["has_end"]]
     if completed.empty:
         return {}
-    pool = _top_midfielder_pass_pool(completed, top_n)
+    pool = _top_position_pass_pool(completed, top_n)
     return xpe.build_player_cell_heatmap_bundle(pool["passes"])
 
 
@@ -12399,9 +12526,9 @@ def _fmt_int_ptbr(value: int) -> str:
     return f"{int(value):,}".replace(",", ".")
 
 
-def _render_interactive_cell_map(top_n: int) -> None:
+def _render_interactive_cell_map(top_n: int, *, position_family: str) -> None:
     """Aggregate hover map (all athletes) + per-player O→D route explorer."""
-    analysis = load_midfielder_cell_heatmaps(top_n)
+    analysis = load_position_cell_heatmaps(position_family, top_n)
     if not analysis or not analysis.get("origins"):
         st.info("Rotas por célula indisponíveis para esta base.")
         return
@@ -12443,11 +12570,13 @@ def _render_interactive_cell_map(top_n: int) -> None:
     )
 
 
-def _render_xp_maps_analysis_content() -> None:
-    """Aggregated xP midfield maps (interactive + volume/rarity heatmaps)."""
+def _render_xp_maps_analysis_content(*, position_family: str) -> None:
+    """Aggregated xP maps for one position family."""
+    family = pf.normalize_position_family(position_family)
+    family_label = pf.position_family_label(family)
 
     top_n = int(xstats.XP_PROFILE_TOP_PASS_POOL_SIZE)
-    analysis = load_midfielder_pass_maps_analysis(top_n)
+    analysis = load_position_pass_maps_analysis(family, top_n)
     count_grid = analysis.get("count_grid")
     mean_xp_grid = analysis.get("mean_xp_grid")
     total_passes = int(analysis.get("total_passes") or 0)
@@ -12455,27 +12584,29 @@ def _render_xp_maps_analysis_content() -> None:
     min_cutoff = int(analysis.get("min_passes_cutoff") or 0)
 
     if count_grid is None or mean_xp_grid is None or total_passes <= 0:
-        st.warning("Não foi possível carregar os passes dos meio-campistas para este mapa.")
+        st.warning(
+            f"Não foi possível carregar os passes dos {family_label.lower()} para este mapa."
+        )
         return
 
     st.caption(
-        f"Base: top {player_count} meio-campistas com mais passes completados "
+        f"Base: top {player_count} {family_label.lower()} com mais passes completados "
         f"(mín. {_fmt_int_ptbr(min_cutoff)} passes) · "
         f"{_fmt_int_ptbr(total_passes)} passes agregados · "
         "5 ligas europeias (PL, Serie A, La Liga, Bundesliga, Ligue 1)."
     )
 
-    _render_interactive_cell_map(top_n)
+    _render_interactive_cell_map(top_n, position_family=family)
 
     st.markdown(
         '<div class="pa-ondemand-head">'
         '<span class="pa-ondemand-ic"><i class="fa-solid fa-layer-group"></i></span>'
-        "Visão agregada — volume e raridade por destino</div>",
+        f"Visão agregada — {html.escape(family_label)}</div>",
         unsafe_allow_html=True,
     )
 
-    map_title_common = f"Passes mais comuns · destino ({player_count} MC)"
-    map_title_rare = f"Passes mais raros · xP médio no destino ({player_count} MC)"
+    map_title_common = f"Passes mais comuns · destino ({player_count} {family_label})"
+    map_title_rare = f"Passes mais raros · xP médio no destino ({player_count} {family_label})"
     fig_common = draw_midfielder_common_passes_map(
         count_grid,
         title=map_title_common,
@@ -12543,9 +12674,11 @@ def _render_maps_tab_scatter(
     all_players: list[dict],
     progression_by_id: dict[str, dict],
     *,
+    position_family: str,
     xp_by_id: dict[str, dict] | None,
     highlight_player_id: str | None,
 ) -> None:
+    family_label = pf.position_family_label(position_family)
     metric_options = xstats.maps_tab_scatter_metric_options()
     metric_keys = [key for key, _label in metric_options]
     metric_labels = {key: label for key, label in metric_options}
@@ -12556,7 +12689,7 @@ def _render_maps_tab_scatter(
             options=metric_keys,
             format_func=lambda key: metric_labels[key],
             index=0,
-            key=MAPS_TAB_SCATTER_X_KEY,
+            key=f"{MAPS_TAB_SCATTER_X_KEY}_{position_family}",
         )
     with axis_y:
         y_key = st.selectbox(
@@ -12564,16 +12697,16 @@ def _render_maps_tab_scatter(
             options=metric_keys,
             format_func=lambda key: metric_labels[key],
             index=min(1, len(metric_keys) - 1),
-            key=MAPS_TAB_SCATTER_Y_KEY,
+            key=f"{MAPS_TAB_SCATTER_Y_KEY}_{position_family}",
         )
 
-    all_codes, all_groups = _all_position_filters()
+    position_codes, position_groups = _position_filters_for_family(position_family)
     scatter_pool, _thresholds = _scatter_pool_players(
         all_players,
         progression_by_id,
         xp_by_id=xp_by_id,
-        position_codes=all_codes,
-        position_groups=all_groups,
+        position_codes=position_codes,
+        position_groups=position_groups,
     )
     if not scatter_pool:
         st.info(
@@ -12587,7 +12720,7 @@ def _render_maps_tab_scatter(
         y_key=y_key,
         x_label=xstats.maps_tab_scatter_metric_label(x_key),
         y_label=xstats.maps_tab_scatter_metric_label(y_key),
-        position_label="Meio-campistas",
+        position_label=family_label,
         highlight_player_id=highlight_player_id,
     )
     st.plotly_chart(
@@ -12596,12 +12729,17 @@ def _render_maps_tab_scatter(
         config={"displayModeBar": False, "responsive": True},
     )
     st.caption(
-        f"{len(scatter_pool)} meio-campistas elegíveis · destaque = jogador selecionado."
+        f"{len(scatter_pool)} {family_label.lower()} elegíveis · destaque = jogador selecionado."
     )
 
 
-def _render_maps_tab_pass_map(player: dict, player_id: str) -> None:
-    xp_passes_by_player = load_player_analysis_xp_passes()
+def _render_maps_tab_pass_map(
+    player: dict,
+    player_id: str,
+    *,
+    position_family: str,
+) -> None:
+    xp_passes_by_player = load_player_analysis_xp_passes(position_family)
     pass_options = xstats.maps_tab_pass_options()
     pass_keys = [key for key, _label in pass_options]
     pass_labels = {key: label for key, label in pass_options}
@@ -12609,7 +12747,7 @@ def _render_maps_tab_pass_map(player: dict, player_id: str) -> None:
         "Tipo de passe",
         options=pass_keys,
         format_func=lambda key: pass_labels[key],
-        key=MAPS_TAB_PASS_FILTER_KEY,
+        key=f"{MAPS_TAB_PASS_FILTER_KEY}_{position_family}",
     )
     map_category_label = xstats.maps_tab_pass_label(map_filter_key)
 
@@ -12655,8 +12793,10 @@ def render_maps_tab_section(
     all_players: list[dict],
     progression_by_id: dict[str, dict],
     *,
+    position_family: str,
     xp_by_id: dict[str, dict] | None = None,
 ) -> None:
+    family_label = pf.position_family_label(position_family)
     if not all_players:
         st.info("No players available.")
         return
@@ -12670,19 +12810,19 @@ def render_maps_tab_section(
         '<span class="pa-compare-hero-icon"><i class="fa-solid fa-map-location-dot"></i></span>'
         '<span class="pa-compare-hero-text">'
         '<span class="pa-compare-hero-title">Maps</span>'
-        '<span class="pa-compare-hero-sub">Scatter ou mapa de passes por jogador, '
-        "mais a visão agregada de xP por destino</span>"
+        '<span class="pa-compare-hero-sub">Scatter ou mapa de passes por jogador · '
+        f'{html.escape(family_label)} · visão agregada de xP por destino</span>'
         "</span>"
         "</div>",
         unsafe_allow_html=True,
     )
 
-    all_codes, all_groups = _all_position_filters()
+    position_codes, position_groups = _position_filters_for_family(position_family)
     options = _player_analysis_options(
         all_players,
         progression_by_id,
-        position_codes=all_codes,
-        position_groups=all_groups,
+        position_codes=position_codes,
+        position_groups=position_groups,
         xp_by_id=xp_by_id,
         sort_by="xp_pass_rating",
     )
@@ -12696,12 +12836,12 @@ def render_maps_tab_section(
     with col_player:
         labels = [opt[3] for opt in options]
         id_by_label = {opt[3]: opt[0] for opt in options}
-        if st.session_state.get(MAPS_TAB_PLAYER_KEY) not in labels:
-            st.session_state[MAPS_TAB_PLAYER_KEY] = labels[0]
+        if st.session_state.get(f"{MAPS_TAB_PLAYER_KEY}_{position_family}") not in labels:
+            st.session_state[f"{MAPS_TAB_PLAYER_KEY}_{position_family}"] = labels[0]
         selected_label = st.selectbox(
             "Jogador",
             options=labels,
-            key=MAPS_TAB_PLAYER_KEY,
+            key=f"{MAPS_TAB_PLAYER_KEY}_{position_family}",
         )
         player_id = id_by_label.get(selected_label)
 
@@ -12713,7 +12853,7 @@ def render_maps_tab_section(
             options=view_keys,
             format_func=lambda key: view_labels[key],
             selection_mode="single",
-            key=MAPS_TAB_VIEW_KEY,
+            key=f"{MAPS_TAB_VIEW_KEY}_{position_family}",
         ) or xstats.MAPS_TAB_VIEW_SCATTER
 
     if not player_id:
@@ -12728,11 +12868,12 @@ def render_maps_tab_section(
         return
 
     if view_type == xstats.MAPS_TAB_VIEW_PASS_MAP:
-        _render_maps_tab_pass_map(player, player_id)
+        _render_maps_tab_pass_map(player, player_id, position_family=position_family)
     else:
         _render_maps_tab_scatter(
             all_players,
             progression_by_id,
+            position_family=position_family,
             xp_by_id=xp_by_id,
             highlight_player_id=player_id,
         )
@@ -12741,18 +12882,18 @@ def render_maps_tab_section(
     st.markdown(
         '<div class="pa-ondemand-head">'
         '<span class="pa-ondemand-ic"><i class="fa-solid fa-layer-group"></i></span>'
-        "xP — Maps Analysis</div>",
+        f"xP — Maps Analysis · {html.escape(family_label)}</div>",
         unsafe_allow_html=True,
     )
     st.markdown(
         "<p style='color:#94a3b8;font-size:0.92rem;margin:0 0 0.75rem 0;'>"
         "O xP mede <strong>raridade</strong>: passes que terminam em zonas pouco frequentes "
-        "valem mais. Aqui você vê <strong>onde os meio-campistas mais passam</strong> "
+        "valem mais. Aqui você vê <strong>onde estes jogadores mais passam</strong> "
         "(volume) e <strong>onde os passes são mais raros</strong> (xP médio por destino)."
         "</p>",
         unsafe_allow_html=True,
     )
-    _render_xp_maps_analysis_content()
+    _render_xp_maps_analysis_content(position_family=position_family)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -12836,7 +12977,7 @@ def _render_pa_scatter_panel(
 
 
 def _render_pa_maps_panel(player: dict, player_id: str) -> None:
-    xp_passes_by_player = load_player_analysis_xp_passes()
+    xp_passes_by_player = load_player_analysis_xp_passes("midfielders")
 
     type_col, stat_col = st.columns([1, 1], gap="medium")
     with type_col:
@@ -12911,6 +13052,7 @@ def render_player_analysis_section(
     pass_pool_by_position: dict[str, list[dict]],
     carry_pool_by_position: dict[str, list[dict]],
     *,
+    position_family: str,
     xp_by_id: dict[str, dict] | None = None,
 ) -> None:
     if not all_players:
@@ -12923,6 +13065,7 @@ def render_player_analysis_section(
         all_players,
         progression_by_id,
         xp_by_id=xp_by_id,
+        position_family=position_family,
     )
 
     if not player_id:
@@ -12951,7 +13094,7 @@ def render_player_analysis_section(
 
     origin_heatmap_b64: str | None = None
     passes_df = passes_by_player.get(player_id)
-    xp_passes_df = load_player_analysis_xp_passes().get(str(player_id))
+    xp_passes_df = load_player_analysis_xp_passes(position_family).get(str(player_id))
     if passes_df is not None and not passes_df.empty:
         fig_origin = draw_action_origin_smooth_heatmap(
             passes_df,
@@ -13827,38 +13970,35 @@ def _render_similarity_results_tab(
 
 
 def main() -> None:
-    tab_pres, tab_profile, tab_compare, tab_maps = st.tabs(
-        ["Overview", "Player Profile", "Compare", "Maps"]
+    tab_pres, tab_cb, tab_fb, tab_cm, tab_wg, tab_compare, tab_maps = st.tabs(
+        [
+            "Overview",
+            "Zagueiros",
+            "Laterais",
+            "Meio-campistas",
+            "Extremos",
+            "Compare",
+            "Maps",
+        ]
     )
     with tab_pres:
         render_presentation_tab([], {}, {}, {}, rated=[], xp_players=[])
-    with tab_profile:
-        bundle = _european_midfielder_bundle_or_prompt(button_key="load_pa_bundle")
-        if bundle:
-            (
-                pa_players,
-                pa_passes_by_player,
-                pa_progression_by_id,
-                pa_players_by_id,
-                pa_carries_by_id,
-                pa_progression_pool_by_position,
-                pa_pool_by_position,
-                pa_carries_pool_by_position,
-                pa_xp_by_id,
-            ) = bundle
-            render_player_analysis_section(
-                pa_players,
-                pa_passes_by_player,
-                pa_progression_by_id,
-                pa_players_by_id,
-                pa_carries_by_id,
-                pa_progression_pool_by_position,
-                pa_pool_by_position,
-                pa_carries_pool_by_position,
-                xp_by_id=pa_xp_by_id,
-            )
+    with tab_cb:
+        _render_position_profile_tab("centerbacks", button_key="load_cb_bundle")
+    with tab_fb:
+        _render_position_profile_tab("fullbacks", button_key="load_fb_bundle")
+    with tab_cm:
+        _render_position_profile_tab("midfielders", button_key="load_cm_bundle")
+    with tab_wg:
+        _render_position_profile_tab("wingers", button_key="load_wg_bundle")
     with tab_compare:
-        bundle = _european_midfielder_bundle_or_prompt(button_key="load_cmp_bundle")
+        compare_family = _render_position_family_picker(
+            widget_key=PA_COMPARE_POSITION_FAMILY_KEY,
+        )
+        bundle = _european_position_bundle_or_prompt(
+            compare_family,
+            button_key="load_cmp_bundle",
+        )
         if bundle:
             (
                 cmp_players,
@@ -13870,16 +14010,23 @@ def main() -> None:
                 _cmp_pool,
                 _cmp_carries_pool,
                 cmp_xp_by_id,
-            ) = bundle
+            ) = _unpack_position_bundle(bundle)
             render_compare_section(
                 cmp_players,
                 cmp_passes_by_player,
                 cmp_progression_by_id,
                 _cmp_players_by_id,
+                position_family=compare_family,
                 xp_by_id=cmp_xp_by_id,
             )
     with tab_maps:
-        bundle = _european_midfielder_bundle_or_prompt(button_key="load_maps_bundle")
+        maps_family = _render_position_family_picker(
+            widget_key=MAPS_TAB_POSITION_FAMILY_KEY,
+        )
+        bundle = _european_position_bundle_or_prompt(
+            maps_family,
+            button_key="load_maps_bundle",
+        )
         if bundle:
             (
                 maps_players,
@@ -13891,10 +14038,11 @@ def main() -> None:
                 _maps_pool,
                 _maps_carries_pool,
                 maps_xp_by_id,
-            ) = bundle
+            ) = _unpack_position_bundle(bundle)
             render_maps_tab_section(
                 maps_players,
                 maps_progression_by_id,
+                position_family=maps_family,
                 xp_by_id=maps_xp_by_id,
             )
 

@@ -861,8 +861,13 @@ def _european_league_label(league_source: str) -> str:
 
 
 def _midfielder_player_ids(frame: pd.DataFrame) -> frozenset[str]:
-    from midfield_origin import is_midfield_position_code
+    return _player_ids_for_position_family(frame, "midfielders")
 
+
+def _player_ids_for_position_family(frame: pd.DataFrame, position_family: str) -> frozenset[str]:
+    from position_families import is_position_code_in_family, normalize_position_family
+
+    family = normalize_position_family(position_family)
     work = frame.copy()
     work["player_id"] = work["player_id"].astype(str)
     if "position" not in work.columns:
@@ -874,27 +879,36 @@ def _midfielder_player_ids(frame: pd.DataFrame) -> frozenset[str]:
     return frozenset(
         str(pid)
         for pid, pos in positions.items()
-        if is_midfield_position_code(pos)
+        if is_position_code_in_family(pos, family)
     )
 
 
 def _filter_pass_frame_to_midfielders(frame: pd.DataFrame) -> pd.DataFrame:
-    mids = _midfielder_player_ids(frame)
-    if not mids:
+    return _filter_pass_frame_by_position_family(frame, "midfielders")
+
+
+def _filter_pass_frame_by_position_family(
+    frame: pd.DataFrame,
+    position_family: str,
+) -> pd.DataFrame:
+    player_ids = _player_ids_for_position_family(frame, position_family)
+    if not player_ids:
         return pd.DataFrame(columns=frame.columns)
     work = frame.copy()
     work["player_id"] = work["player_id"].astype(str)
-    return work[work["player_id"].isin(mids)].reset_index(drop=True)
+    return work[work["player_id"].isin(player_ids)].reset_index(drop=True)
 
 
-def _build_midfielders_from_enriched_frame(
+def _build_players_from_enriched_frame(
     frame: pd.DataFrame,
     passes: pd.DataFrame,
     *,
+    position_family: str,
     min_passes: int = 100,
 ) -> list[dict]:
-    from midfield_origin import is_midfield_position_code
+    from position_families import is_position_code_in_family, normalize_position_family
 
+    family = normalize_position_family(position_family)
     minutes_info = _minutes_from_passes_frame(frame)
     registry = build_player_registry(frame)
     league_by_player = (
@@ -905,7 +919,7 @@ def _build_midfielders_from_enriched_frame(
 
     players: list[dict] = []
     for player in registry:
-        if not is_midfield_position_code(player.get("position")):
+        if not is_position_code_in_family(player.get("position"), family):
             continue
         pid = player["code"]
         grp_passes = filter_live_ball_passes(passes[passes["player_id"] == pid])
@@ -919,6 +933,7 @@ def _build_midfielders_from_enriched_frame(
             "player_name": player["name"],
             "position": player.get("position", "—"),
             "position_group": rating_position_group(player.get("position")),
+            "position_family": family,
             "team": mins.get("team", "—"),
             "minutes": mins.get("minutes"),
             "minutes_pct": mins.get("minutes_pct"),
@@ -933,20 +948,41 @@ def _build_midfielders_from_enriched_frame(
     return players
 
 
+def _build_midfielders_from_enriched_frame(
+    frame: pd.DataFrame,
+    passes: pd.DataFrame,
+    *,
+    min_passes: int = 100,
+) -> list[dict]:
+    return _build_players_from_enriched_frame(
+        frame,
+        passes,
+        position_family="midfielders",
+        min_passes=min_passes,
+    )
+
+
 @functools.lru_cache(maxsize=16)
 def _european_league_enriched_bundle(
     cache_version: int = DATA_CACHE_VERSION,
+    position_family: str = "midfielders",
     tier_model: str = TIER_MODEL_DEFAULT,
     classification_model: str = CLASSIFICATION_MODEL_DEFAULT,
     xt_surface_mode: str = XT_SURFACE_MODE_DEFAULT,
     min_passes: int = 100,
 ) -> tuple[tuple[dict, ...], tuple[tuple[str, pd.DataFrame], ...]]:
-    """Single CSV read + enrich for European-league midfielder analysis."""
+    """Single CSV read + enrich for European-league players in one position family."""
+    from position_families import normalize_position_family
+
     _ = cache_version
+    family = normalize_position_family(position_family)
     tier_model = normalize_tier_model(tier_model)
     classification_model = normalize_classification_model(classification_model)
     xt_surface_mode = normalize_xt_surface_mode(xt_surface_mode)
-    frame = _filter_pass_frame_to_midfielders(_load_european_league_pass_frame())
+    frame = _filter_pass_frame_by_position_family(
+        _load_european_league_pass_frame(),
+        family,
+    )
     if frame.empty:
         return (), ()
 
@@ -961,12 +997,38 @@ def _european_league_enriched_bundle(
         classification_model=classification_model,
         xt_surface_mode=xt_surface_mode,
     )
-    players = _build_midfielders_from_enriched_frame(frame, passes, min_passes=min_passes)
+    players = _build_players_from_enriched_frame(
+        frame,
+        passes,
+        position_family=family,
+        min_passes=min_passes,
+    )
     grouped = tuple(
         (str(pid), grp.copy())
         for pid, grp in passes.groupby("player_id", sort=False)
     )
     return tuple(players), grouped
+
+
+def build_european_league_players(
+    position_family: str = "midfielders",
+    cache_version: int = DATA_CACHE_VERSION,
+    tier_model: str = TIER_MODEL_DEFAULT,
+    classification_model: str = CLASSIFICATION_MODEL_DEFAULT,
+    xt_surface_mode: str = XT_SURFACE_MODE_DEFAULT,
+    *,
+    min_passes: int = 100,
+) -> list[dict]:
+    """Player metrics from PL, Serie A, La Liga, Bundesliga and Ligue 1 for one family."""
+    players, _ = _european_league_enriched_bundle(
+        cache_version,
+        position_family,
+        tier_model=tier_model,
+        classification_model=classification_model,
+        xt_surface_mode=xt_surface_mode,
+        min_passes=min_passes,
+    )
+    return list(players)
 
 
 def build_european_league_midfielders(
@@ -978,19 +1040,20 @@ def build_european_league_midfielders(
     min_passes: int = 100,
 ) -> list[dict]:
     """Midfielder metrics from Premier League, Serie A, La Liga, Bundesliga and Ligue 1."""
-    players, _ = _european_league_enriched_bundle(
+    return build_european_league_players(
+        "midfielders",
         cache_version,
         tier_model=tier_model,
         classification_model=classification_model,
         xt_surface_mode=xt_surface_mode,
         min_passes=min_passes,
     )
-    return list(players)
 
 
 @functools.lru_cache(maxsize=16)
 def load_european_league_passes_grouped(
     cache_version: int = DATA_CACHE_VERSION,
+    position_family: str = "midfielders",
     tier_model: str = TIER_MODEL_DEFAULT,
     classification_model: str = CLASSIFICATION_MODEL_DEFAULT,
     xt_surface_mode: str = XT_SURFACE_MODE_DEFAULT,
@@ -998,6 +1061,7 @@ def load_european_league_passes_grouped(
     """Enriched European-league passes indexed by player_id."""
     _, grouped = _european_league_enriched_bundle(
         cache_version,
+        position_family,
         tier_model=tier_model,
         classification_model=classification_model,
         xt_surface_mode=xt_surface_mode,

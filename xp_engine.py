@@ -91,6 +91,24 @@ XP_META_PATH = DATA_DIR / "xp_season_meta.json"
 XP_EUROPEAN_META_PATH = DATA_DIR / "xp_european_meta.json"
 
 
+def european_passes_parquet_path(position_family: str = "midfielders") -> Path:
+    from position_families import normalize_position_family
+
+    family = normalize_position_family(position_family)
+    if family == "midfielders":
+        return XP_EUROPEAN_PASSES_PARQUET
+    return DATA_DIR / f"xp_passes_european_{family}.parquet"
+
+
+def european_passes_meta_path(position_family: str = "midfielders") -> Path:
+    from position_families import normalize_position_family
+
+    family = normalize_position_family(position_family)
+    if family == "midfielders":
+        return XP_EUROPEAN_META_PATH
+    return DATA_DIR / f"xp_european_meta_{family}.json"
+
+
 def _n_origin_cells() -> int:
     return GRID.od_origin_rows * GRID.od_origin_cols
 
@@ -694,10 +712,17 @@ def _build_season_passes_from_frame(
 
 def build_european_league_season_passes(
     *,
+    position_family: str = "midfielders",
     force_artifacts: bool = False,
     refit_artifacts: bool | None = None,
 ) -> pd.DataFrame:
-    frame = pe._filter_pass_frame_to_midfielders(pe._load_european_league_pass_frame())
+    from position_families import normalize_position_family
+
+    family = normalize_position_family(position_family)
+    frame = pe._filter_pass_frame_by_position_family(
+        pe._load_european_league_pass_frame(),
+        family,
+    )
     season = _build_season_passes_from_frame(
         frame,
         force_artifacts=force_artifacts,
@@ -706,10 +731,13 @@ def build_european_league_season_passes(
     )
     if season.empty:
         return season
+    parquet_path = european_passes_parquet_path(family)
+    meta_path = european_passes_meta_path(family)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    season.to_parquet(XP_EUROPEAN_PASSES_PARQUET, index=False)
+    season.to_parquet(parquet_path, index=False)
     meta = {
         "version": XP_MODEL_VERSION,
+        "position_family": family,
         "impact_pass_rule_version": IMPACT_PASS_RULE_VERSION,
         "impact_pass_rule": IMPACT_PASS_RULE_LABEL,
         "reference_global_weight": xse.XP_REFERENCE_GLOBAL_WEIGHT,
@@ -720,33 +748,47 @@ def build_european_league_season_passes(
         "players": int(season["player_id"].nunique()),
         "matches": int(season["event_id"].nunique()) if "event_id" in season.columns else 0,
     }
-    with open(XP_EUROPEAN_META_PATH, "w", encoding="utf-8") as fh:
+    with open(meta_path, "w", encoding="utf-8") as fh:
         json.dump(meta, fh, indent=2)
     return season
 
 
-def load_european_season_passes(*, rebuild: bool = False) -> pd.DataFrame:
-    if rebuild or not XP_EUROPEAN_PASSES_PARQUET.exists():
-        return build_european_league_season_passes(force_artifacts=rebuild)
-    df = pd.read_parquet(XP_EUROPEAN_PASSES_PARQUET)
+def load_european_season_passes(
+    *,
+    position_family: str = "midfielders",
+    rebuild: bool = False,
+) -> pd.DataFrame:
+    family_parquet = european_passes_parquet_path(position_family)
+    family_meta = european_passes_meta_path(position_family)
+    if rebuild or not family_parquet.exists():
+        return build_european_league_season_passes(
+            position_family=position_family,
+            force_artifacts=rebuild,
+        )
+    df = pd.read_parquet(family_parquet)
     if (
         THREAT_COL not in df.columns
         or XP_COL not in df.columns
         or "xp_progress_mult" not in df.columns
         or XP_ACCESSIBILITY_MULT_COL not in df.columns
     ):
-        return build_european_league_season_passes(refit_artifacts=False)
-    if XP_EUROPEAN_META_PATH.exists():
-        with open(XP_EUROPEAN_META_PATH, encoding="utf-8") as fh:
+        return build_european_league_season_passes(
+            position_family=position_family,
+            refit_artifacts=False,
+        )
+    if family_meta.exists():
+        with open(family_meta, encoding="utf-8") as fh:
             meta = json.load(fh)
         if str(meta.get("version", "")) != XP_MODEL_VERSION:
-            # Rescore European parquet only — never refit global Ridge on user load.
-            return build_european_league_season_passes(refit_artifacts=False)
+            return build_european_league_season_passes(
+                position_family=position_family,
+                refit_artifacts=False,
+            )
         if str(meta.get("impact_pass_rule_version", "")) != IMPACT_PASS_RULE_VERSION:
             return _refresh_threat_flags_if_needed(
                 df,
-                XP_EUROPEAN_META_PATH,
-                XP_EUROPEAN_PASSES_PARQUET,
+                family_meta,
+                family_parquet,
             )
     return df
 
@@ -781,18 +823,22 @@ def load_xp_passes_grouped(cache_version: int = XP_DATA_CACHE_VERSION) -> dict[s
     return {str(pid): grp for pid, grp in season.groupby("player_id", sort=False)}
 
 
-@functools.lru_cache(maxsize=4)
-def load_european_league_season_passes(cache_version: int = XP_DATA_CACHE_VERSION) -> pd.DataFrame:
+@functools.lru_cache(maxsize=8)
+def load_european_league_season_passes(
+    position_family: str = "midfielders",
+    cache_version: int = XP_DATA_CACHE_VERSION,
+) -> pd.DataFrame:
     _ = cache_version
-    return load_european_season_passes()
+    return load_european_season_passes(position_family=position_family)
 
 
-@functools.lru_cache(maxsize=4)
+@functools.lru_cache(maxsize=8)
 def load_european_league_xp_passes_grouped(
+    position_family: str = "midfielders",
     cache_version: int = XP_DATA_CACHE_VERSION,
 ) -> dict[str, pd.DataFrame]:
     _ = cache_version
-    season = load_european_league_season_passes()
+    season = load_european_league_season_passes(position_family)
     if season.empty:
         return {}
     return {str(pid): grp for pid, grp in season.groupby("player_id", sort=False)}
@@ -904,13 +950,16 @@ def build_xp_analytics(
 def build_european_league_xp_analytics(
     cache_version: int = XP_DATA_CACHE_VERSION,
     *,
+    position_family: str = "midfielders",
     min_passes: int = 100,
 ) -> tuple[list[dict], list[dict]]:
-    """xP metrics for midfielders in Premier League, Serie A, La Liga, Bundesliga and Ligue 1."""
+    """xP metrics for one European position family across the top five leagues."""
     import xp_stats_engine as xstats
+    from position_families import normalize_position_family
 
     _ = cache_version
-    season = load_european_league_season_passes()
+    family = normalize_position_family(position_family)
+    season = load_european_league_season_passes(family)
     if season.empty:
         return [], []
 
@@ -924,7 +973,10 @@ def build_european_league_xp_analytics(
             .to_dict()
         )
     registry = pe.build_player_registry(season)
-    raw_pass_frame = pe._filter_pass_frame_to_midfielders(pe._load_european_league_pass_frame())
+    raw_pass_frame = pe._filter_pass_frame_by_position_family(
+        pe._load_european_league_pass_frame(),
+        family,
+    )
     ti_v2_progress_cutoffs = xstats.test_impact_v2_attempt_progress_cutoffs(season)
     players: list[dict] = []
     registry_by_id = {str(p["code"]): p for p in registry}
@@ -954,6 +1006,7 @@ def build_european_league_xp_analytics(
             "player_name": player["name"],
             "position": player.get("position", "—"),
             "position_group": pe.rating_position_group(player.get("position")),
+            "position_family": family,
             "team": mins.get("team", str(grp["team"].mode().iloc[0] if "team" in grp.columns and not grp["team"].mode().empty else "—")),
             "minutes": mins.get("minutes"),
             "minutes_pct": mins.get("minutes_pct"),
