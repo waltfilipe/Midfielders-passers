@@ -163,6 +163,7 @@ import midfield_origin as mo
 import nationality_groups as ng
 import player_profiles as pp
 import transfermarkt_profiles as tm
+import european_similarity_engine as esim
 from carries_maps import (
     draw_all_carries_map,
     draw_dribble_map,
@@ -253,6 +254,15 @@ PA_COMPARE_FILTER_NATIONALITY_REGIONS_KEY = "cmp_filter_nationality_regions"
 PA_COMPARE_FILTER_NATIONALITY_COUNTRIES_KEY = "cmp_filter_nationality_countries"
 PA_COMPARE_PLAYER_A_KEY = "cmp_filter_player_a"
 PA_COMPARE_PLAYER_B_KEY = "cmp_filter_player_b"
+PA_SIM_FILTER_LEAGUE_KEY = "sim_filter_league"
+PA_SIM_FILTER_AGE_KEY = "sim_filter_age"
+PA_SIM_FILTER_AGE_SLIDER_KEY = "sim_filter_age_slider"
+PA_SIM_FILTER_FOOT_KEY = "sim_filter_foot"
+PA_SIM_FILTER_VALUE_SLIDER_KEY = "sim_filter_value_slider"
+PA_SIM_FILTER_CONTRACT_YEAR_KEY = "sim_filter_contract_year"
+PA_SIM_FILTER_NATIONALITY_REGIONS_KEY = "sim_filter_nationality_regions"
+PA_SIM_FILTER_NATIONALITY_COUNTRIES_KEY = "sim_filter_nationality_countries"
+PA_SIM_FILTER_PLAYER_KEY = "sim_filter_player"
 PA_VIEW_SCATTER = "scatter"
 PA_VIEW_MAPS = "maps"
 PA_VIEW_LABELS: dict[str, str] = {
@@ -13655,9 +13665,256 @@ def _render_similarity_results_tab(
     )
 
 
+def _similarity_pool_options(
+    all_players: list[dict],
+    progression_by_id: dict[str, dict],
+    *,
+    xp_by_id: dict[str, dict] | None,
+    league: str,
+    age_min: int | None,
+    age_max: int | None,
+    age_slider_min: int,
+    age_slider_max: int,
+    foot: str,
+    value_min_eur: int,
+    value_max_eur: int,
+    contract_year_min: int,
+    contract_year_max: int,
+    allowed_nationalities: set[str] | None,
+) -> list[tuple]:
+    pool = _filter_pa_pool(
+        all_players,
+        progression_by_id,
+        league=league,
+        age_min=age_min,
+        age_max=age_max,
+        age_slider_min=age_slider_min,
+        age_slider_max=age_slider_max,
+        foot=foot,
+        value_min_eur=value_min_eur,
+        value_max_eur=value_max_eur,
+        contract_year_min=contract_year_min,
+        contract_year_max=contract_year_max,
+        allowed_nationalities=allowed_nationalities,
+    )
+    all_codes, all_groups = _all_position_filters()
+    return _player_analysis_options(
+        pool,
+        progression_by_id,
+        position_codes=all_codes,
+        position_groups=all_groups,
+        xp_by_id=xp_by_id,
+        sort_by="xp_pass_rating",
+    )
+
+
+def _render_similarity_filter_header(
+    all_players: list[dict],
+    progression_by_id: dict[str, dict],
+    *,
+    xp_by_id: dict[str, dict] | None,
+) -> tuple[list[tuple], str | None]:
+    with st.container(key="sim_filter_card"):
+        st.markdown(
+            '<div class="pa-filter-head">'
+            '<span class="pa-filter-title">'
+            '<span class="pa-filter-ic"><i class="fa-solid fa-sliders"></i></span>Filtros</span>'
+            '<span class="pa-filter-sub">Refine o grupo de meio-campistas e selecione o jogador '
+            "de referência para ver atletas similares.</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        filters = _render_pool_filter_controls(
+            league_key=PA_SIM_FILTER_LEAGUE_KEY,
+            age_band_key=PA_SIM_FILTER_AGE_KEY,
+            age_slider_key=PA_SIM_FILTER_AGE_SLIDER_KEY,
+            foot_key=PA_SIM_FILTER_FOOT_KEY,
+            value_slider_key=PA_SIM_FILTER_VALUE_SLIDER_KEY,
+            contract_year_key=PA_SIM_FILTER_CONTRACT_YEAR_KEY,
+            nationality_regions_key=PA_SIM_FILTER_NATIONALITY_REGIONS_KEY,
+            nationality_countries_key=PA_SIM_FILTER_NATIONALITY_COUNTRIES_KEY,
+            available_nationalities=_available_nationalities_from_players(all_players),
+            clear_button_key="sim_filter_clear",
+        )
+
+        options = _similarity_pool_options(
+            all_players,
+            progression_by_id,
+            xp_by_id=xp_by_id,
+            **filters,
+        )
+
+        player_id: str | None = None
+        if not options:
+            st.selectbox("Jogador", options=["—"], disabled=True, key="sim_player_empty")
+        else:
+            labels = [opt[3] for opt in options]
+            id_by_label = {opt[3]: opt[0] for opt in options}
+            if st.session_state.get(PA_SIM_FILTER_PLAYER_KEY) not in labels:
+                st.session_state[PA_SIM_FILTER_PLAYER_KEY] = labels[0]
+            selected_label = st.selectbox(
+                "Jogador",
+                options=labels,
+                key=PA_SIM_FILTER_PLAYER_KEY,
+            )
+            player_id = id_by_label.get(selected_label)
+
+    return options, player_id
+
+
+def _similarity_results_dataframe(results: list[dict], *, include_origin: bool = False):
+    import pandas as pd
+
+    rows = []
+    for rank, row in enumerate(results, start=1):
+        entry = {
+            "#": rank,
+            "Sim.": f"{row.get('similarity_pct', 0):.1f}%",
+            "Jogador": row.get("player_name", "—"),
+            "Equipa": row.get("team", "—"),
+            "Valor": row.get("market_value_display", "—"),
+            "xP passe": (
+                f"{float(row['xp_pass_rating']):.2f}"
+                if row.get("xp_pass_rating") is not None
+                else "—"
+            ),
+        }
+        if include_origin:
+            entry["Origem dominante"] = row.get("origin_dominant", "—")
+        rows.append(entry)
+    return pd.DataFrame(rows)
+
+
+def _format_alt_metric_value(label: str, value: float) -> str:
+    if "COE" in label:
+        return f"{value:+.1f}pp"
+    if label in {"xPV / jogo", "xPV / passe"}:
+        return f"{value:.3f}"
+    return f"{value:.2f}"
+
+
+def render_similarity_section(
+    all_players: list[dict],
+    passes_by_player: dict,
+    progression_by_id: dict[str, dict],
+    pass_by_id: dict[str, dict],
+    *,
+    xp_by_id: dict[str, dict] | None = None,
+) -> None:
+    if not all_players:
+        st.info("No players available.")
+        return
+    if not xp_by_id:
+        st.info("xP metrics unavailable for similarity.")
+        return
+
+    st.markdown('<div class="cmp-shell">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="pa-compare-hero cmp-compare-hero">'
+        '<span class="pa-compare-hero-icon"><i class="fa-solid fa-people-arrows"></i></span>'
+        '<span class="pa-compare-hero-text">'
+        '<span class="pa-compare-hero-title">Similaridade</span>'
+        '<span class="pa-compare-hero-sub">Dois modelos independentes: métricas alternativas e heatmap de origem dos passes</span>'
+        "</span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    options, target_id = _render_similarity_filter_header(
+        all_players,
+        progression_by_id,
+        xp_by_id=xp_by_id,
+    )
+    if not options or not target_id:
+        st.info("Nenhum jogador disponível para os filtros selecionados.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    similarity_pool = esim.build_similarity_pool(all_players, xp_by_id, pass_by_id=pass_by_id)
+    target = next(
+        (player for player in similarity_pool if str(player["player_id"]) == str(target_id)),
+        None,
+    )
+    if target is None:
+        st.warning(
+            "O jogador selecionado não está no pool elegível de similaridade "
+            "(precisa de xP profile completo e todas as métricas alternativas)."
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    with st.spinner("A calcular similaridades…"):
+        alt_results = esim.knn_alt_metrics_similarity(
+            target,
+            similarity_pool,
+            top_k=SIMILARITY_TOP_K,
+        )
+        heat_results = esim.heatmap_similarity(
+            target,
+            similarity_pool,
+            passes_by_player,
+            top_k=SIMILARITY_TOP_K,
+        )
+
+    target_name = html.escape(str(target.get("player_name", "—")))
+    target_team = html.escape(str(target.get("team", "—")))
+    target_mv = html.escape(str(target.get("market_value") or "—"))
+    st.markdown(
+        f"**Referência:** {target_name} · {target_team} · {target_mv} · "
+        f"pool de **{len(similarity_pool)}** meio-campistas elegíveis.",
+        unsafe_allow_html=True,
+    )
+
+    metric_bits = [
+        f"{label} {_format_alt_metric_value(label, value)}"
+        for label, value in esim.metric_snapshot(target).items()
+    ]
+    st.caption(" · ".join(metric_bits))
+
+    col_alt, col_heat = st.columns(2, gap="medium")
+    with col_alt:
+        st.markdown("#### Métricas alternativas")
+        st.caption(
+            "k-NN em z-scores: % longos, % progressivos, Impact v2/passe, xPV/passe, "
+            "xPV/jogo, COE e COE long passes."
+        )
+        if alt_results:
+            st.dataframe(
+                _similarity_results_dataframe(alt_results),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("Sem resultados para métricas alternativas.")
+
+    with col_heat:
+        st.markdown("#### Heatmap (origem dos passes)")
+        st.caption("Similaridade de cosseno entre grelhas 8×6 de origem dos passes completados.")
+        if heat_results:
+            st.dataframe(
+                _similarity_results_dataframe(heat_results, include_origin=True),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("Sem dados de heatmap para este jogador.")
+
+    with st.expander("Métricas usadas em cada modelo"):
+        st.markdown("**Métricas alternativas**")
+        st.write(", ".join(label for _, label in esim.ALT_METRICS))
+        st.markdown("**Heatmap**")
+        st.write(
+            f"Grelha {sim.ORIGIN_GRID_COLS}×{sim.ORIGIN_GRID_ROWS} de origem dos passes "
+            "(coordenadas StatsBomb), normalizada e comparada por cosseno."
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def main() -> None:
-    tab_pres, tab_profile, tab_compare, tab_xp_maps = st.tabs(
-        ["Overview", "Player Profile", "Compare", "xP - Maps Analysis"]
+    tab_pres, tab_profile, tab_compare, tab_similarity, tab_xp_maps = st.tabs(
+        ["Overview", "Player Profile", "Compare", "Similarity", "xP - Maps Analysis"]
     )
     with tab_pres:
         render_presentation_tab([], {}, {}, {}, rated=[], xp_players=[])
@@ -13706,6 +13963,27 @@ def main() -> None:
                 cmp_progression_by_id,
                 _cmp_players_by_id,
                 xp_by_id=cmp_xp_by_id,
+            )
+    with tab_similarity:
+        bundle = _european_midfielder_bundle_or_prompt(button_key="load_sim_bundle")
+        if bundle:
+            (
+                sim_players,
+                sim_passes_by_player,
+                sim_progression_by_id,
+                sim_players_by_id,
+                _sim_carries_by_id,
+                _sim_progression_pool,
+                _sim_pool,
+                _sim_carries_pool,
+                sim_xp_by_id,
+            ) = bundle
+            render_similarity_section(
+                sim_players,
+                sim_passes_by_player,
+                sim_progression_by_id,
+                sim_players_by_id,
+                xp_by_id=sim_xp_by_id,
             )
     with tab_xp_maps:
         render_xp_maps_analysis_tab()
