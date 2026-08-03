@@ -453,8 +453,16 @@ XP_PLAYER_MERGE_KEYS: tuple[str, ...] = (
 )
 
 
-def attach_xpass_metrics_to_players(players: list[dict]) -> None:
-    """Merge offline xPass execution metrics into xP player dicts by player_id."""
+def attach_xpass_metrics_to_players(
+    players: list[dict],
+    *,
+    season: pd.DataFrame | None = None,
+) -> None:
+    """Merge xPass execution metrics into xP player dicts by player_id.
+
+    Uses the offline European midfielder JSON when available, then scores any
+    remaining players from the in-memory season pass frame (required for CB/FB/WG).
+    """
     bundle = load_xpass_player_bundle()
     by_id = {str(p["player_id"]): p for p in bundle.get("players", [])}
     for player in players:
@@ -463,4 +471,30 @@ def attach_xpass_metrics_to_players(players: list[dict]) -> None:
             continue
         for key in XP_PLAYER_MERGE_KEYS:
             if src.get(key) is not None:
+                player[key] = src[key]
+
+    if season is None or season.empty:
+        return
+
+    missing = [p for p in players if p.get("xpass_coe_pct") is None]
+    if not missing:
+        return
+
+    missing_ids = {str(p["player_id"]) for p in missing}
+    subset = season[season["player_id"].astype(str).isin(missing_ids)]
+    if subset.empty:
+        return
+
+    scored = attach_xpass_to_passes(subset)
+    minutes_info = pe._minutes_from_passes_frame(scored)
+    computed = {
+        str(row["player_id"]): row
+        for row in aggregate_player_xpass_metrics(scored, minutes_info=minutes_info)
+    }
+    for player in missing:
+        src = computed.get(str(player.get("player_id")))
+        if not src:
+            continue
+        for key in XP_PLAYER_MERGE_KEYS:
+            if player.get(key) is None and src.get(key) is not None:
                 player[key] = src[key]
