@@ -12300,7 +12300,7 @@ def render_compare_section(
 
 @st.cache_data(show_spinner="Carregando mapas de passe…")
 def load_player_analysis_xp_passes(_cache_version: int = XP_DATA_CACHE_VERSION):
-    return xe.load_european_league_xp_passes_grouped(_cache_version)
+    return xe.load_european_league_xp_passes_grouped(cache_version=_cache_version)
 
 
 @st.cache_data(show_spinner="Agregando passes dos meio-campistas…")
@@ -12309,7 +12309,7 @@ def load_midfielder_pass_maps_analysis(
     _xp_cache: int = XP_DATA_CACHE_VERSION,
 ) -> dict:
     """Aggregate destination volume and mean xP for the top-N midfielders by passes."""
-    season = xe.load_european_league_season_passes(_xp_cache)
+    season = xe.load_european_league_season_passes(cache_version=_xp_cache)
     if season is None or season.empty:
         return {
             "count_grid": None,
@@ -12362,7 +12362,7 @@ def load_midfielder_cell_heatmaps(
 ) -> dict:
     """Destination heatmaps (volume and mean xP) for passes leaving each 12x8 cell."""
     _ = _map_cache
-    season = xe.load_european_league_season_passes(_xp_cache)
+    season = xe.load_european_league_season_passes(cache_version=_xp_cache)
     if season is None or season.empty:
         return {}
     completed = season[season["is_won"] & season["has_end"]]
